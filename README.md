@@ -1,6 +1,6 @@
 # Vulkan Development Environment
 
-Set up your environment for developing Vulkan applications
+Set up environment for developing Vulkan applications
 
 - **VS Code** (IDE)
 - **CMake** (Build System)
