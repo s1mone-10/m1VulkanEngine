@@ -1,0 +1,18 @@
+{
+    "configurations": [
+        {
+            "name": "MinGW",
+            "intelliSenseMode": "windows-gcc-x64",
+            "compilerPath": "C:/Program Files/mingw64/bin/g++.exe",
+            "cStandard": "c23",
+            "cppStandard": "c++23",
+            "includePath": [
+                "${default}",
+                "C:/Libraries/glfw-3.4.bin.WIN64/include/**",
+                "C:/Libraries/glm",
+                "C:/Libraries/VulkanSDK/1.4.321.1/Include/**"
+            ]
+        }
+    ],
+    "version": 4
+}
