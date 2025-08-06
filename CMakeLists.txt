@@ -54,6 +54,7 @@ else()
 endif()
 
 file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/src/*.cpp) # Find all .cpp files in the src/ directory and its subdirectories
+include_directories(${PROJECT_SOURCE_DIR}/include)
 
 add_executable(${PROJECT_NAME} ${SOURCES}) # Create an executable target from the collected source files
 
