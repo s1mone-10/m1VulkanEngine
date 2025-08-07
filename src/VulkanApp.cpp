@@ -3,6 +3,7 @@
 #include "VulkanApp.hpp"
 #include <vector>
 #include <cstring>
+#include <iostream>
 
 namespace
 {
@@ -11,7 +12,7 @@ namespace
     };
 
     // enable validationLayers only at debug time
-    const bool enableValidationLayers =
+    bool enableValidationLayers =
 #ifdef NDEBUG
         false;
 #else
@@ -61,6 +62,7 @@ namespace va
     void VulkanApp::initVulkan()
     {
         createInstance();
+        pickPhysicalDevice();
     }
 
     void VulkanApp::mainLoop()
@@ -78,10 +80,11 @@ namespace va
 
     void VulkanApp::createInstance()
     {
-        // if (enableValidationLayers && !checkValidationLayerSupport()) {
-        //     throw std::runtime_error("Validation layers requested, but not available!");
-        // }
-
+        if (enableValidationLayers && !checkValidationLayerSupport())
+        {
+            enableValidationLayers = false; // TODO check why is not available
+            std::cerr << "Validation layers requested, but not available!" << std::endl;
+        }
 
         // technically optional, but it may provide some useful information to the driver in order to optimize the application
         VkApplicationInfo appInfo{};
@@ -117,4 +120,65 @@ namespace va
         }
     }
 
+    void VulkanApp::pickPhysicalDevice()
+    {
+        uint32_t deviceCount = 0;
+        vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+
+        if (deviceCount == 0)
+            throw std::runtime_error("Failed to find GPUs with Vulkan support!");
+
+        std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
+        vkEnumeratePhysicalDevices(instance, &deviceCount, physicalDevices.data());
+
+        for (const auto device : physicalDevices)
+        {
+            if (isDeviceSuitable(device))
+            {
+                physicalDevice = device;
+                return;
+            }
+        }
+
+        throw std::runtime_error("No suitable GPU");
+    }
+
+    bool VulkanApp::isDeviceSuitable(VkPhysicalDevice device)
+    {
+        VkPhysicalDeviceProperties deviceProperties;
+        VkPhysicalDeviceFeatures deviceFeatures;
+        vkGetPhysicalDeviceProperties(device, &deviceProperties);
+        vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+        // eventually check for properties or features
+
+        auto queuefamilyIndices = findQueueFamilies(device);
+
+
+        return queuefamilyIndices.isComplete();
+    }
+
+    QueueFamilyIndices VulkanApp::findQueueFamilies(VkPhysicalDevice device)
+    {
+        QueueFamilyIndices qf;
+
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+        int i = 0;
+        for (const auto &queueFamily : queueFamilies)
+        {
+            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            {
+                qf.graphicsFamily = i;
+            }
+
+            i++;
+        }
+
+        return qf;
+    }
 }
