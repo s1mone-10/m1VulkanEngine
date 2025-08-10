@@ -30,4 +30,13 @@ namespace va
             throw std::runtime_error("failed to create GLFW window!");
         }
     }
+
+    void Window::createSurface(VkInstance instance, VkSurfaceKHR* surface)
+    {
+        if (glfwCreateWindowSurface(instance, glfwWindow, nullptr, surface) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create window surface!");
+        }
+	}
+
 }

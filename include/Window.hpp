@@ -24,6 +24,8 @@ namespace va
             Window& operator=(const Window&) = delete;
 
             bool shouldClose() { return glfwWindowShouldClose(glfwWindow); }
+            void createSurface(VkInstance instance, VkSurfaceKHR* surface);
+            void getFramebufferSize(int* width, int* height) const { glfwGetFramebufferSize(glfwWindow, width, height); }
 
         private:
             void InitWindow();
