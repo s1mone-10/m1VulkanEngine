@@ -34,22 +34,37 @@ namespace va
     private:
         VkInstance instance = VK_NULL_HANDLE;
         VkSurfaceKHR surface = VK_NULL_HANDLE;
+        VkDebugUtilsMessengerEXT debugMessenger;
         VkPhysicalDevice physicalDevice = VK_NULL_HANDLE; // implicitly destroyed when the VkInstance is destroyed
         QueueFamilyIndices qfIndices;
         VkDevice device = VK_NULL_HANDLE; // logical device
+        VkQueue graphicsQueue; //Device queues are implicitly cleaned up when the device is destroyed
+        VkQueue presentQueue;
 		VkSwapchainKHR swapChain = VK_NULL_HANDLE;
         std::vector<VkImage> swapChainImages; // automatically cleaned up once the swap chain has been destroyed
         std::vector<VkImageView> swapChainImageViews;
+        std::vector<VkFramebuffer> swapChainFramebuffers;
         VkFormat swapChainImageFormat;
         VkExtent2D swapChainExtent;
         VkRenderPass renderPass;
 		VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
         VkPipeline graphicsPipeline;
+        VkCommandPool commandPool;
+        VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+
+		// Synchronization objects
+		VkSemaphore imageAvailableSemaphore; // GPU-GPU synchronization
+		VkSemaphore renderFinishedSemaphore; // GPU-GPU synchronization
+		VkFence inFlightFence; // CPU-GPU synchronization
 		
 
         void initVulkan();
         void mainLoop();
         void createInstance();
+        void populateDebugInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+		void createDebugMessenger();
+        bool checkValidationLayerSupport();
+        std::vector<const char*> getRequiredExtensions();
         void pickPhysicalDevice();
         bool isDeviceSuitable(VkPhysicalDevice device);
         bool checkDeviceExtensionSupport(VkPhysicalDevice device);
@@ -64,5 +79,11 @@ namespace va
         void createRenderPass();
         void createGraphicsPipeline();
         VkShaderModule createShaderModule(const std::vector<char>& code);
+		void createFramebuffers();
+        void createCommandPool();
+		void createCommandBuffer();
+        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+        void createSyncObjects();
+		void drawFrame();
     };
 }
