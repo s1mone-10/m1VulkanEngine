@@ -1,6 +1,6 @@
 #version 450
 
-// specify the out location and out variable
+// specify the out location (index of the framebuffer attachment) and out variable
 layout (location = 0) out vec4 outColor;
 
 void main(){

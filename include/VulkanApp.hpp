@@ -42,6 +42,9 @@ namespace va
         std::vector<VkImageView> swapChainImageViews;
         VkFormat swapChainImageFormat;
         VkExtent2D swapChainExtent;
+        VkRenderPass renderPass;
+		VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+        VkPipeline graphicsPipeline;
 		
 
         void initVulkan();
@@ -58,6 +61,8 @@ namespace va
         VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
         VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
         void createImageViews();
+        void createRenderPass();
         void createGraphicsPipeline();
+        VkShaderModule createShaderModule(const std::vector<char>& code);
     };
 }
