@@ -8,6 +8,8 @@
 
 namespace va
 {
+    const int FRAMES_IN_FLIGHT = 2;
+
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
         std::optional<uint32_t> presentFamily;
@@ -50,12 +52,13 @@ namespace va
 		VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
         VkPipeline graphicsPipeline;
         VkCommandPool commandPool;
-        VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+        std::vector<VkCommandBuffer> commandBuffers;
+        uint32_t currentFrame = 0;
 
 		// Synchronization objects
-		VkSemaphore imageAvailableSemaphore; // GPU-GPU synchronization
-		VkSemaphore renderFinishedSemaphore; // GPU-GPU synchronization
-		VkFence inFlightFence; // CPU-GPU synchronization
+		std::vector<VkSemaphore> imageAvailableSemaphores; // GPU-GPU synchronization
+		std::vector<VkSemaphore> renderFinishedSemaphores; // GPU-GPU synchronization
+		std::vector<VkFence> inFlightFences; // CPU-GPU synchronization
 		
 
         void initVulkan();
