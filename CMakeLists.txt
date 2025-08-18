@@ -14,6 +14,7 @@ if (CMAKE_GENERATOR STREQUAL "MinGW Makefiles") # Check if the generator is for 
       message(FATAL_ERROR "MINGW_PATH not set in .env.cmake") # Halt the build if MINGW_PATH is not set
     endif()
     set(USE_MINGW "True") # Set a flag to indicate MinGW is being used
+    set(CMAKE_C_COMPILER ${MINGW_PATH}/bin/gcc.exe) 
     set(CMAKE_CXX_COMPILER  ${MINGW_PATH}/bin/g++.exe) # Explicitly set the C++ compiler for MinGW
 endif()
 
@@ -27,7 +28,7 @@ if (DEFINED VULKAN_SDK_PATH)
 else()
   # If not using a custom path, find the system-installed Vulkan SDK.
   find_package(Vulkan REQUIRED) # throws error if could not find Vulkan
-  message(STATUS "Found Vulkan: $ENV{VULKAN_SDK}") 
+  message(STATUS "Found Vulkan: $ENV{VULKAN_SDK}")
 endif()
 if (NOT Vulkan_FOUND)
 	message(FATAL_ERROR "Could not find Vulkan library!")
@@ -40,7 +41,12 @@ endif()
 if (DEFINED GLFW_PATH)
   message(STATUS "Using GLFW path specified in .env")
   set(GLFW_INCLUDE_DIRS "${GLFW_PATH}/include")
-  set(GLFW_LIB "${GLFW_PATH}/lib-mingw-w64") # 2.1 make sure matches glfw mingw subdirectory
+  if (MSVC)
+    set(GLFW_LIB "${GLFW_PATH}/lib-vc2022") # 2.1 Update lib-vc2022 to use same version as your visual studio
+  elseif (CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
+    message(STATUS "USING MINGW")
+    set(GLFW_LIB "${GLFW_PATH}/lib-mingw-w64") # 2.1 make sure matches glfw mingw subdirectory
+  endif()
 else()
   # If no custom path, use CMake's find_package to locate GLFW 3.3 or newer.
   find_package(glfw3 3.3 REQUIRED)
@@ -54,8 +60,11 @@ else()
 endif()
 
 file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/src/*.cpp) # Find all .cpp files in the src/ directory and its subdirectories
+include_directories(${PROJECT_SOURCE_DIR}/include)
 
 add_executable(${PROJECT_NAME} ${SOURCES}) # Create an executable target from the collected source files
+
+set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/build")
 
 # Set the C++ standard for the target
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -69,10 +78,10 @@ if (WIN32)
   if (USE_MINGW) # If using MinGW on Windows, add its specific paths
     target_include_directories(${PROJECT_NAME} PUBLIC
       ${MINGW_PATH}/include
-  )
+    )
     target_link_directories(${PROJECT_NAME} PUBLIC
       ${MINGW_PATH}/lib
-  )
+    )
   endif()
 
   # Add all necessary include directories
@@ -82,8 +91,8 @@ if (WIN32)
     ${TINYOBJ_PATH}
     ${GLFW_INCLUDE_DIRS}
     ${GLM_PATH}
-  )
-  
+    )
+
   # Add all necessary library directories for the linker
   target_link_directories(${PROJECT_NAME} PUBLIC
     ${Vulkan_LIBRARIES}
