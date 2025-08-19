@@ -4,21 +4,29 @@
 #include <optional>
 #include <vector>
 #include "Window.hpp"
+#include "Instance.hpp"
 
-namespace va {
-
-    struct QueueFamilyIndices {
+namespace va
+{
+    struct QueueFamilyIndices
+    {
         std::optional<uint32_t> graphicsFamily;
         std::optional<uint32_t> presentFamily;
 
         bool isComplete() { return graphicsFamily.has_value() && presentFamily.has_value(); }
     };
 
-    class Instance; // Forward declaration
+    struct SwapChainProperties
+    {
+        VkSurfaceCapabilitiesKHR capabilities;
+        std::vector<VkSurfaceFormatKHR> formats;
+        std::vector<VkPresentModeKHR> presentModes;
+    };
 
-    class Device {
+    class Device
+    {
     public:
-        Device(const Instance& instance, const Window& window);
+        Device(const Window& window);
         ~Device();
 
         // Non-copyable, non-movable
@@ -27,31 +35,34 @@ namespace va {
         Device(Device&&) = delete;
         Device& operator=(Device&&) = delete;
 
-        VkDevice get() const { return _device; }
-        VkPhysicalDevice getPhysicalDevice() const { return _physicalDevice; }
-        QueueFamilyIndices getQueueFamilyIndices() const { return _qfIndices; }
+        VkDevice get() const { return _vkDevice; }
+        QueueFamilyIndices getQueueFamilyIndices() const { return _queueFamilies; }
         VkQueue getGraphicsQueue() const { return _graphicsQueue; }
         VkQueue getPresentQueue() const { return _presentQueue; }
         VkSurfaceKHR getSurface() const { return _surface; }
-
+        SwapChainProperties getSwapChainProperties() const { return getSwapChainProperties(_physicalDevice); };
 
     private:
         void createSurface(const Window& window);
         void pickPhysicalDevice();
         void createLogicalDevice();
+        void pickDeviceQueues();
 
         bool isDeviceSuitable(VkPhysicalDevice device);
         bool checkDeviceExtensionSupport(VkPhysicalDevice device);
         QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
-
-        const Instance& _instance;
-        VkDevice _device = VK_NULL_HANDLE;
+        SwapChainProperties getSwapChainProperties(const VkPhysicalDevice device) const;
+        
+        Instance _instance;
+        VkSurfaceKHR _surface = VK_NULL_HANDLE;
         VkPhysicalDevice _physicalDevice = VK_NULL_HANDLE;
+        VkDevice _vkDevice = VK_NULL_HANDLE;
         VkQueue _graphicsQueue = VK_NULL_HANDLE;
         VkQueue _presentQueue = VK_NULL_HANDLE;
-        VkSurfaceKHR _surface = VK_NULL_HANDLE;
-        QueueFamilyIndices _qfIndices;
+        QueueFamilyIndices _queueFamilies;
 
-        const std::vector<const char*> _deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+        const std::vector<const char*> _requiredExtensions = { 
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME // Not all graphics cards are capable of presenting images
+        }; 
     };
 }

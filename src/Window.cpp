@@ -31,7 +31,7 @@ namespace va
         }
     }
 
-    void Window::createSurface(VkInstance instance, VkSurfaceKHR* surface)
+    void Window::createSurface(VkInstance instance, VkSurfaceKHR* surface) const
     {
         if (glfwCreateWindowSurface(instance, glfwWindow, nullptr, surface) != VK_SUCCESS)
         {

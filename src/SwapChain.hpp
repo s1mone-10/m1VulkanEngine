@@ -3,18 +3,14 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 
-namespace va {
+namespace va
+{
     class Device; // Forward declaration
     class Window;
 
-    class SwapChain {
+    class SwapChain
+    {
     public:
-        struct SwapChainSupportDetails {
-            VkSurfaceCapabilitiesKHR capabilities;
-            std::vector<VkSurfaceFormatKHR> formats;
-            std::vector<VkPresentModeKHR> presentModes;
-        };
-
         SwapChain(const Device& device, const Window& window);
         ~SwapChain();
 
@@ -24,13 +20,11 @@ namespace va {
         SwapChain(SwapChain&&) = delete;
         SwapChain& operator=(SwapChain&&) = delete;
 
-        VkSwapchainKHR get() const { return _swapChain; }
-        VkFormat getImageFormat() const { return _swapChainImageFormat; }
-        VkExtent2D getExtent() const { return _swapChainExtent; }
-        const std::vector<VkImageView>& getImageViews() const { return _swapChainImageViews; }
-        size_t getImageCount() const { return _swapChainImages.size(); }
-
-        static SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
+        VkSwapchainKHR get() const { return _vkSwapChain; }
+        VkFormat getImageFormat() const { return _imageFormat; }
+        VkExtent2D getExtent() const { return _extent; }
+        const std::vector<VkImageView>& getImageViews() const { return _imageViews; }
+        size_t getImageCount() const { return _images.size(); }
 
     private:
         void createSwapChain(const Device& device, const Window& window);
@@ -40,11 +34,11 @@ namespace va {
         VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
         VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, const Window& window);
 
-        VkSwapchainKHR _swapChain = VK_NULL_HANDLE;
-        VkFormat _swapChainImageFormat;
-        VkExtent2D _swapChainExtent;
-        std::vector<VkImage> _swapChainImages;
-        std::vector<VkImageView> _swapChainImageViews;
+        VkSwapchainKHR _vkSwapChain = VK_NULL_HANDLE;
+        VkFormat _imageFormat;
+        VkExtent2D _extent;
+        std::vector<VkImage> _images;
+        std::vector<VkImageView> _imageViews;
 
         const Device& _device;
     };

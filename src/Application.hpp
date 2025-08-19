@@ -10,14 +10,15 @@
 #include <memory>
 #include <vector>
 
-namespace va {
-
+namespace va
+{
     const int FRAMES_IN_FLIGHT = 2;
 
-    class Application {
+    class App
+    {
     public:
-        Application();
-        ~Application();
+        App();
+        ~App();
 
         void run();
 
@@ -29,9 +30,10 @@ namespace va {
         void createSyncObjects();
         void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 
-        Window _window{800, 600, "Vulkan App"};
-        std::unique_ptr<Instance> _instance;
-        std::unique_ptr<Device> _device;
+        const uint32_t  WIDTH = 800;
+        const uint32_t  HEIGHT = 600;
+        Window _window{ WIDTH, HEIGHT, "Vulkan App" };
+        Device _device{_window};
         std::unique_ptr<SwapChain> _swapChain;
         std::unique_ptr<Pipeline> _pipeline;
         VkRenderPass _renderPass;
@@ -40,9 +42,9 @@ namespace va {
 
         uint32_t _currentFrame = 0;
 
-		// Synchronization objects
-		std::vector<VkSemaphore> _imageAvailableSemaphores;
-		std::vector<VkSemaphore> _renderFinishedSemaphores;
-		std::vector<VkFence> _inFlightFences;
+        // Synchronization objects
+        std::vector<VkSemaphore> _imageAvailableSemaphores;
+        std::vector<VkSemaphore> _renderFinishedSemaphores;
+        std::vector<VkFence> _inFlightFences;
     };
 }

@@ -12,7 +12,7 @@
 
 int main()
 {
-    va::Application app;
+    va::App app;
 
     try
     {

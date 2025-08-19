@@ -3,12 +3,12 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 
-namespace va {
-    class Window; // Forward declaration
-
-    class Instance {
+namespace va
+{
+    class Instance
+    {
     public:
-        Instance(const Window& window);
+        Instance();
         ~Instance();
 
         // Non-copyable, non-movable
@@ -17,20 +17,27 @@ namespace va {
         Instance(Instance&&) = delete;
         Instance& operator=(Instance&&) = delete;
 
-        VkInstance get() const { return _instance; }
+        VkInstance get() const { return _vkInstance; }
 
-        static const std::vector<const char*> validationLayers;
-        static bool areValidationLayersEnabled();
+        const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" }; // standard diagnostics layers provided by the Vulkan SDK
+
+        // enable validationLayers only at debug time
+        static const bool enableValidationLayers =
+#ifdef NDEBUG
+            false;
+#else
+            true;
+#endif
 
     private:
-        void createInstance(const Window& window);
+        void createInstance();
         void setupDebugMessenger();
 
         bool checkValidationLayerSupport();
-        std::vector<const char*> getRequiredExtensions(const Window& window);
+        std::vector<const char*> getRequiredExtensions();
         void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 
-        VkInstance _instance = VK_NULL_HANDLE;
+        VkInstance _vkInstance = VK_NULL_HANDLE;
         VkDebugUtilsMessengerEXT _debugMessenger = VK_NULL_HANDLE;
     };
 }
