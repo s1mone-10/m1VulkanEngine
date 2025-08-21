@@ -13,10 +13,17 @@ namespace va
     {
         createSwapChain(device, window);
         createImageViews(device);
+        createRenderPass();
+		createFramebuffers();
     }
 
     SwapChain::~SwapChain()
     {
+        for (auto framebuffer : _framebuffers)
+            vkDestroyFramebuffer(_device.get(), framebuffer, nullptr);
+        
+        vkDestroyRenderPass(_device.get(), _renderPass, nullptr);
+
         for (auto imageView : _imageViews)
             vkDestroyImageView(_device.get(), imageView, nullptr);
 
@@ -174,6 +181,84 @@ namespace va
             actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
 
             return actualExtent;
+        }
+    }
+
+    /// <summary>
+    /// Set information about the framebuffer attachments (images linked to a framebuffer where rendering outputs go)
+    /// </summary>
+    void SwapChain::createRenderPass()
+    {
+        VkAttachmentDescription colorAttachment{};
+        colorAttachment.format = _imageFormat;
+        colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT; // no multisampling
+        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // operation to perform on the attachment before rendering
+        colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE; // operation to perform on the attachment after rendering
+        colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // image to be presented in the swap chain
+
+        VkAttachmentReference colorAttachmentRef{};
+        colorAttachmentRef.attachment = 0;
+        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        // A single render pass can consist of multiple subpasses. For example a sequence of post-processing effects
+        VkSubpassDescription subpass{};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount = 1;
+        //The index of the attachment in this array is directly referenced from the fragment shader with the layout(location = 0) out vec4 outColor directive!
+        subpass.pColorAttachments = &colorAttachmentRef;
+
+        VkSubpassDependency dependency{};
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.srcAccessMask = 0;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+        // render pass info
+        VkRenderPassCreateInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        renderPassInfo.attachmentCount = 1;
+        renderPassInfo.pAttachments = &colorAttachment;
+        renderPassInfo.subpassCount = 1;
+        renderPassInfo.pSubpasses = &subpass;
+        renderPassInfo.dependencyCount = 1;
+        renderPassInfo.pDependencies = &dependency;
+
+        // create the render pass
+        if (vkCreateRenderPass(_device.get(), &renderPassInfo, nullptr, &_renderPass) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create render pass!");
+        }
+    }
+
+    void SwapChain::createFramebuffers()
+    {
+        // The attachments specified during render pass creation are bound by wrapping them into a VkFramebuffer object. 
+        // A framebuffer object references all of the VkImageView objects that represent the attachments
+
+        _framebuffers.resize(getImageCount());
+
+        for (size_t i = 0; i < _framebuffers.size(); i++)
+        {
+            VkImageView attachments[] = { _imageViews[i] };
+
+            VkFramebufferCreateInfo framebufferInfo{};
+            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            framebufferInfo.renderPass = _renderPass;
+            framebufferInfo.attachmentCount = 1;
+            framebufferInfo.pAttachments = attachments; // objects that should be bound to the respective renderPass pAttachment array
+            framebufferInfo.width = _extent.width;
+            framebufferInfo.height = _extent.height;
+            framebufferInfo.layers = 1; // as in the swap chain
+
+            if (vkCreateFramebuffer(_device.get(), &framebufferInfo, nullptr, &_framebuffers[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("failed to create framebuffer!");
+            }
         }
     }
 

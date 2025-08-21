@@ -8,9 +8,9 @@
 namespace va
 {
 
-    Pipeline::Pipeline(const Device& device, VkRenderPass renderPass, const SwapChain& swapChain) : _device(device)
+    Pipeline::Pipeline(const Device& device, const SwapChain& swapChain) : _device(device)
     {
-        createGraphicsPipeline(device, renderPass, swapChain);
+        createGraphicsPipeline(device, swapChain);
     }
 
     Pipeline::~Pipeline()
@@ -43,11 +43,13 @@ namespace va
 
     VkShaderModule Pipeline::createShaderModule(const Device& device, const std::vector<char>& code)
     {
+		// ShaderModule info
         VkShaderModuleCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         createInfo.codeSize = code.size();
         createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
+		// create the ShaderModule
         VkShaderModule shaderModule;
         if (vkCreateShaderModule(device.get(), &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
         {
@@ -57,7 +59,7 @@ namespace va
         return shaderModule;
     }
 
-    void Pipeline::createGraphicsPipeline(const Device& device, VkRenderPass renderPass, const SwapChain& swapChain)
+    void Pipeline::createGraphicsPipeline(const Device& device, const SwapChain& swapChain)
     {
 		// read shaders code // TODO use relative paths
         std::vector<char> vertShaderCode = readFile("C:\\Users\\simon\\source\\repos\\s1mone-10\\VulkanApp\\shaders\\compiled\\simple_vert.spv");
@@ -176,37 +178,39 @@ namespace va
         pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
         pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
+		// crete pipeline layout
         if (vkCreatePipelineLayout(device.get(), &pipelineLayoutInfo, nullptr, &_pipelineLayout) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create pipeline layout!");
         }
 
         // pipeline info: all data configured above
-        VkGraphicsPipelineCreateInfo pipelineInfo{};
-        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        VkGraphicsPipelineCreateInfo pipelineInfo{
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+            
+            // set shader, programmable stage,
+            .stageCount = 2,
+            .pStages = shaderStages,
+            
+            // set structures describing the fixed stage,
+            .pVertexInputState = &vertexInputInfo,
+            .pInputAssemblyState = &inputAssembly,
+            .pViewportState = &viewportState,
+            .pRasterizationState = &rasterizer,
+            .pMultisampleState = &multisampling,
+            .pDepthStencilState = nullptr, // Optional
+            .pColorBlendState = &colorBlending,
+            .pDynamicState = &dynamicState,
+            
+            // set layout and render pas,
+            .layout = _pipelineLayout,
+            .renderPass = swapChain.getRenderPass(),
+            .subpass = 0,
 
-        // set shader, programmable stages
-        pipelineInfo.stageCount = 2;
-        pipelineInfo.pStages = shaderStages;
-
-        // set structures describing the fixed stages
-        pipelineInfo.pVertexInputState = &vertexInputInfo;
-        pipelineInfo.pInputAssemblyState = &inputAssembly;
-        pipelineInfo.pViewportState = &viewportState;
-        pipelineInfo.pRasterizationState = &rasterizer;
-        pipelineInfo.pMultisampleState = &multisampling;
-        pipelineInfo.pDepthStencilState = nullptr; // Optional
-        pipelineInfo.pColorBlendState = &colorBlending;
-        pipelineInfo.pDynamicState = &dynamicState;
-
-        // set layout and render pass
-        pipelineInfo.layout = _pipelineLayout;
-        pipelineInfo.renderPass = renderPass;
-        pipelineInfo.subpass = 0;
-
-        // optional. Vulkan allows you to create a new graphics pipeline by deriving from an existing pipeline
-        pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
-        pipelineInfo.basePipelineIndex = -1; // Optional
+            // optional. Vulkan allows you to create a new graphics pipeline by deriving from an existing pipeline
+            .basePipelineHandle = VK_NULL_HANDLE, // Optional
+            .basePipelineIndex = -1 // Optional
+        };
 
         // create the graphics pipeline
         if (vkCreateGraphicsPipelines(device.get(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &_graphicsPipeline) != VK_SUCCESS)

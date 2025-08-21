@@ -10,7 +10,7 @@ namespace va {
 
     class Pipeline {
     public:
-        Pipeline(const Device& device, VkRenderPass renderPass, const SwapChain& swapChain);
+        Pipeline(const Device& device, const SwapChain& swapChain);
         ~Pipeline();
 
         // Non-copyable, non-movable
@@ -23,7 +23,7 @@ namespace va {
         VkPipelineLayout getLayout() const { return _pipelineLayout; }
 
     private:
-        void createGraphicsPipeline(const Device& device, VkRenderPass renderPass, const SwapChain& swapChain);
+        void createGraphicsPipeline(const Device& device, const SwapChain& swapChain);
 
         static std::vector<char> readFile(const std::string& filename);
         VkShaderModule createShaderModule(const Device& device, const std::vector<char>& code);

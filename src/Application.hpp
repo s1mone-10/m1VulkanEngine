@@ -25,8 +25,6 @@ namespace va
     private:
         void mainLoop();
         void drawFrame();
-        void createRenderPass();
-        void createFramebuffers();
         void createSyncObjects();
         void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 
@@ -36,9 +34,7 @@ namespace va
         Device _device{_window};
         std::unique_ptr<SwapChain> _swapChain;
         std::unique_ptr<Pipeline> _pipeline;
-        VkRenderPass _renderPass;
         std::unique_ptr<Command> _command;
-        std::vector<VkFramebuffer> _swapChainFramebuffers;
 
         uint32_t _currentFrame = 0;
 
