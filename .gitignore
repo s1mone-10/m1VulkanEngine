@@ -1,3 +1,4 @@
-build
+out
 shaders/compiled
 .vs
+/CMakeSettings.json
