@@ -26,8 +26,10 @@ namespace va
             bool shouldClose() { return glfwWindowShouldClose(glfwWindow); }
             void createSurface(VkInstance instance, VkSurfaceKHR* surface) const;
             void getFramebufferSize(int* width, int* height) const { glfwGetFramebufferSize(glfwWindow, width, height); }
+            bool FramebufferResized = false;
+			bool IsMinimized = false;
 
         private:
-            void InitWindow();
+            void InitWindow();           
     };
 }

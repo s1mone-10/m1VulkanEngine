@@ -11,7 +11,7 @@ Command::Command(const Device& device, int framesInFlight) : _device(device), _f
 }
 
 Command::~Command() {
-    vkDestroyCommandPool(_device.get(), _commandPool, nullptr);
+    vkDestroyCommandPool(_device.getVkDevice(), _commandPool, nullptr);
     std::cout << "Command pool destroyed" << std::endl;
 }
 
@@ -23,7 +23,7 @@ void Command::createCommandPool() {
     poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-    if (vkCreateCommandPool(_device.get(), &poolInfo, nullptr, &_commandPool) != VK_SUCCESS) {
+    if (vkCreateCommandPool(_device.getVkDevice(), &poolInfo, nullptr, &_commandPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create command pool!");
     }
 }
@@ -37,7 +37,7 @@ void Command::createCommandBuffers() {
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = (uint32_t)_commandBuffers.size();
 
-    if (vkAllocateCommandBuffers(_device.get(), &allocInfo, _commandBuffers.data()) != VK_SUCCESS) {
+    if (vkAllocateCommandBuffers(_device.getVkDevice(), &allocInfo, _commandBuffers.data()) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate command buffers!");
     }
 }

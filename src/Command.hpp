@@ -17,7 +17,7 @@ namespace va {
         Command(Command&&) = delete;
         Command& operator=(Command&&) = delete;
 
-        VkCommandPool getCommandPool() const { return _commandPool; }
+        VkCommandPool getVkCommandPool() const { return _commandPool; }
         const std::vector<VkCommandBuffer>& getCommandBuffers() const { return _commandBuffers; }
 
     private:

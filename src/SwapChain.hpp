@@ -11,7 +11,7 @@ namespace va
     class SwapChain
     {
     public:
-        SwapChain(const Device& device, const Window& window);
+        SwapChain(const Device& device, const Window& window, VkSwapchainKHR oldSwapChain = VK_NULL_HANDLE);
         ~SwapChain();
 
         // Non-copyable, non-movable
@@ -20,7 +20,7 @@ namespace va
         SwapChain(SwapChain&&) = delete;
         SwapChain& operator=(SwapChain&&) = delete;
 
-        VkSwapchainKHR get() const { return _vkSwapChain; }
+        VkSwapchainKHR getVkSwapChain() const { return _vkSwapChain; }
         VkFormat getImageFormat() const { return _imageFormat; }
         VkExtent2D getExtent() const { return _extent; }
         const std::vector<VkImageView>& getImageViews() const { return _imageViews; }
@@ -29,7 +29,7 @@ namespace va
         VkFramebuffer getFrameBuffer(int index) { return _framebuffers[index]; }
 
     private:
-        void createSwapChain(const Device& device, const Window& window);
+        void createSwapChain(const Device& device, const Window& window, VkSwapchainKHR oldSpawChain);
         void createImageViews(const Device& device);
         void createRenderPass();
         void createFramebuffers();

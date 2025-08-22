@@ -17,7 +17,7 @@ namespace va
         Instance(Instance&&) = delete;
         Instance& operator=(Instance&&) = delete;
 
-        VkInstance get() const { return _vkInstance; }
+        VkInstance getVkInstance() const { return _vkInstance; }
 
         const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" }; // standard diagnostics layers provided by the Vulkan SDK
 

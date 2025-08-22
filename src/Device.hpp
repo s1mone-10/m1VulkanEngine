@@ -35,7 +35,7 @@ namespace va
         Device(Device&&) = delete;
         Device& operator=(Device&&) = delete;
 
-        VkDevice get() const { return _vkDevice; }
+        VkDevice getVkDevice() const { return _vkDevice; }
         QueueFamilyIndices getQueueFamilyIndices() const { return _queueFamilies; }
         VkQueue getGraphicsQueue() const { return _graphicsQueue; }
         VkQueue getPresentQueue() const { return _presentQueue; }

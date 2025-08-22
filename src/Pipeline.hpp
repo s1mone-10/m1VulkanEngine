@@ -19,7 +19,7 @@ namespace va {
         Pipeline(Pipeline&&) = delete;
         Pipeline& operator=(Pipeline&&) = delete;
 
-        VkPipeline get() const { return _graphicsPipeline; }
+        VkPipeline getVkPipeline() const { return _graphicsPipeline; }
         VkPipelineLayout getLayout() const { return _pipelineLayout; }
 
     private:

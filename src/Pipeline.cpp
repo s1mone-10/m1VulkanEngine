@@ -15,8 +15,8 @@ namespace va
 
     Pipeline::~Pipeline()
     {
-        vkDestroyPipeline(_device.get(), _graphicsPipeline, nullptr);
-        vkDestroyPipelineLayout(_device.get(), _pipelineLayout, nullptr);
+        vkDestroyPipeline(_device.getVkDevice(), _graphicsPipeline, nullptr);
+        vkDestroyPipelineLayout(_device.getVkDevice(), _pipelineLayout, nullptr);
         std::cout << "Pipeline destroyed" << std::endl;
     }
 
@@ -51,7 +51,7 @@ namespace va
 
 		// create the ShaderModule
         VkShaderModule shaderModule;
-        if (vkCreateShaderModule(device.get(), &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+        if (vkCreateShaderModule(device.getVkDevice(), &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create shader module!");
         }
@@ -179,7 +179,7 @@ namespace va
         pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
 		// crete pipeline layout
-        if (vkCreatePipelineLayout(device.get(), &pipelineLayoutInfo, nullptr, &_pipelineLayout) != VK_SUCCESS)
+        if (vkCreatePipelineLayout(device.getVkDevice(), &pipelineLayoutInfo, nullptr, &_pipelineLayout) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create pipeline layout!");
         }
@@ -213,13 +213,13 @@ namespace va
         };
 
         // create the graphics pipeline
-        if (vkCreateGraphicsPipelines(device.get(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &_graphicsPipeline) != VK_SUCCESS)
+        if (vkCreateGraphicsPipelines(device.getVkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &_graphicsPipeline) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create graphics pipeline!");
         }
 
-        vkDestroyShaderModule(device.get(), fragShaderModule, nullptr);
-        vkDestroyShaderModule(device.get(), vertShaderModule, nullptr);
+        vkDestroyShaderModule(device.getVkDevice(), fragShaderModule, nullptr);
+        vkDestroyShaderModule(device.getVkDevice(), vertShaderModule, nullptr);
     }
 
 } // namespace va

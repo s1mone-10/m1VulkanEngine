@@ -8,7 +8,7 @@ namespace va
 
     App::App()
     {
-        _swapChain = std::make_unique<SwapChain>(_device, _window);
+        recreateSwapChain();
         _pipeline = std::make_unique<Pipeline>(_device, *_swapChain);
         _command = std::make_unique<Command>(_device, FRAMES_IN_FLIGHT);
         createSyncObjects();
@@ -17,13 +17,13 @@ namespace va
     App::~App()
     {
         // wait for the GPU to finish all operations before destroying the resources
-        vkDeviceWaitIdle(_device.get());
+        vkDeviceWaitIdle(_device.getVkDevice());
 
         for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
         {
-            vkDestroySemaphore(_device.get(), _renderFinishedSemaphores[i], nullptr);
-            vkDestroySemaphore(_device.get(), _imageAvailableSemaphores[i], nullptr);
-            vkDestroyFence(_device.get(), _inFlightFences[i], nullptr);
+            vkDestroySemaphore(_device.getVkDevice(), _renderFinishedSemaphores[i], nullptr);
+            vkDestroySemaphore(_device.getVkDevice(), _imageAvailableSemaphores[i], nullptr);
+            vkDestroyFence(_device.getVkDevice(), _inFlightFences[i], nullptr);
         }
 
         std::cout << "App destroyed" << std::endl;
@@ -56,12 +56,25 @@ namespace va
         */
 
         // wait for the previous frame to finish
-        vkWaitForFences(_device.get(), 1, &_inFlightFences[_currentFrame], VK_TRUE, UINT64_MAX);
-        vkResetFences(_device.get(), 1, &_inFlightFences[_currentFrame]);
+        vkWaitForFences(_device.getVkDevice(), 1, &_inFlightFences[_currentFrame], VK_TRUE, UINT64_MAX);
 
         // acquire an image from the swap chain
         uint32_t imageIndex;
-        vkAcquireNextImageKHR(_device.get(), _swapChain->get(), UINT64_MAX, _imageAvailableSemaphores[_currentFrame], VK_NULL_HANDLE, &imageIndex);
+        auto result = vkAcquireNextImageKHR(_device.getVkDevice(), _swapChain->getVkSwapChain(), UINT64_MAX, _imageAvailableSemaphores[_currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+		if (result == VK_ERROR_OUT_OF_DATE_KHR) // swap chain is no longer compatible with the surface (e.g. window resized)
+        {
+            recreateSwapChain();
+            return;
+        }
+        else if (result != VK_SUCCESS && 
+			result != VK_SUBOPTIMAL_KHR) // swap chain no longer matches the surface properties exactly, but can still be used to present to the surface successfully
+        {
+            throw std::runtime_error("failed to acquire swap chain image!");
+        }
+
+		// reset the fence to unsignaled state
+        vkResetFences(_device.getVkDevice(), 1, &_inFlightFences[_currentFrame]);
 
         // record the command buffer
         vkResetCommandBuffer(_command->getCommandBuffers()[_currentFrame], 0);
@@ -94,12 +107,21 @@ namespace va
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pWaitSemaphores = signalSemaphores;
 
-        VkSwapchainKHR swapChains[] = { _swapChain->get() };
+        VkSwapchainKHR swapChains[] = { _swapChain->getVkSwapChain() };
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &imageIndex;
 
-        vkQueuePresentKHR(_device.getPresentQueue(), &presentInfo);
+        result = vkQueuePresentKHR(_device.getPresentQueue(), &presentInfo);
+
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || _window.FramebufferResized)
+        {
+            recreateSwapChain();
+        }
+        else if (result != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to present swap chain image!");
+        }
 
         _currentFrame = (_currentFrame + 1) % FRAMES_IN_FLIGHT;
     }
@@ -119,9 +141,9 @@ namespace va
 
         for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
         {
-            if (vkCreateSemaphore(_device.get(), &semaphoreInfo, nullptr, &_imageAvailableSemaphores[i]) != VK_SUCCESS ||
-                vkCreateSemaphore(_device.get(), &semaphoreInfo, nullptr, &_renderFinishedSemaphores[i]) != VK_SUCCESS ||
-                vkCreateFence(_device.get(), &fenceInfo, nullptr, &_inFlightFences[i]) != VK_SUCCESS)
+            if (vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_imageAvailableSemaphores[i]) != VK_SUCCESS ||
+                vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_renderFinishedSemaphores[i]) != VK_SUCCESS ||
+                vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &_inFlightFences[i]) != VK_SUCCESS)
             {
                 throw std::runtime_error("failed to create synchronization objects for a frame!");
             }
@@ -156,7 +178,7 @@ namespace va
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
         // bind the graphics pipeline
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline->get());
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline->getVkPipeline());
 
         // set viewport
         VkViewport viewport{};
@@ -190,6 +212,31 @@ namespace va
         if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to record command buffer!");
+        }
+    }
+
+    void App::recreateSwapChain()
+    {
+        while (_window.IsMinimized)
+            glfwWaitEvents();
+
+		vkDeviceWaitIdle(_device.getVkDevice());
+
+        if (_swapChain == nullptr)
+        {
+            _swapChain = std::make_unique<SwapChain>(_device, _window);
+        }
+        else
+        {
+            std::unique_ptr<SwapChain> oldSwapChain = std::move(_swapChain);
+            _swapChain = std::make_unique<SwapChain>(_device, _window, oldSwapChain->getVkSwapChain());
+
+            /*if (!oldSwapChain->compareSwapFormats(*lveSwapChain.getVkSwapChain()))
+            {
+                throw std::runtime_error("Swap chain image(or depth) format has changed!");
+            }*/
+
+			_window.FramebufferResized = false;
         }
     }
 

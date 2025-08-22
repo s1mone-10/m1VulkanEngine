@@ -21,25 +21,25 @@ namespace va
 		// physical device is implicitly destroyed when the VkInstance is destroyed
         // Device queues are implicitly destroyed when the device is destroyed
         vkDestroyDevice(_vkDevice, nullptr);
-        vkDestroySurfaceKHR(_instance.get(), _surface, nullptr);
+        vkDestroySurfaceKHR(_instance.getVkInstance(), _surface, nullptr);
         std::cout << "Device destroyed" << std::endl;
     }
 
     void Device::createSurface(const Window& window)
     {
-        window.createSurface(_instance.get(), &_surface);
+        window.createSurface(_instance.getVkInstance(), &_surface);
     }
 
     void Device::pickPhysicalDevice()
     {
         uint32_t deviceCount = 0;
-        vkEnumeratePhysicalDevices(_instance.get(), &deviceCount, nullptr);
+        vkEnumeratePhysicalDevices(_instance.getVkInstance(), &deviceCount, nullptr);
 
         if (deviceCount == 0)
             throw std::runtime_error("Failed to find GPUs with Vulkan support!");
         
         std::vector<VkPhysicalDevice> devices(deviceCount);
-        vkEnumeratePhysicalDevices(_instance.get(), &deviceCount, devices.data());
+        vkEnumeratePhysicalDevices(_instance.getVkInstance(), &deviceCount, devices.data());
 
         // TODO: Instead of just checking if a device is suitable, gives each device a score and pick the highest one
 

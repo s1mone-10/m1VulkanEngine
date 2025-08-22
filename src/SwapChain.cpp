@@ -8,10 +8,9 @@
 
 namespace va
 {
-
-    SwapChain::SwapChain(const Device& device, const Window& window) : _device(device)
+    SwapChain::SwapChain(const Device& device, const Window& window, VkSwapchainKHR oldSwapChain) : _device(device)
     {
-        createSwapChain(device, window);
+        createSwapChain(device, window, oldSwapChain);
         createImageViews(device);
         createRenderPass();
 		createFramebuffers();
@@ -20,19 +19,19 @@ namespace va
     SwapChain::~SwapChain()
     {
         for (auto framebuffer : _framebuffers)
-            vkDestroyFramebuffer(_device.get(), framebuffer, nullptr);
+            vkDestroyFramebuffer(_device.getVkDevice(), framebuffer, nullptr);
         
-        vkDestroyRenderPass(_device.get(), _renderPass, nullptr);
+        vkDestroyRenderPass(_device.getVkDevice(), _renderPass, nullptr);
 
         for (auto imageView : _imageViews)
-            vkDestroyImageView(_device.get(), imageView, nullptr);
+            vkDestroyImageView(_device.getVkDevice(), imageView, nullptr);
 
         // _images are automatically cleaned up once the swap chain has been destroyed
-        vkDestroySwapchainKHR(_device.get(), _vkSwapChain, nullptr);
+        vkDestroySwapchainKHR(_device.getVkDevice(), _vkSwapChain, nullptr);
         std::cout << "SwapChain destroyed" << std::endl;
     }
 
-    void SwapChain::createSwapChain(const Device& device, const Window& window)
+    void SwapChain::createSwapChain(const Device& device, const Window& window, VkSwapchainKHR oldSwapChain = VK_NULL_HANDLE)
     {
         SwapChainProperties swapChainProperties = device.getSwapChainProperties();
 
@@ -66,7 +65,7 @@ namespace va
         createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // no blending with other windows
         createInfo.presentMode = presentMode;
         createInfo.clipped = VK_TRUE; // don't care about pixels that are not visible to the user, for example because another window is in front of them
-        createInfo.oldSwapchain = VK_NULL_HANDLE; // Optional, used for recreating the swap chain
+        createInfo.oldSwapchain = oldSwapChain; // existing non-retired swapchain currently associated with surface. May aid in the resource reuse.
 
         QueueFamilyIndices indices = device.getQueueFamilyIndices();
         uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
@@ -86,15 +85,15 @@ namespace va
         }
 
         // create SwapChain
-        if (vkCreateSwapchainKHR(device.get(), &createInfo, nullptr, &_vkSwapChain) != VK_SUCCESS)
+        if (vkCreateSwapchainKHR(device.getVkDevice(), &createInfo, nullptr, &_vkSwapChain) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create swap chain!");
         }
 
-        // get images from the swap chain
-        vkGetSwapchainImagesKHR(device.get(), _vkSwapChain, &imageCount, nullptr);
+        // getVkSwapChain images from the swap chain
+        vkGetSwapchainImagesKHR(device.getVkDevice(), _vkSwapChain, &imageCount, nullptr);
         _images.resize(imageCount);
-        vkGetSwapchainImagesKHR(device.get(), _vkSwapChain, &imageCount, _images.data());
+        vkGetSwapchainImagesKHR(device.getVkDevice(), _vkSwapChain, &imageCount, _images.data());
     }
 
     void SwapChain::createImageViews(const Device& device)
@@ -127,7 +126,7 @@ namespace va
             }
 
 			// create the ImageView
-            if (vkCreateImageView(device.get(), &viewInfo, nullptr, &_imageViews[i]) != VK_SUCCESS)
+            if (vkCreateImageView(device.getVkDevice(), &viewInfo, nullptr, &_imageViews[i]) != VK_SUCCESS)
             {
                 throw std::runtime_error("failed to create image views!");
             }
@@ -229,7 +228,7 @@ namespace va
         renderPassInfo.pDependencies = &dependency;
 
         // create the render pass
-        if (vkCreateRenderPass(_device.get(), &renderPassInfo, nullptr, &_renderPass) != VK_SUCCESS)
+        if (vkCreateRenderPass(_device.getVkDevice(), &renderPassInfo, nullptr, &_renderPass) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create render pass!");
         }
@@ -255,7 +254,7 @@ namespace va
             framebufferInfo.height = _extent.height;
             framebufferInfo.layers = 1; // as in the swap chain
 
-            if (vkCreateFramebuffer(_device.get(), &framebufferInfo, nullptr, &_framebuffers[i]) != VK_SUCCESS)
+            if (vkCreateFramebuffer(_device.getVkDevice(), &framebufferInfo, nullptr, &_framebuffers[i]) != VK_SUCCESS)
             {
                 throw std::runtime_error("failed to create framebuffer!");
             }

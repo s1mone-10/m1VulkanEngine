@@ -27,6 +27,7 @@ namespace va
         void drawFrame();
         void createSyncObjects();
         void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+		void recreateSwapChain();
 
         const uint32_t  WIDTH = 800;
         const uint32_t  HEIGHT = 600;
