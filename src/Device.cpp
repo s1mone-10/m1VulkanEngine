@@ -25,6 +25,13 @@ namespace va
         std::cout << "Device destroyed" << std::endl;
     }
 
+    VkPhysicalDeviceMemoryProperties Device::getMemoryProperties() const
+    {
+        VkPhysicalDeviceMemoryProperties memProperties;
+        vkGetPhysicalDeviceMemoryProperties(_physicalDevice, &memProperties);
+        return memProperties;
+    }
+
     void Device::createSurface(const Window& window)
     {
         window.createSurface(_instance.getVkInstance(), &_surface);

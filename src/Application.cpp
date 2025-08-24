@@ -11,6 +11,8 @@ namespace va
         recreateSwapChain();
         _pipeline = std::make_unique<Pipeline>(_device, *_swapChain);
         _command = std::make_unique<Command>(_device, FRAMES_IN_FLIGHT);
+        createVertexBuffer(mesh.Vertices);
+        createIndexxBuffer(mesh.Indices);
         createSyncObjects();
     }
 
@@ -196,14 +198,16 @@ namespace va
         scissor.extent = _swapChain->getExtent();
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
+        // bind the vertex buffer
+        VkBuffer vertexBuffers[] = { _vertexBuffer->getVkBuffer() };
+        VkDeviceSize offsets[] = { 0 };
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
+        // bind the index buffer
+        vkCmdBindIndexBuffer(commandBuffer, _indexBuffer->getVkBuffer(), 0, VK_INDEX_TYPE_UINT16);
+
         // draw command
-        /*
-            vertexCount: Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
-            instanceCount: Used for instanced rendering, use 1 if you're not doing that.
-            firstVertex: Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
-            firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-        */
-        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.Indices.size()), 1, 0, 0, 0);
 
         // end render pass
         vkCmdEndRenderPass(commandBuffer);
@@ -238,6 +242,80 @@ namespace va
 
 			_window.FramebufferResized = false;
         }
+    }
+
+    void App::createVertexBuffer(const std::vector<Vertex>& vertices)
+    {
+        VkDeviceSize size = sizeof(vertices[0]) * vertices.size();
+
+        // Create a staging buffer accessible to CPU to upload the vertex data
+        Buffer stagingBuffer{ _device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
+        
+        // Copy vertex data to the staging buffer
+        stagingBuffer.copyDataToBuffer((void*)vertices.data(), size);
+
+        // Create the actual vertex buffer with device local memory for better performance
+        _vertexBuffer = std::make_unique<Buffer>(_device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        copyBuffer(stagingBuffer, *_vertexBuffer, size);
+    }
+
+    void App::createIndexxBuffer(const std::vector<uint16_t>& indices)
+    {
+        VkDeviceSize size = sizeof(indices[0]) * indices.size();
+
+        // Create a staging buffer accessible to CPU to upload the vertex data
+        Buffer stagingBuffer{ _device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
+
+        // Copy indices data to the staging buffer
+        stagingBuffer.copyDataToBuffer((void*)indices.data(), size);
+
+        // Create the actual index buffer with device local memory for better performance
+        _indexBuffer = std::make_unique<Buffer>(_device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        copyBuffer(stagingBuffer, *_indexBuffer, size);
+    }
+
+    void App::copyBuffer(const Buffer& srcBuffer, const Buffer& dstBuffer, VkDeviceSize size)
+    {
+        // Memory transfer operations are executed using command buffers.
+        // TODO: create a separate command pool with VK_COMMAND_POOL_CREATE_TRANSIENT_BIT flag to memory allocation optimizations
+
+        // Create the command buffer
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandPool = _command->getVkCommandPool();
+        allocInfo.commandBufferCount = 1;
+        VkCommandBuffer commandBuffer;
+        vkAllocateCommandBuffers(_device.getVkDevice(), &allocInfo, &commandBuffer);
+
+        // Begin recording the command buffer
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+        // Copy buffer
+        VkBufferCopy copyRegion{};
+        copyRegion.srcOffset = 0; // Optional
+        copyRegion.dstOffset = 0; // Optional
+        copyRegion.size = size;
+        vkCmdCopyBuffer(commandBuffer, srcBuffer.getVkBuffer(), dstBuffer.getVkBuffer(), 1, &copyRegion);
+
+        // End recording the command buffer
+        vkEndCommandBuffer(commandBuffer);
+
+        // Submit the command buffer to the graphics queue
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffer;
+        vkQueueSubmit(_device.getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(_device.getGraphicsQueue()); // TODO: use a fence to schedule multiple transfers simultaneously
+
+        // Free the command buffer
+        vkFreeCommandBuffers(_device.getVkDevice(), _command->getVkCommandPool(), 1, &commandBuffer);
     }
 
 } // namespace va
