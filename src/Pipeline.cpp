@@ -62,8 +62,8 @@ namespace va
     void Pipeline::createGraphicsPipeline(const Device& device, const SwapChain& swapChain)
     {
 		// read shaders code // TODO use relative paths
-        std::vector<char> vertShaderCode = readFile("C:\\Users\\simon\\source\\repos\\s1mone-10\\VulkanApp\\shaders\\compiled\\simple_vert.spv");
-        std::vector<char> fragShaderCode = readFile("C:\\Users\\simon\\source\\repos\\s1mone-10\\VulkanApp\\shaders\\compiled\\simple_frag.spv");
+        std::vector<char> vertShaderCode = readFile("..\\..\\..\\shaders\\compiled\\simple.vert.spv");
+        std::vector<char> fragShaderCode = readFile("..\\..\\..\\shaders\\compiled\\simple.frag.spv");
 
         // wrap to shader modules
         VkShaderModule vertShaderModule = createShaderModule(device, vertShaderCode);
