@@ -8,13 +8,11 @@
 
 #include <iostream>
 
-#include "Window.hpp"
-#include "VulkanApp.hpp"
+#include "Application.hpp"
 
 int main()
 {
-
-    va::VulkanApp app;
+    va::App app;
 
     try
     {
@@ -27,6 +25,4 @@ int main()
     }
 
     return EXIT_SUCCESS;
-
-    return 0;
 }
