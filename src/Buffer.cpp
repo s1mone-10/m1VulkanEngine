@@ -1,17 +1,21 @@
 #include "Buffer.hpp"
 #include "Device.hpp"
+#include "log/Log.hpp"
 #include <stdexcept>
+#include <cstring>
 
 namespace va
 {
 	Buffer::Buffer(const Device& device, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) : _device(device)
 	{
+		Log::Get().Info("Creating buffer of size " + std::to_string(size));
 		_size = size;
 		createBuffer(size, usage, properties);
 	}
 
 	Buffer::~Buffer()
 	{
+		Log::Get().Info("Destroying buffer");
 		unmapMemory();
 		vkDestroyBuffer(_device.getVkDevice(), _vkBuffer, nullptr);
 		vkFreeMemory(_device.getVkDevice(), _deviceMemory, nullptr);	
@@ -24,7 +28,10 @@ namespace va
 	{
 		VkResult result = vkMapMemory(_device.getVkDevice(), _deviceMemory, 0, _size, 0, &_mappedMemory);
 		if (result != VK_SUCCESS)
+        {
+            Log::Get().Error("Failed to map buffer memory!");
 			throw std::runtime_error("Failed to map buffer memory!");
+        }
 	}
 
 	/// <summary>
@@ -66,7 +73,10 @@ namespace va
 
 		// Create the buffer
 		if (vkCreateBuffer(_device.getVkDevice(), &bufferInfo, nullptr, &_vkBuffer) != VK_SUCCESS)
+        {
+            Log::Get().Error("failed to create vertex buffer!");
 			throw std::runtime_error("failed to create vertex buffer!");
+        }
 		
 		// Memory Info
 		VkMemoryRequirements memRequirements; 
@@ -79,7 +89,10 @@ namespace va
 
 		// Allocate the memory
 		if (vkAllocateMemory(_device.getVkDevice(), &allocInfo, nullptr, &_deviceMemory) != VK_SUCCESS)
+        {
+            Log::Get().Error("failed to allocate vertex buffer memory!");
 			throw std::runtime_error("failed to allocate vertex buffer memory!");
+        }
 
 		// Bind the buffer with the memory
 		vkBindBufferMemory(_device.getVkDevice(), _vkBuffer, _deviceMemory, 0);
@@ -107,6 +120,7 @@ namespace va
 			}
 		}
 
+        Log::Get().Error("failed to find suitable memory type!");
 		throw std::runtime_error("failed to find suitable memory type!");
 	}
 }

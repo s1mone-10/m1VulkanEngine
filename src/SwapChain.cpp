@@ -1,6 +1,7 @@
 #include "SwapChain.hpp"
 #include "Device.hpp"
 #include "Window.hpp"
+#include "log/Log.hpp"
 #include <stdexcept>
 #include <algorithm>
 #include <limits>
@@ -10,6 +11,7 @@ namespace va
 {
     SwapChain::SwapChain(const Device& device, const Window& window, VkSwapchainKHR oldSwapChain) : _device(device)
     {
+        Log::Get().Info("Creating swap chain");
         createSwapChain(device, window, oldSwapChain);
         createImageViews(device);
         createRenderPass();
@@ -28,11 +30,12 @@ namespace va
 
         // _images are automatically cleaned up once the swap chain has been destroyed
         vkDestroySwapchainKHR(_device.getVkDevice(), _vkSwapChain, nullptr);
-        std::cout << "SwapChain destroyed" << std::endl;
+        Log::Get().Info("SwapChain destroyed");
     }
 
     void SwapChain::createSwapChain(const Device& device, const Window& window, VkSwapchainKHR oldSwapChain = VK_NULL_HANDLE)
     {
+        Log::Get().Info("Creating swap chain implementation");
         SwapChainProperties swapChainProperties = device.getSwapChainProperties();
 
         VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainProperties.formats); // rgb format
@@ -87,6 +90,7 @@ namespace va
         // create SwapChain
         if (vkCreateSwapchainKHR(device.getVkDevice(), &createInfo, nullptr, &_vkSwapChain) != VK_SUCCESS)
         {
+            Log::Get().Error("failed to create swap chain!");
             throw std::runtime_error("failed to create swap chain!");
         }
 
@@ -98,6 +102,7 @@ namespace va
 
     void SwapChain::createImageViews(const Device& device)
     {
+        Log::Get().Info("Creating image views");
         _imageViews.resize(_images.size());
 
         for (size_t i = 0; i < _images.size(); i++)
@@ -128,6 +133,7 @@ namespace va
 			// create the ImageView
             if (vkCreateImageView(device.getVkDevice(), &viewInfo, nullptr, &_imageViews[i]) != VK_SUCCESS)
             {
+                Log::Get().Error("failed to create image views!");
                 throw std::runtime_error("failed to create image views!");
             }
         }
@@ -188,6 +194,7 @@ namespace va
     /// </summary>
     void SwapChain::createRenderPass()
     {
+        Log::Get().Info("Creating render pass");
         VkAttachmentDescription colorAttachment{};
         colorAttachment.format = _imageFormat;
         colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT; // no multisampling
@@ -230,12 +237,14 @@ namespace va
         // create the render pass
         if (vkCreateRenderPass(_device.getVkDevice(), &renderPassInfo, nullptr, &_renderPass) != VK_SUCCESS)
         {
+            Log::Get().Error("failed to create render pass!");
             throw std::runtime_error("failed to create render pass!");
         }
     }
 
     void SwapChain::createFramebuffers()
     {
+        Log::Get().Info("Creating framebuffers");
         // The attachments specified during render pass creation are bound by wrapping them into a VkFramebuffer object. 
         // A framebuffer object references all of the VkImageView objects that represent the attachments
 
@@ -256,6 +265,7 @@ namespace va
 
             if (vkCreateFramebuffer(_device.getVkDevice(), &framebufferInfo, nullptr, &_framebuffers[i]) != VK_SUCCESS)
             {
+                Log::Get().Error("failed to create framebuffer!");
                 throw std::runtime_error("failed to create framebuffer!");
             }
         }

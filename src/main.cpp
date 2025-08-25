@@ -9,9 +9,11 @@
 #include <iostream>
 
 #include "Application.hpp"
+#include "log/Log.hpp"
 
 int main()
 {
+    va::Log::Get().Info("Application starting");
     va::App app;
 
     try
@@ -20,9 +22,10 @@ int main()
     }
     catch (const std::exception &e)
     {
-        std::cerr << e.what() << std::endl;
+        va::Log::Get().Error(e.what());
         return EXIT_FAILURE;
     }
 
+    va::Log::Get().Info("Application finished successfully");
     return EXIT_SUCCESS;
 }
