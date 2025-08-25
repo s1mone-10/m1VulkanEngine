@@ -21,11 +21,15 @@ namespace va
 		Buffer& operator=(Buffer&&) = delete;
 
 		VkBuffer getVkBuffer() const { return _vkBuffer; }
-		void copyDataToBuffer(void* data, VkDeviceSize size);
+		void mapMemory();
+		void unmapMemory();
+		void copyDataToBuffer(void* data);
 
 	private:
 		VkBuffer _vkBuffer;
 		VkDeviceMemory _deviceMemory;
+		void* _mappedMemory = nullptr;
+		VkDeviceSize _size;
 		const Device& _device;
 		void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
 		uint32_t findMemoryTypeIndex(uint32_t typeFilter, VkMemoryPropertyFlags properties);

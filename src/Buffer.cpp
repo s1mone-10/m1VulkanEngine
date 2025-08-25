@@ -6,28 +6,53 @@ namespace va
 {
 	Buffer::Buffer(const Device& device, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) : _device(device)
 	{
+		_size = size;
 		createBuffer(size, usage, properties);
 	}
 
 	Buffer::~Buffer()
 	{
+		unmapMemory();
 		vkDestroyBuffer(_device.getVkDevice(), _vkBuffer, nullptr);
 		vkFreeMemory(_device.getVkDevice(), _deviceMemory, nullptr);	
 	}
 
-	void Buffer::copyDataToBuffer(void* data, VkDeviceSize size)
+	/// <summary>
+	/// Maps the device memory into application address space
+	/// </summary>
+	void Buffer::mapMemory()
 	{
-		// map the GPU memory
-		void* mappedData;
-		VkResult result = vkMapMemory(_device.getVkDevice(), _deviceMemory, 0, size, 0, &mappedData);
+		VkResult result = vkMapMemory(_device.getVkDevice(), _deviceMemory, 0, _size, 0, &_mappedMemory);
 		if (result != VK_SUCCESS)
 			throw std::runtime_error("Failed to map buffer memory!");
+	}
+
+	/// <summary>
+	/// Unmap the device memory
+	/// </summary>
+	void Buffer::unmapMemory()
+	{
+		if (_mappedMemory)
+		{
+			vkUnmapMemory(_device.getVkDevice(), _deviceMemory);
+			_mappedMemory = nullptr;
+		}
+	}
+
+	void Buffer::copyDataToBuffer(void* data)
+	{
+		bool mapped = _mappedMemory != nullptr;
+
+		// map the GPU memory
+		if (!mapped)
+			mapMemory();
 
 		// copy the data
-		memcpy(mappedData, data, (size_t)size);
+		memcpy(_mappedMemory, data, (size_t)_size);
 
 		// unmap the GPU memory
-		vkUnmapMemory(_device.getVkDevice(), _deviceMemory);
+		if (!mapped)
+			unmapMemory();
 	}
 
 	void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)
