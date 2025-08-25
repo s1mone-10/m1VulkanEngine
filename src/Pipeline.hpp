@@ -21,15 +21,17 @@ namespace va {
 
         VkPipeline getVkPipeline() const { return _graphicsPipeline; }
         VkPipelineLayout getLayout() const { return _pipelineLayout; }
+		VkDescriptorSetLayout getDescriptorSetLayout() const { return _descriptorSetLayout; }
 
     private:
-        void createGraphicsPipeline(const Device& device, const SwapChain& swapChain);
-
         static std::vector<char> readFile(const std::string& filename);
         VkShaderModule createShaderModule(const Device& device, const std::vector<char>& code);
+        void createGraphicsPipeline(const Device& device, const SwapChain& swapChain);
+        void createDescriptorSetLayout();
 
         VkPipeline _graphicsPipeline = VK_NULL_HANDLE;
         VkPipelineLayout _pipelineLayout = VK_NULL_HANDLE;
+        VkDescriptorSetLayout _descriptorSetLayout = VK_NULL_HANDLE;
 
         const Device& _device;
     };

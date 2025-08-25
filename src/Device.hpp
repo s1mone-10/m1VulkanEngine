@@ -41,6 +41,7 @@ namespace va
         VkQueue getPresentQueue() const { return _presentQueue; }
         VkSurfaceKHR getSurface() const { return _surface; }
         SwapChainProperties getSwapChainProperties() const { return getSwapChainProperties(_physicalDevice); };
+        VkPhysicalDeviceMemoryProperties getMemoryProperties() const;
 
     private:
         void createSurface(const Window& window);

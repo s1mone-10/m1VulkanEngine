@@ -1,15 +1,44 @@
 #include "Pipeline.hpp"
 #include "Device.hpp"
 #include "SwapChain.hpp"
+#include "geometry/Vertex.hpp"
 #include <stdexcept>
 #include <fstream>
 #include <iostream>
 
 namespace va
 {
+    static VkVertexInputBindingDescription getBindingDescription()
+    {
+        // A vertex binding describes at which rate to load data from memory throughout the vertices
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 0; // the index in the array of bindings
+        bindingDescription.stride = sizeof(Vertex); // number of bytes from one entry to the next
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX; // move to the next data entry after each vertex
+
+        return bindingDescription;
+    }
+
+    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions()
+    {
+        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0; // input location in vertex shaders
+        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+        return attributeDescriptions;
+    };
 
     Pipeline::Pipeline(const Device& device, const SwapChain& swapChain) : _device(device)
     {
+        createDescriptorSetLayout();
         createGraphicsPipeline(device, swapChain);
     }
 
@@ -17,6 +46,7 @@ namespace va
     {
         vkDestroyPipeline(_device.getVkDevice(), _graphicsPipeline, nullptr);
         vkDestroyPipelineLayout(_device.getVkDevice(), _pipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(_device.getVkDevice(), _descriptorSetLayout, nullptr);
         std::cout << "Pipeline destroyed" << std::endl;
     }
 
@@ -107,10 +137,12 @@ namespace va
         // vertex info: describes the format of the vertex data that will be passed to the vertex shader
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vertexInputInfo.vertexBindingDescriptionCount = 0;
-        vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
-        vertexInputInfo.vertexAttributeDescriptionCount = 0;
-        vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
+        vertexInputInfo.vertexBindingDescriptionCount = 1;
+        auto vertexBindingDescription = getBindingDescription();
+        vertexInputInfo.pVertexBindingDescriptions = &vertexBindingDescription;
+        auto attributeDescriptions = getAttributeDescriptions();
+        vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
+        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
         // rasterizer info: how to convert the vertex data into fragments
         VkPipelineRasterizationStateCreateInfo rasterizer{};
@@ -120,7 +152,7 @@ namespace va
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
         rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+		rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; // If the projection matrix includes a Y-flip, the order of the vertices is inverted
         rasterizer.depthBiasEnable = VK_FALSE;
         rasterizer.depthBiasConstantFactor = 0.0f; // Optional
         rasterizer.depthBiasClamp = 0.0f; // Optional
@@ -173,8 +205,8 @@ namespace va
         // layout info: specify dynamic values for shaders
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 0; // Optional
-        pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &_descriptorSetLayout;
         pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
         pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
@@ -220,6 +252,29 @@ namespace va
 
         vkDestroyShaderModule(device.getVkDevice(), fragShaderModule, nullptr);
         vkDestroyShaderModule(device.getVkDevice(), vertShaderModule, nullptr);
+    }
+
+    
+
+    void Pipeline::createDescriptorSetLayout()
+    {
+        // Descriptor binding
+        VkDescriptorSetLayoutBinding uboLayoutBinding{};
+        uboLayoutBinding.binding = 0; // binding number in the shader
+        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBinding.descriptorCount = 1;
+        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
+
+        // DescriptorSet Info
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = 1;
+        layoutInfo.pBindings = &uboLayoutBinding;
+
+        // Create the DescriptorSet
+        if (vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_descriptorSetLayout) != VK_SUCCESS)
+            throw std::runtime_error("failed to create descriptor set layout!");
     }
 
 } // namespace va
