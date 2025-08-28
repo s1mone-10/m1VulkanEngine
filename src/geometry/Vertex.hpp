@@ -5,7 +5,7 @@
 #include <vulkan/vulkan.h>
 #include <array>
 
-namespace va
+namespace m1
 {
 	struct Vertex
 	{

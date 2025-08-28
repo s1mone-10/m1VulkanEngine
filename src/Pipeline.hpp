@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 
-namespace va {
+namespace m1 {
     class Device; // Forward declaration
     class SwapChain; // Forward declaration
 

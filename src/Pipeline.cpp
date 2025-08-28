@@ -6,7 +6,7 @@
 #include <fstream>
 #include <iostream>
 
-namespace va
+namespace m1
 {
     static VkVertexInputBindingDescription getBindingDescription()
     {
@@ -277,4 +277,4 @@ namespace va
             throw std::runtime_error("failed to create descriptor set layout!");
     }
 
-} // namespace va
+} // namespace m1

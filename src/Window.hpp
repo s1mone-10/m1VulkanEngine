@@ -5,7 +5,7 @@
 
 #include <string>
 
-namespace va
+namespace m1
 {
     class Window 
     {

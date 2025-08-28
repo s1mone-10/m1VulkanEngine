@@ -6,7 +6,7 @@
 #include "Window.hpp"
 #include "Instance.hpp"
 
-namespace va
+namespace m1
 {
     struct QueueFamilyIndices
     {

@@ -1,4 +1,4 @@
-#include "Application.hpp"
+#include "Engine.hpp"
 #include <stdexcept>
 #include <iostream>
 #include <vector>
@@ -9,10 +9,10 @@
 
 #include <chrono>
 
-namespace va
+namespace m1
 {
 
-    App::App()
+    Engine::Engine()
     {
         recreateSwapChain();
         _pipeline = std::make_unique<Pipeline>(_device, *_swapChain);
@@ -25,7 +25,7 @@ namespace va
         createSyncObjects();
     }
 
-    App::~App()
+    Engine::~Engine()
     {
         // wait for the GPU to finish all operations before destroying the resources
         vkDeviceWaitIdle(_device.getVkDevice());
@@ -40,15 +40,15 @@ namespace va
 		// descriptor set are automatically freed when the pool is destroyed
         vkDestroyDescriptorPool(_device.getVkDevice(), _descriptorPool, nullptr);
 
-        std::cout << "App destroyed" << std::endl;
+        std::cout << "Engine destroyed" << std::endl;
     }
 
-    void App::run()
+    void Engine::run()
     {
         mainLoop();
     }
 
-    void App::mainLoop()
+    void Engine::mainLoop()
     {
         while (!_window.shouldClose())
         {
@@ -57,7 +57,7 @@ namespace va
         }
     }
 
-    void App::drawFrame()
+    void Engine::drawFrame()
     {
         /*
             At a high level, rendering a frame in Vulkan consists of a common set of steps:
@@ -143,7 +143,7 @@ namespace va
         _currentFrame = (_currentFrame + 1) % FRAMES_IN_FLIGHT;
     }
 
-    void App::updateUniformBuffer(uint32_t currentImage)
+    void Engine::updateUniformBuffer(uint32_t currentImage)
     {
         static auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -161,7 +161,7 @@ namespace va
         _uniformBuffers[currentImage]->copyDataToBuffer(&ubo);
     }
 
-    void App::createSyncObjects()
+    void Engine::createSyncObjects()
     {
         _imageAvailableSemaphores.resize(FRAMES_IN_FLIGHT);
         _renderFinishedSemaphores.resize(FRAMES_IN_FLIGHT);
@@ -185,7 +185,7 @@ namespace va
         }
     }
 
-    void App::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+    void Engine::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
     {
         // it can be execute on separate thread
 
@@ -255,7 +255,7 @@ namespace va
         }
     }
 
-    void App::recreateSwapChain()
+    void Engine::recreateSwapChain()
     {
         while (_window.IsMinimized)
             glfwWaitEvents();
@@ -280,7 +280,7 @@ namespace va
         }
     }
 
-    void App::createVertexBuffer(const std::vector<Vertex>& vertices)
+    void Engine::createVertexBuffer(const std::vector<Vertex>& vertices)
     {
         VkDeviceSize size = sizeof(vertices[0]) * vertices.size();
 
@@ -296,7 +296,7 @@ namespace va
         copyBuffer(stagingBuffer, *_vertexBuffer, size);
     }
 
-    void App::createIndexxBuffer(const std::vector<uint16_t>& indices)
+    void Engine::createIndexxBuffer(const std::vector<uint16_t>& indices)
     {
         VkDeviceSize size = sizeof(indices[0]) * indices.size();
 
@@ -312,7 +312,7 @@ namespace va
         copyBuffer(stagingBuffer, *_indexBuffer, size);
     }
 
-    void App::createUniformBuffers()
+    void Engine::createUniformBuffers()
     {
         VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
@@ -328,7 +328,7 @@ namespace va
         }
     }
 
-    void App::copyBuffer(const Buffer& srcBuffer, const Buffer& dstBuffer, VkDeviceSize size)
+    void Engine::copyBuffer(const Buffer& srcBuffer, const Buffer& dstBuffer, VkDeviceSize size)
     {
         // Memory transfer operations are executed using command buffers.
         // TODO: create a separate command pool with VK_COMMAND_POOL_CREATE_TRANSIENT_BIT flag to memory allocation optimizations
@@ -370,7 +370,7 @@ namespace va
         vkFreeCommandBuffers(_device.getVkDevice(), _command->getVkCommandPool(), 1, &commandBuffer);
     }
 
-    void App::createDescriptorPool()
+    void Engine::createDescriptorPool()
     {
         // DescriptorPool Info
         VkDescriptorPoolCreateInfo poolInfo{};
@@ -389,7 +389,7 @@ namespace va
 
     }
 
-    void App::createDescriptorSets()
+    void Engine::createDescriptorSets()
     {
         // DescriptorSet Info
         std::vector<VkDescriptorSetLayout> layouts(FRAMES_IN_FLIGHT, _pipeline->getDescriptorSetLayout());
@@ -430,4 +430,4 @@ namespace va
         }
     }
 
-} // namespace va
+} // namespace m1

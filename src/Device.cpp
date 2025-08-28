@@ -5,7 +5,7 @@
 #include <set>
 #include <iostream>
 
-namespace va
+namespace m1
 {
 
 	Device::Device(const Window& window)
@@ -224,4 +224,4 @@ namespace va
         }
         return details;
     }
-} // namespace va
+} // namespace m1

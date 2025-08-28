@@ -6,7 +6,7 @@
 #include <limits>
 #include <iostream>
 
-namespace va
+namespace m1
 {
     SwapChain::SwapChain(const Device& device, const Window& window, VkSwapchainKHR oldSwapChain) : _device(device)
     {
@@ -261,4 +261,4 @@ namespace va
         }
     }
 
-} // namespace va
+} // namespace m1

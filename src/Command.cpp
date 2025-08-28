@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <iostream>
 
-namespace va {
+namespace m1 {
 
 Command::Command(const Device& device, int framesInFlight) : _device(device), _framesInFlight(framesInFlight) {
     createCommandPool();
@@ -42,4 +42,4 @@ void Command::createCommandBuffers() {
     }
 }
 
-} // namespace va
+} // namespace m1

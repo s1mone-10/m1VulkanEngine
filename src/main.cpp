@@ -8,11 +8,11 @@
 
 #include <iostream>
 
-#include "Application.hpp"
+#include "Engine.hpp"
 
 int main()
 {
-    va::App app;
+    m1::Engine app;
 
     try
     {

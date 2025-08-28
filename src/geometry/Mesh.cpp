@@ -1,7 +1,7 @@
 #include "Vertex.hpp"
 #include "Mesh.hpp"
 
-namespace va
+namespace m1
 {
 	Mesh::Mesh()
 	{

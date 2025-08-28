@@ -3,7 +3,7 @@
 #include "Vertex.hpp"
 #include <vector>
 
-namespace va 
+namespace m1 
 {
 
 	class Mesh 

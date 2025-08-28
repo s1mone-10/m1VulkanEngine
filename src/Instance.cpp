@@ -4,7 +4,7 @@
 #include <cstring>
 #include <iostream>
 
-namespace va
+namespace m1
 {
 #pragma region Debug
 
@@ -175,4 +175,4 @@ namespace va
         createInfo.pUserData = nullptr; // Optional
     }
 
-} // namespace va
+} // namespace m1

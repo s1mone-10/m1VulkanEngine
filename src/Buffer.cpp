@@ -2,7 +2,7 @@
 #include "Device.hpp"
 #include <stdexcept>
 
-namespace va
+namespace m1
 {
 	Buffer::Buffer(const Device& device, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) : _device(device)
 	{

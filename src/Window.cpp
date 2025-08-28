@@ -4,7 +4,7 @@
 #include <iostream>
 
 
-namespace va
+namespace m1
 {
     void static framebufferResizeCallback(GLFWwindow* window, int width, int height)
     {
