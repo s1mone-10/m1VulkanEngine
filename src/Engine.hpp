@@ -4,6 +4,7 @@
 #include "Instance.hpp"
 #include "Device.hpp"
 #include "SwapChain.hpp"
+#include "Descriptor.hpp"
 #include "Pipeline.hpp"
 #include "Command.hpp"
 #include "Buffer.hpp"
@@ -14,11 +15,11 @@
 
 namespace m1
 {
-    const int FRAMES_IN_FLIGHT = 2;
-
     class Engine
     {
     public:
+        static const int FRAMES_IN_FLIGHT = 2;
+
         Engine();
         ~Engine();
 
@@ -35,8 +36,6 @@ namespace m1
         void createIndexxBuffer(const std::vector<uint16_t>& indices);
 		void createUniformBuffers();
         void copyBuffer(const Buffer& srcBuffer, const Buffer& dstBuffer, VkDeviceSize size);
-        void createDescriptorPool();
-        void createDescriptorSets();
 
         const uint32_t  WIDTH = 800;
         const uint32_t  HEIGHT = 600;
@@ -48,10 +47,8 @@ namespace m1
 		std::unique_ptr<Buffer> _vertexBuffer;
         std::unique_ptr<Buffer> _indexBuffer;
 		std::vector<std::unique_ptr<Buffer>> _uniformBuffers;
-		VkDescriptorPool _descriptorPool;
-        std::vector<VkDescriptorSet> _descriptorSets;
-        
-
+		std::unique_ptr<Descritor> _descriptorManager;
+		
         Mesh mesh{};
         uint32_t _currentFrame = 0;
 

@@ -17,13 +17,13 @@ namespace m1
     {
         Log::Get().Info("App constructor");
         recreateSwapChain();
-        _pipeline = std::make_unique<Pipeline>(_device, *_swapChain);
+		_descriptorManager = std::make_unique<Descritor>(_device);
+        _pipeline = std::make_unique<Pipeline>(_device, *_swapChain, _descriptorManager->getDescriptorSetLayout());
         _command = std::make_unique<Command>(_device, FRAMES_IN_FLIGHT);
         createVertexBuffer(mesh.Vertices);
         createIndexxBuffer(mesh.Indices);
         createUniformBuffers();
-        createDescriptorPool();
-        createDescriptorSets();
+		_descriptorManager->updateDescriotorSets(_uniformBuffers);
         createSyncObjects();
     }
 
@@ -38,10 +38,6 @@ namespace m1
             vkDestroySemaphore(_device.getVkDevice(), _imageAvailableSemaphores[i], nullptr);
             vkDestroyFence(_device.getVkDevice(), _inFlightFences[i], nullptr);
         }
-
-		// descriptor set are automatically freed when the pool is destroyed
-        vkDestroyDescriptorPool(_device.getVkDevice(), _descriptorPool, nullptr);
-
         Log::Get().Info("Engine destroyed");
     }
 
@@ -249,9 +245,9 @@ namespace m1
         // bind the index buffer
         vkCmdBindIndexBuffer(commandBuffer, _indexBuffer->getVkBuffer(), 0, VK_INDEX_TYPE_UINT16);
 
-        // bind the descriptor
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline->getLayout(), 0, 1, &_descriptorSets[_currentFrame], 0, nullptr);
-
+        // bind the descriptor set
+        VkDescriptorSet descriptorSet = _descriptorManager->getDescriptorSet(_currentFrame);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline->getLayout(), 0, 1, &descriptorSet, 0, nullptr);
         // draw command
         vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.Indices.size()), 1, 0, 0, 0);
 
@@ -383,74 +379,6 @@ namespace m1
 
         // Free the command buffer
         vkFreeCommandBuffers(_device.getVkDevice(), _command->getVkCommandPool(), 1, &commandBuffer);
-    }
-
-    void Engine::createDescriptorPool()
-    {
-        Log::Get().Info("Creating descriptor pool");
-        // DescriptorPool Info
-        VkDescriptorPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = 1;
-
-        VkDescriptorPoolSize poolSize{};
-        poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSize.descriptorCount = static_cast<uint32_t>(FRAMES_IN_FLIGHT);
-        poolInfo.pPoolSizes = &poolSize;
-        poolInfo.maxSets = static_cast<uint32_t>(FRAMES_IN_FLIGHT);
-
-        if (vkCreateDescriptorPool(_device.getVkDevice(), &poolInfo, nullptr, &_descriptorPool) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to create descriptor pool!");
-            throw std::runtime_error("failed to create descriptor pool!");
-        }
-
-
-    }
-
-    void Engine::createDescriptorSets()
-    {
-        Log::Get().Info("Creating descriptor sets");
-        // DescriptorSet Info
-        std::vector<VkDescriptorSetLayout> layouts(FRAMES_IN_FLIGHT, _pipeline->getDescriptorSetLayout());
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = _descriptorPool;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(FRAMES_IN_FLIGHT);
-        allocInfo.pSetLayouts = layouts.data();
-
-		// create DescriptorSets
-        _descriptorSets.resize(FRAMES_IN_FLIGHT);
-        if (vkAllocateDescriptorSets(_device.getVkDevice(), &allocInfo, _descriptorSets.data()) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to allocate descriptor sets!");
-            throw std::runtime_error("failed to allocate descriptor sets!");
-        }
-
-		// populate each DescriptorSet
-        for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
-        {
-            // Buffer Info
-            VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = _uniformBuffers[i]->getVkBuffer();
-            bufferInfo.offset = 0;
-            bufferInfo.range = sizeof(UniformBufferObject); // or VK_WHOLE_SIZE 
-
-
-            VkWriteDescriptorSet descriptorWrite{};
-            descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrite.dstSet = _descriptorSets[i];
-            descriptorWrite.dstBinding = 0;
-            descriptorWrite.dstArrayElement = 0;
-            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrite.descriptorCount = 1;
-            // set the struct that actually configure the descriptors
-            descriptorWrite.pBufferInfo = &bufferInfo;
-            descriptorWrite.pImageInfo = nullptr; // Optional
-            descriptorWrite.pTexelBufferView = nullptr; // Optional
-
-            vkUpdateDescriptorSets(_device.getVkDevice(), 1, &descriptorWrite, 0, nullptr);
-        }
     }
 
 } // namespace m1

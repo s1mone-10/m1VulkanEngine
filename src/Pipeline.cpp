@@ -37,18 +37,16 @@ namespace m1
         return attributeDescriptions;
     };
 
-    Pipeline::Pipeline(const Device& device, const SwapChain& swapChain) : _device(device)
+    Pipeline::Pipeline(const Device& device, const SwapChain& swapChain, const VkDescriptorSetLayout descriptorSetLayout) : _device(device)
     {
         Log::Get().Info("Creating pipeline");
-        createDescriptorSetLayout();
-        createGraphicsPipeline(device, swapChain);
+        createGraphicsPipeline(device, swapChain, descriptorSetLayout);
     }
 
     Pipeline::~Pipeline()
     {
         vkDestroyPipeline(_device.getVkDevice(), _graphicsPipeline, nullptr);
         vkDestroyPipelineLayout(_device.getVkDevice(), _pipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(_device.getVkDevice(), _descriptorSetLayout, nullptr);
         Log::Get().Info("Pipeline destroyed");
     }
 
@@ -93,7 +91,7 @@ namespace m1
         return shaderModule;
     }
 
-    void Pipeline::createGraphicsPipeline(const Device& device, const SwapChain& swapChain)
+    void Pipeline::createGraphicsPipeline(const Device& device, const SwapChain& swapChain, const VkDescriptorSetLayout descriptorSetLayout)
     {
         Log::Get().Info("Creating graphics pipeline");
 		// read shaders code // TODO use relative paths
@@ -211,7 +209,7 @@ namespace m1
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &_descriptorSetLayout;
+        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
         pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
         pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
@@ -259,33 +257,6 @@ namespace m1
 
         vkDestroyShaderModule(device.getVkDevice(), fragShaderModule, nullptr);
         vkDestroyShaderModule(device.getVkDevice(), vertShaderModule, nullptr);
-    }
-
-    
-
-    void Pipeline::createDescriptorSetLayout()
-    {
-        Log::Get().Info("Creating descriptor set layout");
-        // Descriptor binding
-        VkDescriptorSetLayoutBinding uboLayoutBinding{};
-        uboLayoutBinding.binding = 0; // binding number in the shader
-        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uboLayoutBinding.descriptorCount = 1;
-        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
-
-        // DescriptorSet Info
-        VkDescriptorSetLayoutCreateInfo layoutInfo{};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = 1;
-        layoutInfo.pBindings = &uboLayoutBinding;
-
-        // Create the DescriptorSet
-        if (vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_descriptorSetLayout) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to create descriptor set layout!");
-            throw std::runtime_error("failed to create descriptor set layout!");
-        }
     }
 
 } // namespace m1
