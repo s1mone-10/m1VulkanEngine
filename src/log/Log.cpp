@@ -1,6 +1,6 @@
 #include "log/Log.hpp"
 
-namespace va {
+namespace m1 {
 
     void Log::Trace(const std::string& message) {
         log(LogLevel::Trace, message);

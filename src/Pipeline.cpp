@@ -7,7 +7,7 @@
 #include <fstream>
 #include <iostream>
 
-namespace va
+namespace m1
 {
     static VkVertexInputBindingDescription getBindingDescription()
     {
@@ -288,4 +288,4 @@ namespace va
         }
     }
 
-} // namespace va
+} // namespace m1

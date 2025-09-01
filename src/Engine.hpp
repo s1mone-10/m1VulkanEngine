@@ -12,15 +12,15 @@
 #include <memory>
 #include <vector>
 
-namespace va
+namespace m1
 {
     const int FRAMES_IN_FLIGHT = 2;
 
-    class App
+    class Engine
     {
     public:
-        App();
-        ~App();
+        Engine();
+        ~Engine();
 
         void run();
 

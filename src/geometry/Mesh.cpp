@@ -2,7 +2,7 @@
 #include "Mesh.hpp"
 #include "../log/Log.hpp"
 
-namespace va
+namespace m1
 {
 	Mesh::Mesh()
 	{

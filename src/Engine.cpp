@@ -1,4 +1,4 @@
-#include "Application.hpp"
+#include "Engine.hpp"
 #include "log/Log.hpp"
 #include <stdexcept>
 #include <iostream>
@@ -10,10 +10,10 @@
 
 #include <chrono>
 
-namespace va
+namespace m1
 {
 
-    App::App()
+    Engine::Engine()
     {
         Log::Get().Info("App constructor");
         recreateSwapChain();
@@ -27,7 +27,7 @@ namespace va
         createSyncObjects();
     }
 
-    App::~App()
+    Engine::~Engine()
     {
         // wait for the GPU to finish all operations before destroying the resources
         vkDeviceWaitIdle(_device.getVkDevice());
@@ -42,15 +42,15 @@ namespace va
 		// descriptor set are automatically freed when the pool is destroyed
         vkDestroyDescriptorPool(_device.getVkDevice(), _descriptorPool, nullptr);
 
-        Log::Get().Info("App destroyed");
+        Log::Get().Info("Engine destroyed");
     }
 
-    void App::run()
+    void Engine::run()
     {
         mainLoop();
     }
 
-    void App::mainLoop()
+    void Engine::mainLoop()
     {
         while (!_window.shouldClose())
         {
@@ -59,7 +59,7 @@ namespace va
         }
     }
 
-    void App::drawFrame()
+    void Engine::drawFrame()
     {
         /*
             At a high level, rendering a frame in Vulkan consists of a common set of steps:
@@ -150,7 +150,7 @@ namespace va
         _currentFrame = (_currentFrame + 1) % FRAMES_IN_FLIGHT;
     }
 
-    void App::updateUniformBuffer(uint32_t currentImage)
+    void Engine::updateUniformBuffer(uint32_t currentImage)
     {
         static auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -168,7 +168,7 @@ namespace va
         _uniformBuffers[currentImage]->copyDataToBuffer(&ubo);
     }
 
-    void App::createSyncObjects()
+    void Engine::createSyncObjects()
     {
         _imageAvailableSemaphores.resize(FRAMES_IN_FLIGHT);
         _renderFinishedSemaphores.resize(FRAMES_IN_FLIGHT);
@@ -194,7 +194,7 @@ namespace va
         Log::Get().Info("Created synchronization objects");
     }
 
-    void App::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+    void Engine::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
     {
         // it can be execute on separate thread
 
@@ -266,7 +266,7 @@ namespace va
         }
     }
 
-    void App::recreateSwapChain()
+    void Engine::recreateSwapChain()
     {
         Log::Get().Info("Recreating swap chain");
         while (_window.IsMinimized)
@@ -292,7 +292,7 @@ namespace va
         }
     }
 
-    void App::createVertexBuffer(const std::vector<Vertex>& vertices)
+    void Engine::createVertexBuffer(const std::vector<Vertex>& vertices)
     {
         Log::Get().Info("Creating vertex buffer");
         VkDeviceSize size = sizeof(vertices[0]) * vertices.size();
@@ -309,7 +309,7 @@ namespace va
         copyBuffer(stagingBuffer, *_vertexBuffer, size);
     }
 
-    void App::createIndexxBuffer(const std::vector<uint16_t>& indices)
+    void Engine::createIndexxBuffer(const std::vector<uint16_t>& indices)
     {
         Log::Get().Info("Creating index buffer");
         VkDeviceSize size = sizeof(indices[0]) * indices.size();
@@ -326,7 +326,7 @@ namespace va
         copyBuffer(stagingBuffer, *_indexBuffer, size);
     }
 
-    void App::createUniformBuffers()
+    void Engine::createUniformBuffers()
     {
         Log::Get().Info("Creating uniform buffers");
         VkDeviceSize bufferSize = sizeof(UniformBufferObject);
@@ -343,7 +343,7 @@ namespace va
         }
     }
 
-    void App::copyBuffer(const Buffer& srcBuffer, const Buffer& dstBuffer, VkDeviceSize size)
+    void Engine::copyBuffer(const Buffer& srcBuffer, const Buffer& dstBuffer, VkDeviceSize size)
     {
         // Memory transfer operations are executed using command buffers.
         // TODO: create a separate command pool with VK_COMMAND_POOL_CREATE_TRANSIENT_BIT flag to memory allocation optimizations
@@ -385,7 +385,7 @@ namespace va
         vkFreeCommandBuffers(_device.getVkDevice(), _command->getVkCommandPool(), 1, &commandBuffer);
     }
 
-    void App::createDescriptorPool()
+    void Engine::createDescriptorPool()
     {
         Log::Get().Info("Creating descriptor pool");
         // DescriptorPool Info
@@ -408,7 +408,7 @@ namespace va
 
     }
 
-    void App::createDescriptorSets()
+    void Engine::createDescriptorSets()
     {
         Log::Get().Info("Creating descriptor sets");
         // DescriptorSet Info
@@ -453,4 +453,4 @@ namespace va
         }
     }
 
-} // namespace va
+} // namespace m1

@@ -4,7 +4,7 @@
 #include <geometry/Vertex.hpp>
 #include <vector>
 
-namespace va
+namespace m1
 {
 	class Device; // Forward declaration
 

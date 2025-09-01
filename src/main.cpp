@@ -8,13 +8,13 @@
 
 #include <iostream>
 
-#include "Application.hpp"
 #include "log/Log.hpp"
+#include "Engine.hpp"
 
 int main()
 {
-    va::Log::Get().Info("Application starting");
-    va::App app;
+    m1::Log::Get().Info("Application starting");
+    m1::Engine app;
 
     try
     {
@@ -22,10 +22,10 @@ int main()
     }
     catch (const std::exception &e)
     {
-        va::Log::Get().Error(e.what());
+        m1::Log::Get().Error(e.what());
         return EXIT_FAILURE;
     }
 
-    va::Log::Get().Info("Application finished successfully");
+    m1::Log::Get().Info("Application finished successfully");
     return EXIT_SUCCESS;
 }

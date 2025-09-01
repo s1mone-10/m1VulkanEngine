@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <iostream>
 
-namespace va {
+namespace m1 {
 
 Command::Command(const Device& device, int framesInFlight) : _device(device), _framesInFlight(framesInFlight) {
     Log::Get().Info("Creating command pool and buffers");
@@ -46,4 +46,4 @@ void Command::createCommandBuffers() {
     }
 }
 
-} // namespace va
+} // namespace m1

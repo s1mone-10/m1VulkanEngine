@@ -7,7 +7,7 @@
 #include <iomanip>
 #include <sstream>
 
-namespace va {
+namespace m1 {
 
     enum class LogLevel {
         Trace,
