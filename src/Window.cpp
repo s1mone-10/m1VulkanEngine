@@ -1,5 +1,5 @@
 #include "Window.hpp"
-
+#include "log/Log.hpp"
 #include <stdexcept>
 #include <iostream>
 
@@ -19,12 +19,13 @@ namespace m1
 
     Window::Window(uint32_t width, uint32_t height, std::string title) : width{width}, height{height}, title{title}
     {
+        Log::Get().Info("Creating window");
         InitWindow();
     }
 
     Window::~Window()
     {
-        std::cout << "Window destroyed" << std::endl;
+        Log::Get().Info("Window destroyed");
         glfwDestroyWindow(glfwWindow);
         glfwTerminate();
     }
@@ -37,6 +38,7 @@ namespace m1
         glfwWindow = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
         if (!glfwWindow)
         {
+            Log::Get().Error("failed to create GLFW window!");
             throw std::runtime_error("failed to create GLFW window!");
         }
 
@@ -49,6 +51,7 @@ namespace m1
     {
         if (glfwCreateWindowSurface(instance, glfwWindow, nullptr, surface) != VK_SUCCESS)
         {
+            Log::Get().Error("failed to create window surface!");
             throw std::runtime_error("failed to create window surface!");
         }
 	}

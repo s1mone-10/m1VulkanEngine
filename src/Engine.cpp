@@ -1,4 +1,5 @@
 #include "Engine.hpp"
+#include "log/Log.hpp"
 #include <stdexcept>
 #include <iostream>
 #include <vector>
@@ -14,6 +15,7 @@ namespace m1
 
     Engine::Engine()
     {
+        Log::Get().Info("App constructor");
         recreateSwapChain();
         _pipeline = std::make_unique<Pipeline>(_device, *_swapChain);
         _command = std::make_unique<Command>(_device, FRAMES_IN_FLIGHT);
@@ -40,7 +42,7 @@ namespace m1
 		// descriptor set are automatically freed when the pool is destroyed
         vkDestroyDescriptorPool(_device.getVkDevice(), _descriptorPool, nullptr);
 
-        std::cout << "Engine destroyed" << std::endl;
+        Log::Get().Info("Engine destroyed");
     }
 
     void Engine::run()
@@ -81,12 +83,14 @@ namespace m1
 
 		if (result == VK_ERROR_OUT_OF_DATE_KHR) // swap chain is no longer compatible with the surface (e.g. window resized)
         {
+            Log::Get().Warning("Swap chain out of date, recreating");
             recreateSwapChain();
             return;
         }
         else if (result != VK_SUCCESS && 
 			result != VK_SUBOPTIMAL_KHR) // swap chain no longer matches the surface properties exactly, but can still be used to present to the surface successfully
         {
+            Log::Get().Error("failed to acquire swap chain image!");
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
@@ -115,6 +119,7 @@ namespace m1
 
         if (vkQueueSubmit(_device.getGraphicsQueue(), 1, &submitInfo, _inFlightFences[_currentFrame]) != VK_SUCCESS)
         {
+            Log::Get().Error("failed to submit draw command buffer!");
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 
@@ -133,10 +138,12 @@ namespace m1
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || _window.FramebufferResized)
         {
+            Log::Get().Warning("Swap chain suboptimal, out of date, or window resized. Recreating.");
             recreateSwapChain();
         }
         else if (result != VK_SUCCESS)
         {
+            Log::Get().Error("failed to present swap chain image!");
             throw std::runtime_error("failed to present swap chain image!");
         }
 
@@ -180,9 +187,11 @@ namespace m1
                 vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_renderFinishedSemaphores[i]) != VK_SUCCESS ||
                 vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &_inFlightFences[i]) != VK_SUCCESS)
             {
+                Log::Get().Error("failed to create synchronization objects for a frame!");
                 throw std::runtime_error("failed to create synchronization objects for a frame!");
             }
         }
+        Log::Get().Info("Created synchronization objects");
     }
 
     void Engine::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
@@ -197,6 +206,7 @@ namespace m1
 
         if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
         {
+            Log::Get().Error("failed to begin recording command buffer!");
             throw std::runtime_error("failed to begin recording command buffer!");
         }
 
@@ -251,12 +261,14 @@ namespace m1
         // end command buffer recording
         if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
         {
+            Log::Get().Error("failed to record command buffer!");
             throw std::runtime_error("failed to record command buffer!");
         }
     }
 
     void Engine::recreateSwapChain()
     {
+        Log::Get().Info("Recreating swap chain");
         while (_window.IsMinimized)
             glfwWaitEvents();
 
@@ -282,6 +294,7 @@ namespace m1
 
     void Engine::createVertexBuffer(const std::vector<Vertex>& vertices)
     {
+        Log::Get().Info("Creating vertex buffer");
         VkDeviceSize size = sizeof(vertices[0]) * vertices.size();
 
         // Create a staging buffer accessible to CPU to upload the vertex data
@@ -298,6 +311,7 @@ namespace m1
 
     void Engine::createIndexxBuffer(const std::vector<uint16_t>& indices)
     {
+        Log::Get().Info("Creating index buffer");
         VkDeviceSize size = sizeof(indices[0]) * indices.size();
 
         // Create a staging buffer accessible to CPU to upload the vertex data
@@ -314,6 +328,7 @@ namespace m1
 
     void Engine::createUniformBuffers()
     {
+        Log::Get().Info("Creating uniform buffers");
         VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
         _uniformBuffers.resize(FRAMES_IN_FLIGHT);       
@@ -372,6 +387,7 @@ namespace m1
 
     void Engine::createDescriptorPool()
     {
+        Log::Get().Info("Creating descriptor pool");
         // DescriptorPool Info
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -384,13 +400,17 @@ namespace m1
         poolInfo.maxSets = static_cast<uint32_t>(FRAMES_IN_FLIGHT);
 
         if (vkCreateDescriptorPool(_device.getVkDevice(), &poolInfo, nullptr, &_descriptorPool) != VK_SUCCESS)
+        {
+            Log::Get().Error("failed to create descriptor pool!");
             throw std::runtime_error("failed to create descriptor pool!");
+        }
 
 
     }
 
     void Engine::createDescriptorSets()
     {
+        Log::Get().Info("Creating descriptor sets");
         // DescriptorSet Info
         std::vector<VkDescriptorSetLayout> layouts(FRAMES_IN_FLIGHT, _pipeline->getDescriptorSetLayout());
         VkDescriptorSetAllocateInfo allocInfo{};
@@ -402,7 +422,10 @@ namespace m1
 		// create DescriptorSets
         _descriptorSets.resize(FRAMES_IN_FLIGHT);
         if (vkAllocateDescriptorSets(_device.getVkDevice(), &allocInfo, _descriptorSets.data()) != VK_SUCCESS)
+        {
+            Log::Get().Error("failed to allocate descriptor sets!");
             throw std::runtime_error("failed to allocate descriptor sets!");
+        }
 
 		// populate each DescriptorSet
         for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)

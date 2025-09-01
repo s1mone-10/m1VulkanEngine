@@ -8,10 +8,12 @@
 
 #include <iostream>
 
+#include "log/Log.hpp"
 #include "Engine.hpp"
 
 int main()
 {
+    m1::Log::Get().Info("Application starting");
     m1::Engine app;
 
     try
@@ -20,9 +22,10 @@ int main()
     }
     catch (const std::exception &e)
     {
-        std::cerr << e.what() << std::endl;
+        m1::Log::Get().Error(e.what());
         return EXIT_FAILURE;
     }
 
+    m1::Log::Get().Info("Application finished successfully");
     return EXIT_SUCCESS;
 }

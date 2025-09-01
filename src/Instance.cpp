@@ -1,5 +1,6 @@
 #include "Instance.hpp"
 #include "Window.hpp"
+#include "log/Log.hpp"
 #include <stdexcept>
 #include <cstring>
 #include <iostream>
@@ -37,7 +38,9 @@ namespace m1
         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
         void* pUserData)
     {
-        std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+        if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+            Log::Get().Warning(pCallbackData->pMessage);
+        }
         return VK_FALSE;
     }
 
@@ -45,6 +48,7 @@ namespace m1
 
     Instance::Instance()
     {
+        Log::Get().Info("Creating instance");
         createInstance();
         setupDebugMessenger();
     }
@@ -56,13 +60,14 @@ namespace m1
             DestroyDebugUtilsMessengerEXT(_vkInstance, _debugMessenger, nullptr);
         }
         vkDestroyInstance(_vkInstance, nullptr);
-        std::cout << "Instance destroyed" << std::endl;
+        Log::Get().Info("Instance destroyed");
     }
 
     void Instance::createInstance()
     {
         if (enableValidationLayers && !checkValidationLayerSupport())
         {
+            Log::Get().Error("Validation layers requested, but not available!");
             throw std::runtime_error("Validation layers requested, but not available!");
         }
 
@@ -103,6 +108,7 @@ namespace m1
 		// Create the Vulkan instance
         if (vkCreateInstance(&createInfo, nullptr, &_vkInstance) != VK_SUCCESS)
         {
+            Log::Get().Error("failed to create instance!");
             throw std::runtime_error("failed to create instance!");
         }
     }
@@ -111,11 +117,13 @@ namespace m1
     {
         if (!enableValidationLayers) return;
 
+        Log::Get().Info("Setting up debug messenger");
         VkDebugUtilsMessengerCreateInfoEXT createInfo;
         populateDebugMessengerCreateInfo(createInfo);
 
         if (CreateDebugUtilsMessengerEXT(_vkInstance, &createInfo, nullptr, &_debugMessenger) != VK_SUCCESS)
         {
+            Log::Get().Error("failed to set up debug messenger!");
             throw std::runtime_error("failed to set up debug messenger!");
         }
     }

@@ -2,6 +2,7 @@
 #include "Device.hpp"
 #include "SwapChain.hpp"
 #include "geometry/Vertex.hpp"
+#include "log/Log.hpp"
 #include <stdexcept>
 #include <fstream>
 #include <iostream>
@@ -38,6 +39,7 @@ namespace m1
 
     Pipeline::Pipeline(const Device& device, const SwapChain& swapChain) : _device(device)
     {
+        Log::Get().Info("Creating pipeline");
         createDescriptorSetLayout();
         createGraphicsPipeline(device, swapChain);
     }
@@ -47,7 +49,7 @@ namespace m1
         vkDestroyPipeline(_device.getVkDevice(), _graphicsPipeline, nullptr);
         vkDestroyPipelineLayout(_device.getVkDevice(), _pipelineLayout, nullptr);
 		vkDestroyDescriptorSetLayout(_device.getVkDevice(), _descriptorSetLayout, nullptr);
-        std::cout << "Pipeline destroyed" << std::endl;
+        Log::Get().Info("Pipeline destroyed");
     }
 
     std::vector<char> Pipeline::readFile(const std::string& filename)
@@ -57,6 +59,7 @@ namespace m1
 
         if (!file.is_open())
         {
+            Log::Get().Error("failed to open file: " + filename);
             throw std::runtime_error("failed to open file: " + filename);
         }
 
@@ -83,6 +86,7 @@ namespace m1
         VkShaderModule shaderModule;
         if (vkCreateShaderModule(device.getVkDevice(), &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
         {
+            Log::Get().Error("failed to create shader module!");
             throw std::runtime_error("failed to create shader module!");
         }
 
@@ -91,6 +95,7 @@ namespace m1
 
     void Pipeline::createGraphicsPipeline(const Device& device, const SwapChain& swapChain)
     {
+        Log::Get().Info("Creating graphics pipeline");
 		// read shaders code // TODO use relative paths
         std::vector<char> vertShaderCode = readFile("..\\..\\..\\shaders\\compiled\\simple.vert.spv");
         std::vector<char> fragShaderCode = readFile("..\\..\\..\\shaders\\compiled\\simple.frag.spv");
@@ -213,6 +218,7 @@ namespace m1
 		// crete pipeline layout
         if (vkCreatePipelineLayout(device.getVkDevice(), &pipelineLayoutInfo, nullptr, &_pipelineLayout) != VK_SUCCESS)
         {
+            Log::Get().Error("failed to create pipeline layout!");
             throw std::runtime_error("failed to create pipeline layout!");
         }
 
@@ -247,6 +253,7 @@ namespace m1
         // create the graphics pipeline
         if (vkCreateGraphicsPipelines(device.getVkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &_graphicsPipeline) != VK_SUCCESS)
         {
+            Log::Get().Error("failed to create graphics pipeline!");
             throw std::runtime_error("failed to create graphics pipeline!");
         }
 
@@ -258,6 +265,7 @@ namespace m1
 
     void Pipeline::createDescriptorSetLayout()
     {
+        Log::Get().Info("Creating descriptor set layout");
         // Descriptor binding
         VkDescriptorSetLayoutBinding uboLayoutBinding{};
         uboLayoutBinding.binding = 0; // binding number in the shader
@@ -274,7 +282,10 @@ namespace m1
 
         // Create the DescriptorSet
         if (vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_descriptorSetLayout) != VK_SUCCESS)
+        {
+            Log::Get().Error("failed to create descriptor set layout!");
             throw std::runtime_error("failed to create descriptor set layout!");
+        }
     }
 
 } // namespace m1
