@@ -6,11 +6,11 @@
 
 namespace m1
 {
-	Buffer::Buffer(const Device& device, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) : _device(device)
+	Buffer::Buffer(const Device& device, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryProps) : _device(device)
 	{
 		Log::Get().Info("Creating buffer of size " + std::to_string(size));
 		_size = size;
-		createBuffer(size, usage, properties);
+		createBuffer(size, usage, memoryProps);
 	}
 
 	Buffer::~Buffer()
@@ -62,7 +62,7 @@ namespace m1
 			unmapMemory();
 	}
 
-	void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)
+	void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryProps)
 	{
 		// Buffer Info
 		VkBufferCreateInfo bufferInfo{};
@@ -74,53 +74,18 @@ namespace m1
 		// Create the buffer
 		if (vkCreateBuffer(_device.getVkDevice(), &bufferInfo, nullptr, &_vkBuffer) != VK_SUCCESS)
         {
-            Log::Get().Error("failed to create vertex buffer!");
-			throw std::runtime_error("failed to create vertex buffer!");
+            Log::Get().Error("failed to create buffer!");
+			throw std::runtime_error("failed to create buffer!");
         }
 		
 		// Memory Info
 		VkMemoryRequirements memRequirements; 
 		vkGetBufferMemoryRequirements(_device.getVkDevice(), _vkBuffer, &memRequirements);
 
-		VkMemoryAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.allocationSize = memRequirements.size; // maybe different from bufferInfo.size
-		allocInfo.memoryTypeIndex = findMemoryTypeIndex(memRequirements.memoryTypeBits, properties);
-
-		// Allocate the memory
-		if (vkAllocateMemory(_device.getVkDevice(), &allocInfo, nullptr, &_deviceMemory) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to allocate vertex buffer memory!");
-			throw std::runtime_error("failed to allocate vertex buffer memory!");
-        }
+		// Allocate memory
+		_deviceMemory = _device.allocateMemory(memRequirements, memoryProps);
 
 		// Bind the buffer with the memory
 		vkBindBufferMemory(_device.getVkDevice(), _vkBuffer, _deviceMemory, 0);
-	}
-
-	/// <summary>
-	/// Finds a suitable memory type index based on a type filter and desired memory properties.
-	/// </summary>
-	/// <param name="typeFilter">A bitmask specifying the acceptable memory types.</param>
-	/// <param name="properties">Flags specifying the desired memory properties.</param>
-	/// <returns>The index of a suitable memory type that matches the filter and properties.</returns>
-	uint32_t Buffer::findMemoryTypeIndex(uint32_t typeFilter, VkMemoryPropertyFlags properties)
-	{
-		// GPU can offer different types of memory, each type varies in terms of allowed operations and performance characteristics
-
-		// Get the memory properties of the physical device
-		VkPhysicalDeviceMemoryProperties memProperties = _device.getMemoryProperties();
-
-		// Find a memory type that matches the type filter and has the desired properties
-		for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
-		{
-			if ((typeFilter & (1 << i))	&& (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
-			{
-				return i;
-			}
-		}
-
-        Log::Get().Error("failed to find suitable memory type!");
-		throw std::runtime_error("failed to find suitable memory type!");
 	}
 }

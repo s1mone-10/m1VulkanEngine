@@ -88,6 +88,7 @@ if (WIN32)
     ${PROJECT_SOURCE_DIR}/src
     ${Vulkan_INCLUDE_DIRS}
     ${TINYOBJ_PATH}
+    ${STB_IMAGE_PATH}
     ${GLFW_INCLUDE_DIRS}
     ${GLM_PATH}
     )

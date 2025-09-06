@@ -32,6 +32,5 @@ namespace m1
 		VkDeviceSize _size;
 		const Device& _device;
 		void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
-		uint32_t findMemoryTypeIndex(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 	};
 }

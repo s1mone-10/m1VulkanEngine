@@ -41,7 +41,8 @@ namespace m1
         VkQueue getPresentQueue() const { return _presentQueue; }
         VkSurfaceKHR getSurface() const { return _surface; }
         SwapChainProperties getSwapChainProperties() const { return getSwapChainProperties(_physicalDevice); };
-        VkPhysicalDeviceMemoryProperties getMemoryProperties() const;
+        VkDeviceMemory allocateMemory(VkMemoryRequirements memRequirements, VkMemoryPropertyFlags properties) const;
+        VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
 
     private:
         void createSurface(const Window& window);
@@ -53,6 +54,7 @@ namespace m1
         bool checkDeviceExtensionSupport(VkPhysicalDevice device);
         QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
         SwapChainProperties getSwapChainProperties(const VkPhysicalDevice device) const;
+        uint32_t findMemoryTypeIndex(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
         
         Instance _instance;
         VkSurfaceKHR _surface = VK_NULL_HANDLE;

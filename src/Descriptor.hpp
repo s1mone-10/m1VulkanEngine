@@ -21,7 +21,7 @@ namespace m1
 		Descritor(Descritor&&) = delete;
 		Descritor& operator=(Descritor&&) = delete;
 
-		void updateDescriotorSets(const std::vector<std::unique_ptr<Buffer>>& buffers);
+		void updateDescriotorSets(const std::vector<std::unique_ptr<Buffer>>& buffers, VkImageView textureImageView, VkSampler textureSampler);
 		VkDescriptorSetLayout getDescriptorSetLayout() { return _descriptorSetLayout; }
 		VkDescriptorSet getDescriptorSet(uint32_t index) { return _descriptorSets[index]; }
 
