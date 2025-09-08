@@ -53,7 +53,7 @@ namespace m1
         }
     }
 
-    VkCommandBuffer Command::beginOneTimeCommand()
+    VkCommandBuffer Command::beginOneTimeCommand() const
     {
         // Allocate info
         VkCommandBufferAllocateInfo allocInfo{};
@@ -77,7 +77,7 @@ namespace m1
         return commandBuffer;
     }
 
-    void Command::endOneTimeCommand(VkCommandBuffer commandBuffer)
+    void Command::endOneTimeCommand(VkCommandBuffer commandBuffer) const
     {
 		// End recording the command buffer
         vkEndCommandBuffer(commandBuffer);

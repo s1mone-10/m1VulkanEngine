@@ -19,8 +19,8 @@ namespace m1 {
 
         VkCommandPool getVkCommandPool() const { return _commandPool; }
         const std::vector<VkCommandBuffer>& getCommandBuffers() const { return _commandBuffers; }
-        VkCommandBuffer beginOneTimeCommand();
-        void endOneTimeCommand(VkCommandBuffer commandBuffer);
+        VkCommandBuffer beginOneTimeCommand() const;
+        void endOneTimeCommand(VkCommandBuffer commandBuffer) const;
 
     private:
         void createCommandPool();

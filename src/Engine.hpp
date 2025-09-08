@@ -8,6 +8,7 @@
 #include "Pipeline.hpp"
 #include "Command.hpp"
 #include "Buffer.hpp"
+#include "Texture.hpp"
 #include "geometry/Mesh.hpp"
 
 #include <memory>
@@ -51,10 +52,7 @@ namespace m1
 		std::unique_ptr<Buffer> _vertexBuffer;
         std::unique_ptr<Buffer> _indexBuffer;
 		
-        VkImage _textureImage; // TODO create a Texture/Image class. See also images in the SwapChain
-        VkDeviceMemory _textureImageMemory;
-        VkImageView _textureImageView;
-        VkSampler _textureSampler;
+        std::unique_ptr<Texture> _texture;
 
 		std::vector<std::unique_ptr<Buffer>> _uniformBuffers;
 		std::unique_ptr<Descritor> _descriptor;

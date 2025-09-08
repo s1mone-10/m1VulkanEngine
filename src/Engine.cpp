@@ -27,7 +27,7 @@ namespace m1
         createVertexBuffer(mesh.Vertices);
         createIndexBuffer(mesh.Indices);
         createUniformBuffers();
-		_descriptor->updateDescriotorSets(_uniformBuffers, _textureImageView, _textureSampler);
+		_descriptor->updateDescriotorSets(_uniformBuffers, *_texture);
         createSyncObjects();
     }
 
@@ -35,11 +35,6 @@ namespace m1
     {
         // wait for the GPU to finish all operations before destroying the resources
         vkDeviceWaitIdle(_device.getVkDevice());
-
-        vkDestroySampler(_device.getVkDevice(), _textureSampler, nullptr);
-        vkDestroyImageView(_device.getVkDevice(), _textureImageView, nullptr);
-        vkDestroyImage(_device.getVkDevice(), _textureImage, nullptr);
-        vkFreeMemory(_device.getVkDevice(), _textureImageMemory, nullptr);
 
         for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
         {
@@ -424,87 +419,16 @@ namespace m1
         // Free texture data
         stbi_image_free(pixels);
 
-		// Image info
-        VkImageCreateInfo imageInfo{};
-        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.extent.width = static_cast<uint32_t>(texWidth);
-        imageInfo.extent.height = static_cast<uint32_t>(texHeight);
-        imageInfo.extent.depth = 1;
-        imageInfo.mipLevels = 1;
-        imageInfo.arrayLayers = 1;
-        imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // only two possible options: UNDEFINED or PREINITIALIZED
-		imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT; // destination of transfer and shader read
-		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // not shared between multiple queue families
-		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT; // no multisampling
-        imageInfo.flags = 0; // Optional
-
-		// Create the Image
-        if (vkCreateImage(_device.getVkDevice(), &imageInfo, nullptr, &_textureImage) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create image!");
-        }
-
-		// Allocate and bind device memory for the image
-        VkMemoryRequirements memRequirements;
-        vkGetImageMemoryRequirements(_device.getVkDevice(), _textureImage, &memRequirements);
-        _textureImageMemory = _device.allocateMemory(memRequirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        vkBindImageMemory(_device.getVkDevice(), _textureImage, _textureImageMemory, 0);
+        _texture = std::make_unique<Texture>(_device, texWidth, texHeight);
 
 		// Transition image layout to be optimal for receiving data
-        transitionImageLayout(_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        transitionImageLayout(_texture->getImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
 		// Copy the texture data from the staging buffer to the image
-        copyBufferToImage(stagingBuffer, _textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+        copyBufferToImage(stagingBuffer, _texture->getImage(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
 
 		// Transition image layout to be optimal for shader access
-        transitionImageLayout(_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-        VkImageViewCreateInfo viewInfo{};
-        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        viewInfo.image = _textureImage;
-        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        viewInfo.subresourceRange.baseMipLevel = 0;
-        viewInfo.subresourceRange.levelCount = 1;
-        viewInfo.subresourceRange.baseArrayLayer = 0;
-        viewInfo.subresourceRange.layerCount = 1;
-
-        if (vkCreateImageView(_device.getVkDevice(), &viewInfo, nullptr, &_textureImageView) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create texture image view!");
-        }
-
-
-        // Sampler Info
-        VkSamplerCreateInfo samplerInfo{};
-        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerInfo.magFilter = VK_FILTER_LINEAR;
-        samplerInfo.minFilter = VK_FILTER_LINEAR;
-        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.anisotropyEnable = VK_TRUE;
-        samplerInfo.maxAnisotropy = 8.0f; // TODO query the device for maxSamplerAnisotropy 
-        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK; // for clamp to border address mode
-        samplerInfo.unnormalizedCoordinates = VK_FALSE; // unnormalized => range [0, widt). Normalized => range [0,1)
-        samplerInfo.compareEnable = VK_FALSE;
-        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-        
-        // mipmapping
-        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerInfo.mipLodBias = 0.0f;
-        samplerInfo.minLod = 0.0f;
-        samplerInfo.maxLod = 0.0f;
-
-        // Create sampler
-        if (vkCreateSampler(_device.getVkDevice(), &samplerInfo, nullptr, &_textureSampler) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create texture sampler!");
-        }
+        transitionImageLayout(_texture->getImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
     void Engine::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)

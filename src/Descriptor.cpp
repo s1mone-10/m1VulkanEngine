@@ -90,7 +90,7 @@ namespace m1
             throw std::runtime_error("failed to allocate descriptor sets!");
     }
 
-    void Descritor::updateDescriotorSets(const std::vector<std::unique_ptr<Buffer>>& buffers, VkImageView textureImageView, VkSampler textureSampler)
+    void Descritor::updateDescriotorSets(const std::vector<std::unique_ptr<Buffer>>& buffers, const Texture& texture)
     {
         // populate each DescriptorSet
         for (size_t i = 0; i < Engine::FRAMES_IN_FLIGHT; i++)
@@ -115,8 +115,8 @@ namespace m1
 			// Texture Image Info
             VkDescriptorImageInfo imageInfo{};
             imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView = textureImageView;
-            imageInfo.sampler = textureSampler;
+            imageInfo.imageView = texture.getImageView();
+            imageInfo.sampler = texture.getSampler();
 
 			// Texture Descriptor Write
             VkWriteDescriptorSet textureDescriptorWrite{};
