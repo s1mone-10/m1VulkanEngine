@@ -20,12 +20,14 @@ namespace m1
 
         VkImage getVkImage() const { return _vkImage; }
         VkImageView getVkImageView() const { return _imageView; }
+		VkFormat getFormat() const { return _format; }
 
     private:
         const Device& _device;
         VkImage _vkImage = VK_NULL_HANDLE;
         VkDeviceMemory _deviceMemory = VK_NULL_HANDLE;
         VkImageView _imageView = VK_NULL_HANDLE;
+		VkFormat _format;
     };
 
 } // namespace m1

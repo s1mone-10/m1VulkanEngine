@@ -11,7 +11,7 @@ namespace m1
 {
     Image::Image(const Device& device, uint32_t width, uint32_t height, VkFormat format,
                  VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)
-        : _device(device)
+		: _device(device), _format(format)
     {
         Log::Get().Info("Creating image from scratch");
 

@@ -1,19 +1,23 @@
 #include "SwapChain.hpp"
 #include "Device.hpp"
 #include "Window.hpp"
+#include "Image.hpp"
 #include "log/Log.hpp"
+
 #include <stdexcept>
 #include <algorithm>
 #include <limits>
 #include <iostream>
+#include <array>
 
 namespace m1
 {
     SwapChain::SwapChain(const Device& device, const Window& window, VkSwapchainKHR oldSwapChain) : _device(device)
     {
         Log::Get().Info("Creating swap chain");
-        createSwapChain(device, window, oldSwapChain);
-        createImageViews(device);
+        createSwapChain(window, oldSwapChain);
+        createImages();
+		createDepthImage();
         createRenderPass();
 		createFramebuffers();
     }
@@ -33,11 +37,12 @@ namespace m1
         Log::Get().Info("SwapChain destroyed");
     }
 
-    void SwapChain::createSwapChain(const Device& device, const Window& window, VkSwapchainKHR oldSwapChain = VK_NULL_HANDLE)
+    void SwapChain::createSwapChain(const Window& window, VkSwapchainKHR oldSwapChain = VK_NULL_HANDLE)
     {
         Log::Get().Info("Creating swap chain implementation");
-        SwapChainProperties swapChainProperties = device.getSwapChainProperties();
+        SwapChainProperties swapChainProperties = _device.getSwapChainProperties();
 
+        // Format, present mode, extent
         VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainProperties.formats); // rgb format
         _imageFormat = surfaceFormat.format;
         VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainProperties.presentModes);
@@ -57,7 +62,7 @@ namespace m1
         // SwapChain Info
         VkSwapchainCreateInfoKHR createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-        createInfo.surface = device.getSurface(); // tie to the surface
+        createInfo.surface = _device.getSurface(); // tie to the surface
         createInfo.minImageCount = imageCount;
         createInfo.imageFormat = surfaceFormat.format;
         createInfo.imageColorSpace = surfaceFormat.colorSpace;
@@ -70,7 +75,7 @@ namespace m1
         createInfo.clipped = VK_TRUE; // don't care about pixels that are not visible to the user, for example because another window is in front of them
         createInfo.oldSwapchain = oldSwapChain; // existing non-retired swapchain currently associated with surface. May aid in the resource reuse.
 
-        QueueFamilyIndices indices = device.getQueueFamilyIndices();
+        QueueFamilyIndices indices = _device.getQueueFamilyIndices();
         uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
 
 		// specify how the images will be shared between queues family (generally graphics and present family are the same)
@@ -88,29 +93,30 @@ namespace m1
         }
 
         // create SwapChain
-        if (vkCreateSwapchainKHR(device.getVkDevice(), &createInfo, nullptr, &_vkSwapChain) != VK_SUCCESS)
+        if (vkCreateSwapchainKHR(_device.getVkDevice(), &createInfo, nullptr, &_vkSwapChain) != VK_SUCCESS)
         {
             Log::Get().Error("failed to create swap chain!");
             throw std::runtime_error("failed to create swap chain!");
         }
-
-        // getVkSwapChain images from the swap chain
-        vkGetSwapchainImagesKHR(device.getVkDevice(), _vkSwapChain, &imageCount, nullptr);
-        _images.resize(imageCount);
-        vkGetSwapchainImagesKHR(device.getVkDevice(), _vkSwapChain, &imageCount, _images.data());
     }
 
-    void SwapChain::createImageViews(const Device& device)
+    void SwapChain::createImages()
     {
-        Log::Get().Info("Creating image views");
-        _imageViews.resize(_images.size());
+        // get images from the swap chain
+        uint32_t imageCount;
+        vkGetSwapchainImagesKHR(_device.getVkDevice(), _vkSwapChain, &imageCount, nullptr);
+        _images.resize(imageCount);
+        vkGetSwapchainImagesKHR(_device.getVkDevice(), _vkSwapChain, &imageCount, _images.data());
 
-        for (size_t i = 0; i < _images.size(); i++)
+        // creates images view
+        _imageViews.resize(imageCount);
+
+        for (size_t i = 0; i < imageCount; i++)
         {
 			// ImageView Info
             VkImageViewCreateInfo viewInfo{};
             {
-                // type and format
+                // image, type and format
                 viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
                 viewInfo.image = _images[i]; // bind the image to the view
                 viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -122,7 +128,7 @@ namespace m1
                 viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
                 viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
                 
-                //image purpose is and which part should be accessed
+                //image purpose and which part should be accessed
                 viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
                 viewInfo.subresourceRange.baseMipLevel = 0;
                 viewInfo.subresourceRange.levelCount = 1;
@@ -131,7 +137,7 @@ namespace m1
             }
 
 			// create the ImageView
-            if (vkCreateImageView(device.getVkDevice(), &viewInfo, nullptr, &_imageViews[i]) != VK_SUCCESS)
+            if (vkCreateImageView(_device.getVkDevice(), &viewInfo, nullptr, &_imageViews[i]) != VK_SUCCESS)
             {
                 Log::Get().Error("failed to create image views!");
                 throw std::runtime_error("failed to create image views!");
@@ -194,7 +200,24 @@ namespace m1
     /// </summary>
     void SwapChain::createRenderPass()
     {
-        Log::Get().Info("Creating render pass");
+		/* Method overview
+		- define the attachments that will be used during rendering (color, depth, stencil, etc.)
+		- define the subpasses that will be used in the render pass
+		- define any dependencies between the subpasses and external operations
+		- create the render pass object
+        */
+
+
+		/* Layouts overview
+        - An image layout describes how the GPU should treat the memory of an image (layout of the pixels in memory).
+        - Images need to be transitioned to specific layouts that are suitable for the operation that they're going to be involved in next.
+        - RenderPass and Subpasses automatically take care of image layout transitions.
+		- attachment.initialLayout => layout before the render pass begins
+		- attachment.finalLayout => layout to automatically transition to when the render pass ends
+		- attachmentRef.layout => layout during the subpass
+        */
+
+		// color attachment
         VkAttachmentDescription colorAttachment{};
         colorAttachment.format = _imageFormat;
         colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT; // no multisampling
@@ -202,33 +225,61 @@ namespace m1
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE; // operation to perform on the attachment after rendering
         colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // don't care about the previous content
         colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // image to be presented in the swap chain
 
-        VkAttachmentReference colorAttachmentRef{};
-        colorAttachmentRef.attachment = 0;
-        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        // depth attachment
+        VkAttachmentDescription depthAttachment{};
+		depthAttachment.format = _depthImage->getFormat();
+        depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // we don't need the depth data after rendering is finished
+        depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		// attachments array
+        std::array<VkAttachmentDescription, 2> attachmentsArray = { colorAttachment, depthAttachment };
 
         // A single render pass can consist of multiple subpasses. For example a sequence of post-processing effects
+        // Every subpass can references one or more of the attachments
+
+		// color attachment reference
+        VkAttachmentReference colorAttachmentRef{};
+		colorAttachmentRef.attachment = 0; // index in the attachmentsArray
+        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		// depth attachment reference
+        VkAttachmentReference depthAttachmentRef{};
+        depthAttachmentRef.attachment = 1;
+        depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        // define subpass
         VkSubpassDescription subpass{};
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         subpass.colorAttachmentCount = 1;
         //The index of the attachment in this array is directly referenced from the fragment shader with the layout(location = 0) out vec4 outColor directive!
         subpass.pColorAttachments = &colorAttachmentRef;
+        subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
+		// define subpass dependencies: to handle image layout transitions
         VkSubpassDependency dependency{};
-        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-        dependency.dstSubpass = 0;
-        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.srcAccessMask = 0;
-        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		// indices of source and destination subpasses
+		dependency.srcSubpass = VK_SUBPASS_EXTERNAL; // subpass before or after the render pass depending on whether it's used as a source or destination
+		dependency.dstSubpass = 0; // index of the subpass in the render pass
+        // operations to wait on and the stages in which these operations occur
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        dependency.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
         // render pass info
         VkRenderPassCreateInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        renderPassInfo.attachmentCount = 1;
-        renderPassInfo.pAttachments = &colorAttachment;
+        renderPassInfo.attachmentCount = static_cast<uint32_t>(attachmentsArray.size());
+        renderPassInfo.pAttachments = attachmentsArray.data();
         renderPassInfo.subpassCount = 1;
         renderPassInfo.pSubpasses = &subpass;
         renderPassInfo.dependencyCount = 1;
@@ -244,7 +295,6 @@ namespace m1
 
     void SwapChain::createFramebuffers()
     {
-        Log::Get().Info("Creating framebuffers");
         // The attachments specified during render pass creation are bound by wrapping them into a VkFramebuffer object. 
         // A framebuffer object references all of the VkImageView objects that represent the attachments
 
@@ -252,23 +302,52 @@ namespace m1
 
         for (size_t i = 0; i < _framebuffers.size(); i++)
         {
-            VkImageView attachments[] = { _imageViews[i] };
+            std::array<VkImageView, 2> attachments = { _imageViews[i], _depthImage->getVkImageView() };
 
+			// Framebuffer info
             VkFramebufferCreateInfo framebufferInfo{};
             framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
             framebufferInfo.renderPass = _renderPass;
-            framebufferInfo.attachmentCount = 1;
-            framebufferInfo.pAttachments = attachments; // objects that should be bound to the respective renderPass pAttachment array
+            framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+            framebufferInfo.pAttachments = attachments.data(); // objects that should be bound to the respective renderPass pAttachment array
             framebufferInfo.width = _extent.width;
             framebufferInfo.height = _extent.height;
             framebufferInfo.layers = 1; // as in the swap chain
 
+			// create Framebuffer
             if (vkCreateFramebuffer(_device.getVkDevice(), &framebufferInfo, nullptr, &_framebuffers[i]) != VK_SUCCESS)
             {
                 Log::Get().Error("failed to create framebuffer!");
                 throw std::runtime_error("failed to create framebuffer!");
             }
         }
+    }
+
+    void SwapChain::createDepthImage()
+    {
+        // find format that support specified tiling and flags
+        VkFormat depthFormat = _device.findSupportedFormat(
+            { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+        );
+
+        // create the depth image
+        _depthImage = std::make_unique<Image>(
+            _device,
+            _extent.width,
+            _extent.height,
+            depthFormat,
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+		);
+    }
+
+    bool SwapChain::hasStencilComponent(VkFormat format)
+    {
+        // S8 -> 8 bit component for stencil
+        return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
     }
 
 } // namespace m1
