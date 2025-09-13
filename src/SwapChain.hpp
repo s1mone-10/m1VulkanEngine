@@ -1,12 +1,15 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+
 #include <vector>
+#include <memory>
 
 namespace m1
 {
     class Device; // Forward declaration
     class Window;
+	class Image;
 
     class SwapChain
     {
@@ -29,22 +32,28 @@ namespace m1
         VkFramebuffer getFrameBuffer(int index) { return _framebuffers[index]; }
 
     private:
-        void createSwapChain(const Device& device, const Window& window, VkSwapchainKHR oldSpawChain);
-        void createImageViews(const Device& device);
+        void createSwapChain(const Window& window, VkSwapchainKHR oldSpawChain);
+        void createImages();
         void createRenderPass();
         void createFramebuffers();
+        void createDepthImage();
+        bool hasStencilComponent(VkFormat format);
 
         VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
         VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
         VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, const Window& window);
-
+        
         VkSwapchainKHR _vkSwapChain = VK_NULL_HANDLE;
         VkFormat _imageFormat;
         VkExtent2D _extent;
+
         std::vector<VkImage> _images;
         std::vector<VkImageView> _imageViews;
-        VkRenderPass _renderPass;
         std::vector<VkFramebuffer> _framebuffers;
+        
+        std::unique_ptr<Image> _depthImage;
+
+        VkRenderPass _renderPass;
 
         const Device& _device;
     };

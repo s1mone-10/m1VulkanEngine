@@ -3,11 +3,14 @@
 #include <vulkan/vulkan.h>
 #include <optional>
 #include <vector>
+#include <memory>
 #include "Window.hpp"
 #include "Instance.hpp"
 
 namespace m1
 {
+	class Queue; // Forward declaration
+
     struct QueueFamilyIndices
     {
         std::optional<uint32_t> graphicsFamily;
@@ -37,29 +40,30 @@ namespace m1
 
         VkDevice getVkDevice() const { return _vkDevice; }
         QueueFamilyIndices getQueueFamilyIndices() const { return _queueFamilies; }
-        VkQueue getGraphicsQueue() const { return _graphicsQueue; }
-        VkQueue getPresentQueue() const { return _presentQueue; }
+        const Queue& getGraphicsQueue() const { return *_graphicsQueue; }
+        const Queue& getPresentQueue() const { return *_presentQueue; }
         VkSurfaceKHR getSurface() const { return _surface; }
         SwapChainProperties getSwapChainProperties() const { return getSwapChainProperties(_physicalDevice); };
-        VkPhysicalDeviceMemoryProperties getMemoryProperties() const;
+        VkDeviceMemory allocateMemory(VkMemoryRequirements memRequirements, VkMemoryPropertyFlags properties) const;
+        VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
 
     private:
         void createSurface(const Window& window);
         void pickPhysicalDevice();
         void createLogicalDevice();
-        void pickDeviceQueues();
 
         bool isDeviceSuitable(VkPhysicalDevice device);
         bool checkDeviceExtensionSupport(VkPhysicalDevice device);
         QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
         SwapChainProperties getSwapChainProperties(const VkPhysicalDevice device) const;
+        uint32_t findMemoryTypeIndex(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
         
         Instance _instance;
         VkSurfaceKHR _surface = VK_NULL_HANDLE;
         VkPhysicalDevice _physicalDevice = VK_NULL_HANDLE;
         VkDevice _vkDevice = VK_NULL_HANDLE;
-        VkQueue _graphicsQueue = VK_NULL_HANDLE;
-        VkQueue _presentQueue = VK_NULL_HANDLE;
+        std::unique_ptr<Queue> _graphicsQueue;
+        std::unique_ptr<Queue> _presentQueue;
         QueueFamilyIndices _queueFamilies;
 
         const std::vector<const char*> _requiredExtensions = { 

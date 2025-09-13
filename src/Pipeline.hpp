@@ -10,7 +10,7 @@ namespace m1 {
 
     class Pipeline {
     public:
-        Pipeline(const Device& device, const SwapChain& swapChain);
+        Pipeline(const Device& device, const SwapChain& swapChain, const VkDescriptorSetLayout descriptorSetLayout);
         ~Pipeline();
 
         // Non-copyable, non-movable
@@ -21,17 +21,15 @@ namespace m1 {
 
         VkPipeline getVkPipeline() const { return _graphicsPipeline; }
         VkPipelineLayout getLayout() const { return _pipelineLayout; }
-		VkDescriptorSetLayout getDescriptorSetLayout() const { return _descriptorSetLayout; }
 
     private:
         static std::vector<char> readFile(const std::string& filename);
         VkShaderModule createShaderModule(const Device& device, const std::vector<char>& code);
-        void createGraphicsPipeline(const Device& device, const SwapChain& swapChain);
+        void createGraphicsPipeline(const Device& device, const SwapChain& swapChain, const VkDescriptorSetLayout descriptorSetLayout);
         void createDescriptorSetLayout();
 
         VkPipeline _graphicsPipeline = VK_NULL_HANDLE;
         VkPipelineLayout _pipelineLayout = VK_NULL_HANDLE;
-        VkDescriptorSetLayout _descriptorSetLayout = VK_NULL_HANDLE;
 
         const Device& _device;
     };

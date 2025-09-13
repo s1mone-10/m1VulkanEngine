@@ -20,9 +20,9 @@ namespace m1
         return bindingDescription;
     }
 
-    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions()
+    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
     {
-        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+        std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0; // input location in vertex shaders
@@ -34,21 +34,24 @@ namespace m1
         attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
         attributeDescriptions[1].offset = offsetof(Vertex, color);
 
+        attributeDescriptions[2].binding = 0;
+        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
+
         return attributeDescriptions;
     };
 
-    Pipeline::Pipeline(const Device& device, const SwapChain& swapChain) : _device(device)
+    Pipeline::Pipeline(const Device& device, const SwapChain& swapChain, const VkDescriptorSetLayout descriptorSetLayout) : _device(device)
     {
         Log::Get().Info("Creating pipeline");
-        createDescriptorSetLayout();
-        createGraphicsPipeline(device, swapChain);
+        createGraphicsPipeline(device, swapChain, descriptorSetLayout);
     }
 
     Pipeline::~Pipeline()
     {
         vkDestroyPipeline(_device.getVkDevice(), _graphicsPipeline, nullptr);
         vkDestroyPipelineLayout(_device.getVkDevice(), _pipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(_device.getVkDevice(), _descriptorSetLayout, nullptr);
         Log::Get().Info("Pipeline destroyed");
     }
 
@@ -93,10 +96,10 @@ namespace m1
         return shaderModule;
     }
 
-    void Pipeline::createGraphicsPipeline(const Device& device, const SwapChain& swapChain)
+    void Pipeline::createGraphicsPipeline(const Device& device, const SwapChain& swapChain, const VkDescriptorSetLayout descriptorSetLayout)
     {
         Log::Get().Info("Creating graphics pipeline");
-		// read shaders code // TODO use relative paths
+		// read shaders code
         std::vector<char> vertShaderCode = readFile("..\\..\\..\\shaders\\compiled\\simple.vert.spv");
         std::vector<char> fragShaderCode = readFile("..\\..\\..\\shaders\\compiled\\simple.frag.spv");
 
@@ -173,6 +176,19 @@ namespace m1
         multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
         multisampling.alphaToOneEnable = VK_FALSE; // Optional
 
+		// depth and stencil info
+        VkPipelineDepthStencilStateCreateInfo depthStencil{};
+        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencil.depthTestEnable = VK_TRUE;
+        depthStencil.depthWriteEnable = VK_TRUE;
+		depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; // lower depth = closer
+        depthStencil.depthBoundsTestEnable = VK_FALSE; // if true, keep fragments that fall within the specified depth range
+        depthStencil.minDepthBounds = 0.0f; // Optional
+        depthStencil.maxDepthBounds = 1.0f; // Optional
+        depthStencil.stencilTestEnable = VK_FALSE;
+        depthStencil.front = {}; // Optional
+        depthStencil.back = {}; // Optional
+
         // color blending info: per attached framebuffer
         VkPipelineColorBlendAttachmentState colorBlendAttachment{};
         colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -207,11 +223,11 @@ namespace m1
         colorBlending.blendConstants[2] = 0.0f; // Optional
         colorBlending.blendConstants[3] = 0.0f; // Optional
 
-        // layout info: specify dynamic values for shaders
+        // layout info: specify layout of dynamic values (descriptors and push constant) for shaders
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &_descriptorSetLayout;
+        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
         pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
         pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
@@ -236,7 +252,7 @@ namespace m1
             .pViewportState = &viewportState,
             .pRasterizationState = &rasterizer,
             .pMultisampleState = &multisampling,
-            .pDepthStencilState = nullptr, // Optional
+            .pDepthStencilState = &depthStencil,
             .pColorBlendState = &colorBlending,
             .pDynamicState = &dynamicState,
             
@@ -259,33 +275,6 @@ namespace m1
 
         vkDestroyShaderModule(device.getVkDevice(), fragShaderModule, nullptr);
         vkDestroyShaderModule(device.getVkDevice(), vertShaderModule, nullptr);
-    }
-
-    
-
-    void Pipeline::createDescriptorSetLayout()
-    {
-        Log::Get().Info("Creating descriptor set layout");
-        // Descriptor binding
-        VkDescriptorSetLayoutBinding uboLayoutBinding{};
-        uboLayoutBinding.binding = 0; // binding number in the shader
-        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uboLayoutBinding.descriptorCount = 1;
-        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
-
-        // DescriptorSet Info
-        VkDescriptorSetLayoutCreateInfo layoutInfo{};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = 1;
-        layoutInfo.pBindings = &uboLayoutBinding;
-
-        // Create the DescriptorSet
-        if (vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_descriptorSetLayout) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to create descriptor set layout!");
-            throw std::runtime_error("failed to create descriptor set layout!");
-        }
     }
 
 } // namespace m1

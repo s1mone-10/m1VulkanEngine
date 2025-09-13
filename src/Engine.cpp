@@ -1,29 +1,43 @@
 #include "Engine.hpp"
 #include "log/Log.hpp"
+#include "Queue.hpp"
+
 #include <stdexcept>
 #include <iostream>
 #include <vector>
 
 #define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
+
 #include <chrono>
+#include <unordered_map>
 
 namespace m1
 {
 
     Engine::Engine()
     {
-        Log::Get().Info("App constructor");
+        Log::Get().Info("Engine constructor");
+
+		loadModel();
+
         recreateSwapChain();
-        _pipeline = std::make_unique<Pipeline>(_device, *_swapChain);
-        _command = std::make_unique<Command>(_device, FRAMES_IN_FLIGHT);
+		_descriptor = std::make_unique<Descritor>(_device);
+        _pipeline = std::make_unique<Pipeline>(_device, *_swapChain, _descriptor->getDescriptorSetLayout());
+        _commandBuffers = _device.getGraphicsQueue().getPersistentCommandPool().createCommandBuffers(FRAMES_IN_FLIGHT);
+		createTextureImage();
         createVertexBuffer(mesh.Vertices);
-        createIndexxBuffer(mesh.Indices);
+        createIndexBuffer(mesh.Indices);
         createUniformBuffers();
-        createDescriptorPool();
-        createDescriptorSets();
+		_descriptor->updateDescriotorSets(_uniformBuffers, *_texture);
         createSyncObjects();
     }
 
@@ -32,16 +46,14 @@ namespace m1
         // wait for the GPU to finish all operations before destroying the resources
         vkDeviceWaitIdle(_device.getVkDevice());
 
+        // Command buffers are implicitly destroyed when the command pool is destroyed
+
         for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
         {
             vkDestroySemaphore(_device.getVkDevice(), _renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(_device.getVkDevice(), _imageAvailableSemaphores[i], nullptr);
             vkDestroyFence(_device.getVkDevice(), _inFlightFences[i], nullptr);
         }
-
-		// descriptor set are automatically freed when the pool is destroyed
-        vkDestroyDescriptorPool(_device.getVkDevice(), _descriptorPool, nullptr);
-
         Log::Get().Info("Engine destroyed");
     }
 
@@ -98,8 +110,8 @@ namespace m1
         vkResetFences(_device.getVkDevice(), 1, &_inFlightFences[_currentFrame]);
 
         // record the command buffer
-        vkResetCommandBuffer(_command->getCommandBuffers()[_currentFrame], 0);
-        recordCommandBuffer(_command->getCommandBuffers()[_currentFrame], imageIndex);
+        vkResetCommandBuffer(_commandBuffers[_currentFrame], 0);
+        recordCommandBuffer(_commandBuffers[_currentFrame], imageIndex);
 
         // submit the command buffer
         VkSubmitInfo submitInfo{};
@@ -111,13 +123,13 @@ namespace m1
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &_command->getCommandBuffers()[_currentFrame];
+        submitInfo.pCommandBuffers = &_commandBuffers[_currentFrame];
 
         VkSemaphore signalSemaphores[] = { _renderFinishedSemaphores[_currentFrame] };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(_device.getGraphicsQueue(), 1, &submitInfo, _inFlightFences[_currentFrame]) != VK_SUCCESS)
+        if (vkQueueSubmit(_device.getGraphicsQueue().getVkQueue(), 1, &submitInfo, _inFlightFences[_currentFrame]) != VK_SUCCESS)
         {
             Log::Get().Error("failed to submit draw command buffer!");
             throw std::runtime_error("failed to submit draw command buffer!");
@@ -134,7 +146,7 @@ namespace m1
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &imageIndex;
 
-        result = vkQueuePresentKHR(_device.getPresentQueue(), &presentInfo);
+        result = vkQueuePresentKHR(_device.getPresentQueue().getVkQueue(), &presentInfo);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || _window.FramebufferResized)
         {
@@ -155,7 +167,7 @@ namespace m1
         static auto startTime = std::chrono::high_resolution_clock::now();
 
         auto currentTime = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+        float time = 0;// std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
         UniformBufferObject ubo{};
         ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -217,9 +229,13 @@ namespace m1
         renderPassInfo.framebuffer = _swapChain->getFrameBuffer(imageIndex);
         renderPassInfo.renderArea.offset = { 0, 0 };
         renderPassInfo.renderArea.extent = _swapChain->getExtent();
-        VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
-        renderPassInfo.clearValueCount = 1;
-        renderPassInfo.pClearValues = &clearColor;
+        
+		std::array<VkClearValue, 2> clearValues{}; // the order of clear values must match the order of attachments in the render pass
+        clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
+		clearValues[1].depthStencil = { 1.0f, 0 }; // depth range [0.0f, 1.0f] with 1.0f being furthest - init depth with furthest value
+        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+        renderPassInfo.pClearValues = clearValues.data();
+
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
         // bind the graphics pipeline
@@ -247,11 +263,11 @@ namespace m1
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
         // bind the index buffer
-        vkCmdBindIndexBuffer(commandBuffer, _indexBuffer->getVkBuffer(), 0, VK_INDEX_TYPE_UINT16);
+        vkCmdBindIndexBuffer(commandBuffer, _indexBuffer->getVkBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-        // bind the descriptor
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline->getLayout(), 0, 1, &_descriptorSets[_currentFrame], 0, nullptr);
-
+        // bind the descriptor set
+        VkDescriptorSet descriptorSet = _descriptor->getDescriptorSet(_currentFrame);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline->getLayout(), 0, 1, &descriptorSet, 0, nullptr);
         // draw command
         vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.Indices.size()), 1, 0, 0, 0);
 
@@ -309,7 +325,7 @@ namespace m1
         copyBuffer(stagingBuffer, *_vertexBuffer, size);
     }
 
-    void Engine::createIndexxBuffer(const std::vector<uint16_t>& indices)
+    void Engine::createIndexBuffer(const std::vector<uint32_t>& indices)
     {
         Log::Get().Info("Creating index buffer");
         VkDeviceSize size = sizeof(indices[0]) * indices.size();
@@ -346,22 +362,8 @@ namespace m1
     void Engine::copyBuffer(const Buffer& srcBuffer, const Buffer& dstBuffer, VkDeviceSize size)
     {
         // Memory transfer operations are executed using command buffers.
-        // TODO: create a separate command pool with VK_COMMAND_POOL_CREATE_TRANSIENT_BIT flag to memory allocation optimizations
-
-        // Create the command buffer
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandPool = _command->getVkCommandPool();
-        allocInfo.commandBufferCount = 1;
-        VkCommandBuffer commandBuffer;
-        vkAllocateCommandBuffers(_device.getVkDevice(), &allocInfo, &commandBuffer);
-
-        // Begin recording the command buffer
-        VkCommandBufferBeginInfo beginInfo{};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        vkBeginCommandBuffer(commandBuffer, &beginInfo);
+		// Begin one-time command
+        VkCommandBuffer commandBuffer = _device.getGraphicsQueue().beginOneTimeCommand();
 
         // Copy buffer
         VkBufferCopy copyRegion{};
@@ -370,87 +372,184 @@ namespace m1
         copyRegion.size = size;
         vkCmdCopyBuffer(commandBuffer, srcBuffer.getVkBuffer(), dstBuffer.getVkBuffer(), 1, &copyRegion);
 
-        // End recording the command buffer
-        vkEndCommandBuffer(commandBuffer);
-
-        // Submit the command buffer to the graphics queue
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffer;
-        vkQueueSubmit(_device.getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
-        vkQueueWaitIdle(_device.getGraphicsQueue()); // TODO: use a fence to schedule multiple transfers simultaneously
-
-        // Free the command buffer
-        vkFreeCommandBuffers(_device.getVkDevice(), _command->getVkCommandPool(), 1, &commandBuffer);
+		// Execute the command
+		_device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
     }
 
-    void Engine::createDescriptorPool()
+    void Engine::copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height)
     {
-        Log::Get().Info("Creating descriptor pool");
-        // DescriptorPool Info
-        VkDescriptorPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = 1;
+        // Begin one-time command
+        VkCommandBuffer commandBuffer = _device.getGraphicsQueue().beginOneTimeCommand();
 
-        VkDescriptorPoolSize poolSize{};
-        poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSize.descriptorCount = static_cast<uint32_t>(FRAMES_IN_FLIGHT);
-        poolInfo.pPoolSizes = &poolSize;
-        poolInfo.maxSets = static_cast<uint32_t>(FRAMES_IN_FLIGHT);
+        // Copy buffer to image
+        VkBufferImageCopy region{};
+        region.bufferOffset = 0;
+        region.bufferRowLength = 0; // 0 means tightly packed, no padding bytes
+        region.bufferImageHeight = 0; // 0 means tightly packed, no padding bytes
 
-        if (vkCreateDescriptorPool(_device.getVkDevice(), &poolInfo, nullptr, &_descriptorPool) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to create descriptor pool!");
-            throw std::runtime_error("failed to create descriptor pool!");
-        }
+        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.imageSubresource.mipLevel = 0;
+        region.imageSubresource.baseArrayLayer = 0;
+        region.imageSubresource.layerCount = 1;
 
+        // which part of the image to copy to
+        region.imageOffset = { 0, 0, 0 };
+        region.imageExtent = { width, height, 1 };
 
+        vkCmdCopyBufferToImage(commandBuffer, srcBuffer.getVkBuffer(), image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // which layout the image is currently using
+            1, &region
+        );
+
+        // Execute the copy command
+        _device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
     }
 
-    void Engine::createDescriptorSets()
+    void Engine::createTextureImage()
     {
-        Log::Get().Info("Creating descriptor sets");
-        // DescriptorSet Info
-        std::vector<VkDescriptorSetLayout> layouts(FRAMES_IN_FLIGHT, _pipeline->getDescriptorSetLayout());
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = _descriptorPool;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(FRAMES_IN_FLIGHT);
-        allocInfo.pSetLayouts = layouts.data();
+        /*
+        - Load image from file
+		- Create a staging buffer and copy the image data to it
+		- Create the VkImage object
+		- Copy data from the staging buffer to the VkImage
+        */
 
-		// create DescriptorSets
-        _descriptorSets.resize(FRAMES_IN_FLIGHT);
-        if (vkAllocateDescriptorSets(_device.getVkDevice(), &allocInfo, _descriptorSets.data()) != VK_SUCCESS)
+        // load texture data. Return a pointer to the array of RGBA values
+        int texWidth, texHeight, texChannels;
+        stbi_uc* pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+		VkDeviceSize imageSize = texWidth * texHeight * 4; // 4 bytes per pixel (RGBA)
+
+        if (!pixels)
         {
-            Log::Get().Error("failed to allocate descriptor sets!");
-            throw std::runtime_error("failed to allocate descriptor sets!");
+            throw std::runtime_error("failed to load texture image!");
         }
 
-		// populate each DescriptorSet
-        for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
-        {
-            // Buffer Info
-            VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = _uniformBuffers[i]->getVkBuffer();
-            bufferInfo.offset = 0;
-            bufferInfo.range = sizeof(UniformBufferObject); // or VK_WHOLE_SIZE 
+		// Create a staging buffer to upload the texture data to GPU
+        Buffer stagingBuffer{ _device, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
 
+		// Copy texture data to the staging buffer
+        stagingBuffer.copyDataToBuffer(pixels);
 
-            VkWriteDescriptorSet descriptorWrite{};
-            descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrite.dstSet = _descriptorSets[i];
-            descriptorWrite.dstBinding = 0;
-            descriptorWrite.dstArrayElement = 0;
-            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrite.descriptorCount = 1;
-            // set the struct that actually configure the descriptors
-            descriptorWrite.pBufferInfo = &bufferInfo;
-            descriptorWrite.pImageInfo = nullptr; // Optional
-            descriptorWrite.pTexelBufferView = nullptr; // Optional
+        // Free texture data
+        stbi_image_free(pixels);
 
-            vkUpdateDescriptorSets(_device.getVkDevice(), 1, &descriptorWrite, 0, nullptr);
-        }
+        _texture = std::make_unique<Texture>(_device, texWidth, texHeight);
+
+		// Transition image layout to be optimal for receiving data
+        transitionImageLayout(_texture->getImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+		// Copy the texture data from the staging buffer to the image
+        copyBufferToImage(stagingBuffer, _texture->getImage(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+
+		// Transition image layout to be optimal for shader access
+        transitionImageLayout(_texture->getImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
+    void Engine::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
+    {
+        /*
+        In Vulkan, an image layout describes how the GPU should treat the memory of an image(texture, framebuffer, etc.).
+        A layout transition is changing an image from one layout to another, so the GPU knows how to access it correctly.
+        This is done with a pipeline barrier(vkCmdPipelineBarrier), which synchronizes memory access and updates the image layout.
+        */
+
+        VkCommandBuffer commandBuffer = _device.getGraphicsQueue().beginOneTimeCommand();
+
+        // 
+        VkImageMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		barrier.oldLayout = oldLayout; // it's ok to use VK_IMAGE_LAYOUT_UNDEFINED if we don't care about the existing image data
+        barrier.newLayout = newLayout;
+		
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED; // for queue family ownership transfer, not used here
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        
+        barrier.image = image;
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseMipLevel = 0;
+        barrier.subresourceRange.levelCount = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount = 1;
+
+
+        VkPipelineStageFlags sourceStage; // stage that should happen before the barrier
+        VkPipelineStageFlags destinationStage; // stage that will wait until on the barrier
+
+        if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+        {
+            barrier.srcAccessMask = 0;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+			sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT; // earliest possible stage
+			destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT; // transfer stage (it's a pseudo-stage)
+        }
+        else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+        {
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+            sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; // fragment shader reads from the texture
+        }
+        else
+        {
+            throw std::invalid_argument("unsupported layout transition!");
+        }
+
+        vkCmdPipelineBarrier(
+            commandBuffer,
+			sourceStage,
+			destinationStage,
+			0,          // dependency flags
+			0, nullptr, // memory barriers
+            0, nullptr, // buffer memory barries
+			1, &barrier // image memory barriers
+        );
+
+        _device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
+    }
+
+    void Engine::loadModel()
+    {
+        tinyobj::attrib_t attrib;
+        std::vector<tinyobj::shape_t> shapes;
+        std::vector<tinyobj::material_t> materials;
+        std::string warn, err;
+
+        if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, MODEL_PATH.c_str()))
+        {
+            throw std::runtime_error(warn + err);
+        }
+
+        std::unordered_map<Vertex, uint32_t> uniqueVertices{};
+
+        for (const auto& shape : shapes)
+        {
+            for (const auto& index : shape.mesh.indices)
+            {
+                Vertex vertex{};
+
+                vertex.pos = {
+                    attrib.vertices[3 * index.vertex_index + 0],
+                    attrib.vertices[3 * index.vertex_index + 1],
+                    attrib.vertices[3 * index.vertex_index + 2]
+                };
+
+                vertex.texCoord = {
+                    attrib.texcoords[2 * index.texcoord_index + 0],
+                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+                };
+
+                vertex.color = { 1.0f, 1.0f, 1.0f };
+
+                if (uniqueVertices.count(vertex) == 0)
+                {
+                    uniqueVertices[vertex] = static_cast<uint32_t>(mesh.Vertices.size());
+                    mesh.Vertices.push_back(vertex);
+                }
+
+                mesh.Indices.push_back(uniqueVertices[vertex]);
+            }
+        }
+    }
 } // namespace m1

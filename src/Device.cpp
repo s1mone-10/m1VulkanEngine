@@ -1,25 +1,31 @@
 #include "Device.hpp"
 #include "Instance.hpp"
-#include "SwapChain.hpp" // For SwapChain::querySwapChainSupport
+#include "SwapChain.hpp"
 #include "log/Log.hpp"
+#include "Queue.hpp"
+
 #include <stdexcept>
 #include <set>
 #include <iostream>
 
 namespace m1
 {
-
 	Device::Device(const Window& window)
     {
         Log::Get().Info("Creating device");
         createSurface(window);
         pickPhysicalDevice();
         createLogicalDevice();
-		pickDeviceQueues();
+        _graphicsQueue = std::make_unique<Queue>(*this, _queueFamilies.graphicsFamily.value(), 0);
+        _presentQueue = std::make_unique<Queue>(*this, _queueFamilies.presentFamily.value(), 0);
     }
 
     Device::~Device()
     {
+		// destroy command pools before destroying the device
+        _graphicsQueue = NULL;
+        _presentQueue = NULL;
+
 		// physical device is implicitly destroyed when the VkInstance is destroyed
         // Device queues are implicitly destroyed when the device is destroyed
         vkDestroyDevice(_vkDevice, nullptr);
@@ -27,11 +33,41 @@ namespace m1
         Log::Get().Info("Device destroyed");
     }
 
-    VkPhysicalDeviceMemoryProperties Device::getMemoryProperties() const
+    VkDeviceMemory Device::allocateMemory(VkMemoryRequirements memRequirements, VkMemoryPropertyFlags properties) const
     {
-        VkPhysicalDeviceMemoryProperties memProperties;
-        vkGetPhysicalDeviceMemoryProperties(_physicalDevice, &memProperties);
-        return memProperties;
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size; // maybe different from bufferInfo.size
+        allocInfo.memoryTypeIndex = findMemoryTypeIndex(memRequirements.memoryTypeBits, properties);
+
+        // Allocate the memory
+		VkDeviceMemory deviceMemory;
+        if (vkAllocateMemory(_vkDevice, &allocInfo, nullptr, &deviceMemory) != VK_SUCCESS)
+        {
+            Log::Get().Error("failed to allocate device memory!");
+            throw std::runtime_error("failed to allocate device memory!");
+        }
+
+        return deviceMemory;
+    }
+
+    VkFormat Device::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const
+    {
+        for (VkFormat format : candidates)
+        {
+            VkFormatProperties props;
+            vkGetPhysicalDeviceFormatProperties(_physicalDevice, format, &props);
+
+            if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features)
+            {
+                return format;
+            }
+            else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features)
+            {
+                return format;
+            }
+        }
+        throw std::runtime_error("failed to find supported format!");
     }
 
     void Device::createSurface(const Window& window)
@@ -93,6 +129,7 @@ namespace m1
 
         // Device features
         VkPhysicalDeviceFeatures deviceFeatures{};
+		deviceFeatures.samplerAnisotropy = VK_TRUE; // enable anisotropic filtering
 
         // Device info
         VkDeviceCreateInfo createInfo{};
@@ -121,12 +158,6 @@ namespace m1
         }
     }
 
-    void Device::pickDeviceQueues()
-    {
-        vkGetDeviceQueue(_vkDevice, _queueFamilies.graphicsFamily.value(), 0, &_graphicsQueue);
-        vkGetDeviceQueue(_vkDevice, _queueFamilies.presentFamily.value(), 0, &_presentQueue);
-    }
-
     bool Device::isDeviceSuitable(VkPhysicalDevice device)
     {
         VkPhysicalDeviceProperties deviceProperties;
@@ -134,7 +165,8 @@ namespace m1
         vkGetPhysicalDeviceProperties(device, &deviceProperties);
         vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 
-        // eventually check for properties or features
+        if(!deviceFeatures.samplerAnisotropy)
+			return false;
 
         // check queue families
         _queueFamilies = findQueueFamilies(device);
@@ -234,5 +266,32 @@ namespace m1
             vkGetPhysicalDeviceSurfacePresentModesKHR(device, _surface, &presentModeCount, details.presentModes.data());
         }
         return details;
+    }
+
+    /// <summary>
+    /// Finds a suitable memory type index based on a type filter and desired memory properties.
+    /// </summary>
+    /// <param name="typeFilter">A bitmask specifying the acceptable memory types.</param>
+    /// <param name="properties">Flags specifying the desired memory properties.</param>
+    /// <returns>The index of a suitable memory type that matches the filter and properties.</returns>
+    uint32_t Device::findMemoryTypeIndex(uint32_t typeFilter, VkMemoryPropertyFlags properties) const
+    {
+        // GPU can offer different types of memory, each type varies in terms of allowed operations and performance characteristics
+
+        // Get the memory properties of the physical device
+        VkPhysicalDeviceMemoryProperties memProperties;
+        vkGetPhysicalDeviceMemoryProperties(_physicalDevice, &memProperties);
+
+        // Find a memory type that matches the type filter and has the desired properties
+        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
+        {
+            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
+            {
+                return i;
+            }
+        }
+
+        Log::Get().Error("failed to find suitable memory type!");
+        throw std::runtime_error("failed to find suitable memory type!");
     }
 } // namespace m1
