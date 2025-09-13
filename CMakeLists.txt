@@ -6,7 +6,7 @@ message(STATUS "Local .env.cmake: ${LOCAL_ENV}")
 
 cmake_minimum_required(VERSION 3.11.0)
 
-set(NAME VulkanApp) # set the application name
+set(NAME m1VulkanEngine) # set the application name
 
 message(STATUS "using ${CMAKE_GENERATOR}") # Display the CMake generator being used (e.g., "Visual Studio 16 2019", "MinGW Makefiles")
 if (CMAKE_GENERATOR STREQUAL "MinGW Makefiles") # Check if the generator is for MinGW Makefiles
@@ -14,7 +14,7 @@ if (CMAKE_GENERATOR STREQUAL "MinGW Makefiles") # Check if the generator is for 
       message(FATAL_ERROR "MINGW_PATH not set in .env.cmake") # Halt the build if MINGW_PATH is not set
     endif()
     set(USE_MINGW "True") # Set a flag to indicate MinGW is being used
-    set(CMAKE_C_COMPILER ${MINGW_PATH}/bin/gcc.exe) 
+    set(CMAKE_C_COMPILER ${MINGW_PATH}/bin/gcc.exe)
     set(CMAKE_CXX_COMPILER  ${MINGW_PATH}/bin/g++.exe) # Explicitly set the C++ compiler for MinGW
 endif()
 

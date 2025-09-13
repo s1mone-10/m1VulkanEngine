@@ -34,15 +34,21 @@ namespace m1
         void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 		void recreateSwapChain();
         void createVertexBuffer(const std::vector<Vertex>& vertices);
-        void createIndexBuffer(const std::vector<uint16_t>& indices);
+        void createIndexBuffer(const std::vector<uint32_t>& indices);
 		void createUniformBuffers();
         void copyBuffer(const Buffer& srcBuffer, const Buffer& dstBuffer, VkDeviceSize size);
         void copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height);
         void createTextureImage();
         void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 
+        void loadModel();
+
         const uint32_t  WIDTH = 800;
         const uint32_t  HEIGHT = 600;
+
+        const std::string MODEL_PATH = "../../../resources/viking_room.obj";
+        const std::string TEXTURE_PATH = "../../../resources/viking_room.png";
+
         Window _window{ WIDTH, HEIGHT, "Vulkan App" };
         Device _device{_window};
         std::unique_ptr<SwapChain> _swapChain;
