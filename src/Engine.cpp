@@ -1,5 +1,7 @@
 #include "Engine.hpp"
 #include "log/Log.hpp"
+#include "Queue.hpp"
+
 #include <stdexcept>
 #include <iostream>
 #include <vector>
@@ -30,7 +32,7 @@ namespace m1
         recreateSwapChain();
 		_descriptor = std::make_unique<Descritor>(_device);
         _pipeline = std::make_unique<Pipeline>(_device, *_swapChain, _descriptor->getDescriptorSetLayout());
-        _command = std::make_unique<Command>(_device, FRAMES_IN_FLIGHT);
+        _commandBuffers = _device.getGraphicsQueue().getPersistentCommandPool().createCommandBuffers(FRAMES_IN_FLIGHT);
 		createTextureImage();
         createVertexBuffer(mesh.Vertices);
         createIndexBuffer(mesh.Indices);
@@ -43,6 +45,8 @@ namespace m1
     {
         // wait for the GPU to finish all operations before destroying the resources
         vkDeviceWaitIdle(_device.getVkDevice());
+
+        // Command buffers are implicitly destroyed when the command pool is destroyed
 
         for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
         {
@@ -106,8 +110,8 @@ namespace m1
         vkResetFences(_device.getVkDevice(), 1, &_inFlightFences[_currentFrame]);
 
         // record the command buffer
-        vkResetCommandBuffer(_command->getCommandBuffers()[_currentFrame], 0);
-        recordCommandBuffer(_command->getCommandBuffers()[_currentFrame], imageIndex);
+        vkResetCommandBuffer(_commandBuffers[_currentFrame], 0);
+        recordCommandBuffer(_commandBuffers[_currentFrame], imageIndex);
 
         // submit the command buffer
         VkSubmitInfo submitInfo{};
@@ -119,13 +123,13 @@ namespace m1
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &_command->getCommandBuffers()[_currentFrame];
+        submitInfo.pCommandBuffers = &_commandBuffers[_currentFrame];
 
         VkSemaphore signalSemaphores[] = { _renderFinishedSemaphores[_currentFrame] };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(_device.getGraphicsQueue(), 1, &submitInfo, _inFlightFences[_currentFrame]) != VK_SUCCESS)
+        if (vkQueueSubmit(_device.getGraphicsQueue().getVkQueue(), 1, &submitInfo, _inFlightFences[_currentFrame]) != VK_SUCCESS)
         {
             Log::Get().Error("failed to submit draw command buffer!");
             throw std::runtime_error("failed to submit draw command buffer!");
@@ -142,7 +146,7 @@ namespace m1
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &imageIndex;
 
-        result = vkQueuePresentKHR(_device.getPresentQueue(), &presentInfo);
+        result = vkQueuePresentKHR(_device.getPresentQueue().getVkQueue(), &presentInfo);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || _window.FramebufferResized)
         {
@@ -358,10 +362,8 @@ namespace m1
     void Engine::copyBuffer(const Buffer& srcBuffer, const Buffer& dstBuffer, VkDeviceSize size)
     {
         // Memory transfer operations are executed using command buffers.
-        // TODO: create a separate command pool with VK_COMMAND_POOL_CREATE_TRANSIENT_BIT flag to memory allocation optimizations
-
 		// Begin one-time command
-        VkCommandBuffer commandBuffer = _command->beginOneTimeCommand();
+        VkCommandBuffer commandBuffer = _device.getGraphicsQueue().beginOneTimeCommand();
 
         // Copy buffer
         VkBufferCopy copyRegion{};
@@ -371,13 +373,13 @@ namespace m1
         vkCmdCopyBuffer(commandBuffer, srcBuffer.getVkBuffer(), dstBuffer.getVkBuffer(), 1, &copyRegion);
 
 		// Execute the command
-		_command->endOneTimeCommand(commandBuffer);
+		_device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
     }
 
     void Engine::copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height)
     {
         // Begin one-time command
-        VkCommandBuffer commandBuffer = _command->beginOneTimeCommand();
+        VkCommandBuffer commandBuffer = _device.getGraphicsQueue().beginOneTimeCommand();
 
         // Copy buffer to image
         VkBufferImageCopy region{};
@@ -400,7 +402,7 @@ namespace m1
         );
 
         // Execute the copy command
-        _command->endOneTimeCommand(commandBuffer);
+        _device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
     }
 
     void Engine::createTextureImage()
@@ -451,7 +453,7 @@ namespace m1
         This is done with a pipeline barrier(vkCmdPipelineBarrier), which synchronizes memory access and updates the image layout.
         */
 
-        VkCommandBuffer commandBuffer = _command->beginOneTimeCommand();
+        VkCommandBuffer commandBuffer = _device.getGraphicsQueue().beginOneTimeCommand();
 
         // 
         VkImageMemoryBarrier barrier{};
@@ -504,7 +506,7 @@ namespace m1
 			1, &barrier // image memory barriers
         );
 
-        _command->endOneTimeCommand(commandBuffer);
+        _device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
     }
 
     void Engine::loadModel()

@@ -1,25 +1,31 @@
 #include "Device.hpp"
 #include "Instance.hpp"
-#include "SwapChain.hpp" // For SwapChain::querySwapChainSupport
+#include "SwapChain.hpp"
 #include "log/Log.hpp"
+#include "Queue.hpp"
+
 #include <stdexcept>
 #include <set>
 #include <iostream>
 
 namespace m1
 {
-
 	Device::Device(const Window& window)
     {
         Log::Get().Info("Creating device");
         createSurface(window);
         pickPhysicalDevice();
         createLogicalDevice();
-		pickDeviceQueues();
+        _graphicsQueue = std::make_unique<Queue>(*this, _queueFamilies.graphicsFamily.value(), 0);
+        _presentQueue = std::make_unique<Queue>(*this, _queueFamilies.presentFamily.value(), 0);
     }
 
     Device::~Device()
     {
+		// destroy command pools before destroying the device
+        _graphicsQueue = NULL;
+        _presentQueue = NULL;
+
 		// physical device is implicitly destroyed when the VkInstance is destroyed
         // Device queues are implicitly destroyed when the device is destroyed
         vkDestroyDevice(_vkDevice, nullptr);
@@ -150,12 +156,6 @@ namespace m1
             Log::Get().Error("failed to create logical device!");
             throw std::runtime_error("failed to create logical device!");
         }
-    }
-
-    void Device::pickDeviceQueues()
-    {
-        vkGetDeviceQueue(_vkDevice, _queueFamilies.graphicsFamily.value(), 0, &_graphicsQueue);
-        vkGetDeviceQueue(_vkDevice, _queueFamilies.presentFamily.value(), 0, &_presentQueue);
     }
 
     bool Device::isDeviceSuitable(VkPhysicalDevice device)

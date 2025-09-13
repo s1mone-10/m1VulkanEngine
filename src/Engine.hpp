@@ -6,7 +6,6 @@
 #include "SwapChain.hpp"
 #include "Descriptor.hpp"
 #include "Pipeline.hpp"
-#include "Command.hpp"
 #include "Buffer.hpp"
 #include "Texture.hpp"
 #include "geometry/Mesh.hpp"
@@ -53,7 +52,7 @@ namespace m1
         Device _device{_window};
         std::unique_ptr<SwapChain> _swapChain;
         std::unique_ptr<Pipeline> _pipeline;
-        std::unique_ptr<Command> _command;
+        std::vector<VkCommandBuffer> _commandBuffers;
 
 		std::unique_ptr<Buffer> _vertexBuffer;
         std::unique_ptr<Buffer> _indexBuffer;

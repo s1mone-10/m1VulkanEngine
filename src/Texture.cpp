@@ -3,7 +3,6 @@
 #include <stdexcept>
 
 #include "Buffer.hpp"
-#include "Command.hpp"
 #include "Device.hpp"
 #include "log/Log.hpp"
 
