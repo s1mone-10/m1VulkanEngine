@@ -8,7 +8,7 @@
 namespace m1
 {
     m1::Image::Image(const Device& device, uint32_t width, uint32_t height, uint32_t mipLevels,
-                 VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)
+                 VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImageAspectFlags aspectFlags)
 		: _device(device), _format(format), _width(width), _height(height), _mipLevels(mipLevels)
     {
         Log::Get().Info("Creating image from scratch");
@@ -48,6 +48,7 @@ namespace m1
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         viewInfo.format = format;
         viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.aspectMask = aspectFlags;
         viewInfo.subresourceRange.baseMipLevel = 0;
         viewInfo.subresourceRange.levelCount = mipLevels;
         viewInfo.subresourceRange.baseArrayLayer = 0;
