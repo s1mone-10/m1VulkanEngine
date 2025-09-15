@@ -46,6 +46,7 @@ namespace m1
         SwapChainProperties getSwapChainProperties() const { return getSwapChainProperties(_physicalDevice); };
         VkDeviceMemory allocateMemory(VkMemoryRequirements memRequirements, VkMemoryPropertyFlags properties) const;
         VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
+        bool isLinearFilteringSupported(VkFormat format, VkImageTiling tiling);
 
     private:
         void createSurface(const Window& window);

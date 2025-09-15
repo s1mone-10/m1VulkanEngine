@@ -70,6 +70,24 @@ namespace m1
         throw std::runtime_error("failed to find supported format!");
     }
 
+    bool Device::isLinearFilteringSupported(VkFormat format, VkImageTiling tiling)
+    {
+        // Check if image format supports linear blitting
+        VkFormatProperties formatProperties;
+        vkGetPhysicalDeviceFormatProperties(_physicalDevice, format, &formatProperties);
+
+        if (tiling == VK_IMAGE_TILING_LINEAR)
+        {
+            return formatProperties.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+        }
+        else if (tiling == VK_IMAGE_TILING_OPTIMAL)
+        {
+            return formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+        }
+
+        return false;
+    }
+
     void Device::createSurface(const Window& window)
     {
         Log::Get().Info("Creating surface");

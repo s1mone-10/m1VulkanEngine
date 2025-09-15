@@ -337,6 +337,7 @@ namespace m1
             _device,
             _extent.width,
             _extent.height,
+            1,
             depthFormat,
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,

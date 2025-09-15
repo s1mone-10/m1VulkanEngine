@@ -115,7 +115,7 @@ namespace m1
 			// Texture Image Info
             VkDescriptorImageInfo imageInfo{};
             imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView = texture.getImageView();
+            imageInfo.imageView = texture.getImage().getVkImageView();
             imageInfo.sampler = texture.getSampler();
 
 			// Texture Descriptor Write

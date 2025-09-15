@@ -23,13 +23,17 @@ namespace m1
 
     void Texture::createTextureImage(uint32_t width, uint32_t height)
     {
+        auto mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
+
         _image = std::make_unique<Image>(_device,
             width,
             height,
+            mipLevels,
             VK_FORMAT_R8G8B8A8_SRGB,
             VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, // destination of transfer and shader read
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, // source (for creating mipmaps) and destination of transfer and shader read
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+        );
     }
 
     void Texture::createSampler()
@@ -53,7 +57,7 @@ namespace m1
         samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
         samplerInfo.mipLodBias = 0.0f;
         samplerInfo.minLod = 0.0f;
-        samplerInfo.maxLod = 0.0f;
+        samplerInfo.maxLod = VK_LOD_CLAMP_NONE; // all available mipmap levels will be sampled
 
         // Create sampler
         if (vkCreateSampler(_device.getVkDevice(), &samplerInfo, nullptr, &_sampler) != VK_SUCCESS)
