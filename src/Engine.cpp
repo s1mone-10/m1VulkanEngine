@@ -290,14 +290,17 @@ namespace m1
 
 		vkDeviceWaitIdle(_device.getVkDevice());
 
+		auto samples = _device.getMaxMsaaSamples();
+        //samples = VK_SAMPLE_COUNT_2_BIT;
+
         if (_swapChain == nullptr)
         {
-            _swapChain = std::make_unique<SwapChain>(_device, _window);
+            _swapChain = std::make_unique<SwapChain>(_device, _window, samples);
         }
         else
         {
             std::unique_ptr<SwapChain> oldSwapChain = std::move(_swapChain);
-            _swapChain = std::make_unique<SwapChain>(_device, _window, oldSwapChain->getVkSwapChain());
+            _swapChain = std::make_unique<SwapChain>(_device, _window, samples, oldSwapChain->getVkSwapChain());
 
             /*if (!oldSwapChain->compareSwapFormats(*lveSwapChain.getVkSwapChain()))
             {

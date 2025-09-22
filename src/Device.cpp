@@ -200,6 +200,16 @@ namespace m1
         if (swapChainProperties.formats.empty() || swapChainProperties.presentModes.empty())
             return false;
 
+		// get the max msaa samples (color and depth)
+        VkSampleCountFlags counts = deviceProperties.limits.framebufferColorSampleCounts & deviceProperties.limits.framebufferDepthSampleCounts;
+        maxMsaaSamples = counts & VK_SAMPLE_COUNT_64_BIT ? VK_SAMPLE_COUNT_64_BIT :
+                         counts & VK_SAMPLE_COUNT_32_BIT ? VK_SAMPLE_COUNT_32_BIT :
+                         counts & VK_SAMPLE_COUNT_16_BIT ? VK_SAMPLE_COUNT_16_BIT :
+                         counts & VK_SAMPLE_COUNT_8_BIT  ? VK_SAMPLE_COUNT_8_BIT  :
+                         counts & VK_SAMPLE_COUNT_4_BIT  ? VK_SAMPLE_COUNT_4_BIT  :
+                         counts & VK_SAMPLE_COUNT_2_BIT  ? VK_SAMPLE_COUNT_2_BIT  :
+			             VK_SAMPLE_COUNT_1_BIT;
+
         return true;
     }
 

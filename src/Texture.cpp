@@ -25,16 +25,15 @@ namespace m1
     {
         auto mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
 
-        _image = std::make_unique<Image>(_device,
-            width,
-            height,
-            mipLevels,
-            VK_FORMAT_R8G8B8A8_SRGB,
-            VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, // source (for creating mipmaps) and destination of transfer and shader read
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            VK_IMAGE_ASPECT_COLOR_BIT
-        );
+        ImageParams params
+        {
+            .extent = {width, height},
+            .format = VK_FORMAT_R8G8B8A8_SRGB,
+            .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, // source (for creating mipmaps) and destination of transfer and shader read
+            .mipLevels = mipLevels,
+        };
+
+        _image = std::make_unique<Image>(_device, params);
     }
 
     void Texture::createSampler()
