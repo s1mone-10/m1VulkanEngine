@@ -290,8 +290,9 @@ namespace m1
 
 		vkDeviceWaitIdle(_device.getVkDevice());
 
-		auto samples = _device.getMaxMsaaSamples();
-        //samples = VK_SAMPLE_COUNT_2_BIT;
+        bool msaa = true;
+		VkSampleCountFlagBits samples;
+		samples = msaa ? _device.getMaxMsaaSamples() : VK_SAMPLE_COUNT_1_BIT;
 
         if (_swapChain == nullptr)
         {
