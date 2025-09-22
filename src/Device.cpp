@@ -148,6 +148,7 @@ namespace m1
         // Device features
         VkPhysicalDeviceFeatures deviceFeatures{};
 		deviceFeatures.samplerAnisotropy = VK_TRUE; // enable anisotropic filtering
+		deviceFeatures.sampleRateShading = VK_TRUE; // enable sample shading (for better quality when using MSAA)
 
         // Device info
         VkDeviceCreateInfo createInfo{};

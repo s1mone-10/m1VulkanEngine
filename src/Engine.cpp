@@ -284,6 +284,8 @@ namespace m1
 
     void Engine::recreateSwapChain()
     {
+        // TODO: I should recreate the pipeline too
+
         Log::Get().Info("Recreating swap chain");
         while (_window.IsMinimized)
             glfwWaitEvents();

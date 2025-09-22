@@ -169,9 +169,9 @@ namespace m1
         // multisampling info: how to handle multisampling (anti-aliasing)
         VkPipelineMultisampleStateCreateInfo multisampling{};
         multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        multisampling.sampleShadingEnable = VK_FALSE;
+        multisampling.sampleShadingEnable = VK_FALSE; // if enabled better quality but an additional performance cost
         multisampling.rasterizationSamples = swapChain.getSamples();
-        multisampling.minSampleShading = 1.0f; // Optional
+        multisampling.minSampleShading = 0.2f; // min fraction for sample shading; closer to one is smoother
         multisampling.pSampleMask = nullptr; // Optional
         multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
         multisampling.alphaToOneEnable = VK_FALSE; // Optional
