@@ -211,6 +211,9 @@ namespace m1
                          counts & VK_SAMPLE_COUNT_2_BIT  ? VK_SAMPLE_COUNT_2_BIT  :
 			             VK_SAMPLE_COUNT_1_BIT;
 
+		Log::Get().Info("Device " + std::string(deviceProperties.deviceName) + " is suitable");
+        Log::Get().Info("Device maxPushConstantsSize: " + std::to_string(deviceProperties.limits.maxPushConstantsSize) + "bytes");
+
         return true;
     }
 

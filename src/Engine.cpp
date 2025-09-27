@@ -268,6 +268,14 @@ namespace m1
         // bind the descriptor set
         VkDescriptorSet descriptorSet = _descriptor->getDescriptorSet(_currentFrame);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline->getLayout(), 0, 1, &descriptorSet, 0, nullptr);
+
+		// push constants
+        PushConstantData push
+        {
+            .color = {0.5f, 0.0f, 0.5f}
+        };
+        vkCmdPushConstants(commandBuffer, _pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantData), &push);
+
         // draw command
         vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.Indices.size()), 1, 0, 0, 0);
 

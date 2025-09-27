@@ -4,9 +4,20 @@
 #include <vector>
 #include <string>
 
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/vec4.hpp>
+#include <glm/mat4x4.hpp>
+
 namespace m1 {
     class Device; // Forward declaration
     class SwapChain; // Forward declaration
+
+    struct PushConstantData
+    {
+        glm::vec2 offset;
+        alignas(16) glm::vec3 color; // https://vulkan-tutorial.com/Uniform_buffers/Descriptor_pool_and_sets#page_Alignment-requirements
+    };
 
     class Pipeline {
     public:
