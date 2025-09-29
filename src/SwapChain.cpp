@@ -291,17 +291,18 @@ namespace m1
         subpass.pResolveAttachments = msaaEnabled ? &resolveAttachmentRef : nullptr;
         subpass.pDepthStencilAttachment = &depthAttachmentRef;
         
-        // define subpass dependencies: to handle image layout transitions
+        // define subpass dependencies: to handle/synchronize image layout transitions
         VkSubpassDependency dependency
         {
             // indices of source and destination subpasses
             .srcSubpass = VK_SUBPASS_EXTERNAL, // subpass before or after the render pass depending on whether it's used as a source or destination
             .dstSubpass = 0, // index of the subpass in the render pass
 
-            // operations to wait on and the stages in which these operations occur
+            // stages in which these access operations occur
             .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
             .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
 
+            // memory access operations to wait on
             .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
             .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
         };

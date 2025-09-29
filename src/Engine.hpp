@@ -30,7 +30,7 @@ namespace m1
         void drawFrame();
         void updateUniformBuffer(uint32_t currentImage);
         void createSyncObjects();
-        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+        void recordDrawCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 		void recreateSwapChain();
         void createVertexBuffer(const std::vector<Vertex>& vertices);
         void createIndexBuffer(const std::vector<uint32_t>& indices);
@@ -55,7 +55,7 @@ namespace m1
         Device _device{_window};
         std::unique_ptr<SwapChain> _swapChain;
         std::unique_ptr<Pipeline> _pipeline;
-        std::vector<VkCommandBuffer> _commandBuffers;
+        std::vector<VkCommandBuffer> _drawSceneCmdBuffers;
 
 		std::unique_ptr<Buffer> _vertexBuffer;
         std::unique_ptr<Buffer> _indexBuffer;
@@ -68,9 +68,10 @@ namespace m1
         Mesh mesh{};
         uint32_t _currentFrame = 0;
 
-        // Synchronization objects
-        std::vector<VkSemaphore> _imageAvailableSemaphores;
-        std::vector<VkSemaphore> _renderFinishedSemaphores;
-        std::vector<VkFence> _inFlightFences;
+		// Synchronization objects (semaphores for GPU-GPU sync, fences for CPU-GPU sync)
+        std::vector<VkSemaphore> _imageAvailableSems;
+        std::vector<VkSemaphore> _drawCmdExecutedSems;
+        std::vector<VkFence> _frameFences;
+        VkSemaphore _acquireSemaphore; // only used during acquire of an image, then swapped into _imageAvailableSems
     };
 }

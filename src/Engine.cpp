@@ -32,7 +32,7 @@ namespace m1
         recreateSwapChain();
 		_descriptor = std::make_unique<Descritor>(_device);
         _pipeline = std::make_unique<Pipeline>(_device, *_swapChain, _descriptor->getDescriptorSetLayout());
-        _commandBuffers = _device.getGraphicsQueue().getPersistentCommandPool().createCommandBuffers(FRAMES_IN_FLIGHT);
+        _drawSceneCmdBuffers = _device.getGraphicsQueue().getPersistentCommandPool().createCommandBuffers(FRAMES_IN_FLIGHT);
 		createTextureImage();
         createVertexBuffer(mesh.Vertices);
         createIndexBuffer(mesh.Indices);
@@ -48,12 +48,16 @@ namespace m1
 
         // Command buffers are implicitly destroyed when the command pool is destroyed
 
-        for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
+        for (size_t i = 0; i < _imageAvailableSems.size(); i++)
         {
-            vkDestroySemaphore(_device.getVkDevice(), _renderFinishedSemaphores[i], nullptr);
-            vkDestroySemaphore(_device.getVkDevice(), _imageAvailableSemaphores[i], nullptr);
-            vkDestroyFence(_device.getVkDevice(), _inFlightFences[i], nullptr);
+            vkDestroySemaphore(_device.getVkDevice(), _drawCmdExecutedSems[i], nullptr);
+            vkDestroySemaphore(_device.getVkDevice(), _imageAvailableSems[i], nullptr);
         }
+        vkDestroySemaphore(_device.getVkDevice(), _acquireSemaphore, nullptr);
+
+        for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
+            vkDestroyFence(_device.getVkDevice(), _frameFences[i], nullptr);
+
         Log::Get().Info("Engine destroyed");
     }
 
@@ -79,20 +83,26 @@ namespace m1
             - Wait for the previous frame to finish
             - Acquire an image from the swap chain
             - Record a command buffer which draws the scene onto that image
-            - Submit the recorded command buffer
-            - Present the swap chain image
+			- Submit the recorded command buffer (waiting on the image to be available - signal when the command buffer finishes)
+			- Present the swap chain image (waiting on the command buffer to finish)
         */
 
 		// Update the uniform buffer
         updateUniformBuffer(_currentFrame);
 
-        // wait for the previous frame to finish
-        vkWaitForFences(_device.getVkDevice(), 1, &_inFlightFences[_currentFrame], VK_TRUE, UINT64_MAX);
+        // wait for the previous frame to finish (with Fence wait on the CPU)
+        vkWaitForFences(_device.getVkDevice(), 1, &_frameFences[_currentFrame], VK_TRUE, UINT64_MAX);
 
-        // acquire an image from the swap chain
+		// acquire an image from the swap chain (signal the semaphore when the image is ready)
         uint32_t imageIndex;
-        auto result = vkAcquireNextImageKHR(_device.getVkDevice(), _swapChain->getVkSwapChain(), UINT64_MAX, _imageAvailableSemaphores[_currentFrame], VK_NULL_HANDLE, &imageIndex);
+        auto result = vkAcquireNextImageKHR(_device.getVkDevice(), _swapChain->getVkSwapChain(), UINT64_MAX, _acquireSemaphore, VK_NULL_HANDLE, &imageIndex);
 
+        // Since I don't know the image index in advance, I use a staging semaphore that is then swapped with the one in the array.
+        VkSemaphore temp = _acquireSemaphore;
+        _acquireSemaphore = _imageAvailableSems[imageIndex];
+        _imageAvailableSems[imageIndex] = temp;
+
+        // recreate the swap chain if needed
 		if (result == VK_ERROR_OUT_OF_DATE_KHR) // swap chain is no longer compatible with the surface (e.g. window resized)
         {
             Log::Get().Warning("Swap chain out of date, recreating");
@@ -107,47 +117,58 @@ namespace m1
         }
 
 		// reset the fence to unsignaled state
-        vkResetFences(_device.getVkDevice(), 1, &_inFlightFences[_currentFrame]);
+        vkResetFences(_device.getVkDevice(), 1, &_frameFences[_currentFrame]);
 
         // record the command buffer
-        vkResetCommandBuffer(_commandBuffers[_currentFrame], 0);
-        recordCommandBuffer(_commandBuffers[_currentFrame], imageIndex);
+        vkResetCommandBuffer(_drawSceneCmdBuffers[_currentFrame], 0);
+        recordDrawCommands(_drawSceneCmdBuffers[_currentFrame], imageIndex);
 
-        // submit the command buffer
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        // Each entry in the waitStages array corresponds to the semaphore with the same index in pWaitSemaphores
-        VkSemaphore waitSemaphores[] = { _imageAvailableSemaphores[_currentFrame] };
+        // specify the semaphores and stages to wait on
+        // Each entry in the waitStages array corresponds to the semaphore with the same index in waitSemaphores
+        VkSemaphore waitSemaphores[] = { _imageAvailableSems[imageIndex] };
         VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; // in which stage(s) of the pipeline to wait
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = waitSemaphores;
-        submitInfo.pWaitDstStageMask = waitStages;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &_commandBuffers[_currentFrame];
 
-        VkSemaphore signalSemaphores[] = { _renderFinishedSemaphores[_currentFrame] };
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = signalSemaphores;
+        // specify which semaphores to signal once the command buffer has finished executing
+        VkSemaphore submitSignalSemaphores[] = { _drawCmdExecutedSems[imageIndex] };
+        
+        // submit info
+        VkSubmitInfo submitInfo
+        {
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            //wait semaphores
+			.waitSemaphoreCount = 1,
+            .pWaitSemaphores = waitSemaphores,
+            .pWaitDstStageMask = waitStages,
+			// command buffers
+            .commandBufferCount = 1,
+            .pCommandBuffers = &_drawSceneCmdBuffers[_currentFrame],
+			// signal semaphore
+            .signalSemaphoreCount = 1,
+            .pSignalSemaphores = submitSignalSemaphores,
+        };
 
-        if (vkQueueSubmit(_device.getGraphicsQueue().getVkQueue(), 1, &submitInfo, _inFlightFences[_currentFrame]) != VK_SUCCESS)
+		// submit the command buffer (fence will be signaled when the command buffer finishes executing)
+        if (vkQueueSubmit(_device.getGraphicsQueue().getVkQueue(), 1, &submitInfo, _frameFences[_currentFrame]) != VK_SUCCESS)
         {
             Log::Get().Error("failed to submit draw command buffer!");
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 
-        // present the swap chain image
+        // present info
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         presentInfo.waitSemaphoreCount = 1;
-        presentInfo.pWaitSemaphores = signalSemaphores;
+        presentInfo.pWaitSemaphores = submitSignalSemaphores; // wait for the command buffer to finish
 
         VkSwapchainKHR swapChains[] = { _swapChain->getVkSwapChain() };
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &imageIndex;
 
+        // present the swap chain image
         result = vkQueuePresentKHR(_device.getPresentQueue().getVkQueue(), &presentInfo);
 
+        // recreate the swap chain if needed
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || _window.FramebufferResized)
         {
             Log::Get().Warning("Swap chain suboptimal, out of date, or window resized. Recreating.");
@@ -159,6 +180,7 @@ namespace m1
             throw std::runtime_error("failed to present swap chain image!");
         }
 
+		// advance to the next frame
         _currentFrame = (_currentFrame + 1) % FRAMES_IN_FLIGHT;
     }
 
@@ -182,9 +204,13 @@ namespace m1
 
     void Engine::createSyncObjects()
     {
-        _imageAvailableSemaphores.resize(FRAMES_IN_FLIGHT);
-        _renderFinishedSemaphores.resize(FRAMES_IN_FLIGHT);
-        _inFlightFences.resize(FRAMES_IN_FLIGHT);
+        // use a separate semaphore per swap chain image (even if the frame count is different)
+        // to synchornize between acquiring and presenting images
+        size_t imageCount = _swapChain->getImageCount();
+        _imageAvailableSems.resize(imageCount);
+        _drawCmdExecutedSems.resize(imageCount);
+
+        _frameFences.resize(FRAMES_IN_FLIGHT);
 
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -193,20 +219,28 @@ namespace m1
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // start in signaled state, to don't block the first frame
 
-        for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
+        for (size_t i = 0; i < imageCount; i++)
         {
-            if (vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_imageAvailableSemaphores[i]) != VK_SUCCESS ||
-                vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_renderFinishedSemaphores[i]) != VK_SUCCESS ||
-                vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &_inFlightFences[i]) != VK_SUCCESS)
+            if (vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_imageAvailableSems[i]) != VK_SUCCESS ||
+                vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_drawCmdExecutedSems[i]) != VK_SUCCESS)
             {
-                Log::Get().Error("failed to create synchronization objects for a frame!");
-                throw std::runtime_error("failed to create synchronization objects for a frame!");
+                throw std::runtime_error("failed to create synchronization semaphores");
             }
         }
-        Log::Get().Info("Created synchronization objects");
+
+        if (vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_acquireSemaphore) != VK_SUCCESS)
+            throw std::runtime_error("failed to create synchronization semaphores");
+
+        for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
+        {
+            if (vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &_frameFences[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("failed to create synchronization fence");
+            }
+        }
     }
 
-    void Engine::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+    void Engine::recordDrawCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex)
     {
         // it can be execute on separate thread
 
@@ -218,7 +252,6 @@ namespace m1
 
         if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
         {
-            Log::Get().Error("failed to begin recording command buffer!");
             throw std::runtime_error("failed to begin recording command buffer!");
         }
 
