@@ -1,0 +1,58 @@
+#pragma once
+
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
+namespace m1
+{
+	class Camera
+	{
+	public:
+		enum class ProjectionType
+		{
+			Perspective,
+			Orthographic
+		};
+
+		void setPerspectiveProjection(float aspectRatio, float fov = 45.0f, float nearPlane = 0.1f, float farPlane = 100.0f);
+		void setOrthographicProjection(float left, float right, float bottom, float top, float nearPlane = 0.1f, float farPlane = 100.0f);
+		void setPorjectionType(ProjectionType type) { _projectionType = type; updateProjectionMatrix(); }
+		void setViewDirection(const glm::vec3& position, const glm::vec3& direction, const glm::vec3& up = glm::vec3(0.0f, -1.0f, 0.0f));
+		void setViewTarget(const glm::vec3& position, const glm::vec3& target, const glm::vec3& up = glm::vec3(0.0f, -1.0f, 0.0f));
+		void setPosition(const glm::vec3& pos) { _position = pos; updateViewMatrix(); }
+		void setTarget(const glm::vec3& target) { _target = target; updateViewMatrix(); }
+		void setViewDirection(const glm::vec3& dir) { _target = _position + dir; updateViewMatrix(); }
+		void setUp(const glm::vec3& up) { _up = up; updateViewMatrix(); }
+		void setAspectRatio(float aspectRatio);
+		const glm::mat4& getViewMatrix() const { return _viewMatrix; }
+		const glm::mat4& getProjectionMatrix() const { return _projectionMatrix; }
+		ProjectionType getProjectionType() const { return _projectionType; }
+
+	private:
+		void updateViewMatrix();
+		void updateProjectionMatrix();
+
+		ProjectionType _projectionType{ ProjectionType::Perspective };
+		float _nearPlane = 0.1f;
+		float _farPlane = 100.0f;
+		
+		// View 
+		glm::vec3 _position{0.0f, 0.0f, 5.0f};
+		glm::vec3 _target{ 0.0f, 0.0f, 0.0f };
+		glm::vec3 _up{ 0.0f, -1.0f, 0.0f };
+
+		// Perspective
+		float _aspectRatio;
+		float _fov = 45.0f;
+
+		// Ortho
+		float _left = -1.0f, _right = 1.0f;
+		float _bottom = -1.0f, _top = 1.0f;
+
+		// Matrices
+		glm::mat4 _viewMatrix{1.0f};
+		glm::mat4 _projectionMatrix{1.0f};
+	};
+} // namespace m1

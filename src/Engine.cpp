@@ -189,16 +189,18 @@ namespace m1
         static auto startTime = std::chrono::high_resolution_clock::now();
 
         auto currentTime = std::chrono::high_resolution_clock::now();
-        float time = 0;// std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+        //time = 0;
 
         UniformBufferObject ubo{};
         ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.proj = glm::perspective(glm::radians(45.0f), _swapChain->getExtent().width / (float)_swapChain->getExtent().height, 0.1f, 10.0f);
 
-        // flip the T because GLM was originally designed for OpenGL, where the Y coordinate of the clip coordinates is inverted
-        ubo.proj[1][1] *= -1;
-
+        camera.setViewTarget(glm::vec3(2.0f, 2.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        camera.setPerspectiveProjection(_swapChain->getAspectRatio());
+		
+		ubo.view = camera.getViewMatrix();
+		ubo.proj = camera.getProjectionMatrix();
+        
         _uniformBuffers[currentImage]->copyDataToBuffer(&ubo);
     }
 

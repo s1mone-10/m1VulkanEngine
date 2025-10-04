@@ -9,6 +9,7 @@
 #include "Buffer.hpp"
 #include "Texture.hpp"
 #include "geometry/Mesh.hpp"
+#include "Camera.hpp"
 
 #include <memory>
 #include <vector>
@@ -50,6 +51,8 @@ namespace m1
 
         const std::string MODEL_PATH = "../../../resources/viking_room.obj";
         const std::string TEXTURE_PATH = "../../../resources/viking_room.png";
+
+        Camera camera{};
 
         Window _window{ WIDTH, HEIGHT, "Vulkan App" };
         Device _device{_window};

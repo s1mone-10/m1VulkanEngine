@@ -26,6 +26,7 @@ namespace m1
         VkSwapchainKHR getVkSwapChain() const { return _vkSwapChain; }
         VkFormat getImageFormat() const { return _imageFormat; }
         VkExtent2D getExtent() const { return _extent; }
+        float getAspectRatio() const { return _extent.width / (float) _extent.height; }
         const std::vector<VkImageView>& getImageViews() const { return _imageViews; }
         size_t getImageCount() const { return _images.size(); }
 		VkRenderPass getRenderPass() const { return _renderPass; }
