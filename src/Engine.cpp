@@ -68,9 +68,20 @@ namespace m1
 
     void Engine::mainLoop()
     {
+        auto currentTime = std::chrono::high_resolution_clock::now();
+
         while (!_window.shouldClose())
         {
             glfwPollEvents();
+
+            // update frame time
+            auto newTime = std::chrono::high_resolution_clock::now();
+            float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
+            currentTime = newTime;
+
+			// process input
+			processInput(frameTime);
+
             drawFrame();
         }
     }
@@ -186,18 +197,8 @@ namespace m1
 
     void Engine::updateUniformBuffer(uint32_t currentImage)
     {
-        static auto startTime = std::chrono::high_resolution_clock::now();
-
-        auto currentTime = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-        //time = 0;
-
         UniformBufferObject ubo{};
-        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-
-        camera.setViewTarget(glm::vec3(2.0f, 2.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        camera.setPerspectiveProjection(_swapChain->getAspectRatio());
-		
+		ubo.model = glm::mat4(1.0f);
 		ubo.view = camera.getViewMatrix();
 		ubo.proj = camera.getProjectionMatrix();
         
@@ -327,7 +328,7 @@ namespace m1
 
     void Engine::recreateSwapChain()
     {
-        // TODO: I should recreate the pipeline too
+        // TODO: I should recreate the pipeline if image format or render pass (including subpass layout, attachments, sample count, etc.) changed
 
         Log::Get().Info("Recreating swap chain");
         while (_window.IsMinimized)
@@ -355,6 +356,9 @@ namespace m1
 
 			_window.FramebufferResized = false;
         }
+
+        // update camera aspect ratio
+		camera.setAspectRatio(_swapChain->getAspectRatio());
     }
 
     void Engine::createVertexBuffer(const std::vector<Vertex>& vertices)
@@ -498,6 +502,32 @@ namespace m1
 
 		// Generate mipmaps (also transitions the image to be optimal for shader access)
 		generateMipmaps(textImage);
+    }
+
+    void Engine::processInput(float delta)
+    {
+        int key = _window.getPressedKey();
+
+        if (key == GLFW_KEY_W) camera.moveUp(delta);
+		if (key == GLFW_KEY_S) camera.moveUp(-delta);
+        if (key == GLFW_KEY_D) camera.moveRight(delta);
+		if (key == GLFW_KEY_A) camera.moveRight(-delta);
+
+        if (key == GLFW_KEY_UP) camera.orbitVertical(delta);
+        if (key == GLFW_KEY_DOWN) camera.orbitVertical(-delta);
+        if (key == GLFW_KEY_RIGHT) camera.orbitHorizontal(delta);
+        if (key == GLFW_KEY_LEFT) camera.orbitHorizontal(-delta);
+
+        if (key == GLFW_KEY_PAGE_DOWN || key == GLFW_KEY_E) camera.zoom(delta);
+        if (key == GLFW_KEY_PAGE_UP || key == GLFW_KEY_Q) camera.zoom(-delta);
+
+        if (key == GLFW_KEY_P)
+        {
+            if(camera.getProjectionType() == Camera::ProjectionType::Perspective)
+                camera.setProjectionType(Camera::ProjectionType::Orthographic);
+            else
+				camera.setProjectionType(Camera::ProjectionType::Perspective);
+        }
     }
 
     void Engine::transitionImageLayout(const Image& image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)

@@ -40,6 +40,8 @@ namespace m1
         void copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height);
         void createTextureImage();
 
+		void processInput(float delta);
+
 		// TODO: move these methods to Image class?
         void transitionImageLayout(const Image& image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
         void generateMipmaps(const Image& image);
