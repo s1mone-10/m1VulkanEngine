@@ -51,7 +51,9 @@ namespace m1
         const uint32_t  WIDTH = 800;
         const uint32_t  HEIGHT = 600;
 
-        const std::string MODEL_PATH = "../../../resources/viking_room.obj";
+        //const std::string MODEL_PATH = "../../../resources/viking_room.obj";
+        const std::string MODEL_PATH = "../../../resources/colored_cube.obj";
+        //const std::string MODEL_PATH = "../../../resources/smooth_vase.obj";
         const std::string TEXTURE_PATH = "../../../resources/viking_room.png";
 
         Camera camera{};
