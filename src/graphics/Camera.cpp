@@ -97,7 +97,7 @@ namespace m1
 
 	void Camera::zoom(float factor)
 	{
-		glm::vec3 viewDir = glm::normalize(_position - _target);
+		glm::vec3 viewDir = glm::normalize(_target - _position);
 		_position += viewDir * factor * _cameraSpeed;
 		updateViewMatrix();
 
@@ -119,7 +119,7 @@ namespace m1
 		}
 		else if (_projectionType == ProjectionType::Orthographic)
 		{
-			_projectionMatrix = glm::ortho(_left * _zoomfactor, _right * _zoomfactor, _bottom * _zoomfactor, _top * _zoomfactor, _nearPlane, _farPlane);
+			_projectionMatrix = glm::ortho(_left / _zoomfactor, _right / _zoomfactor, _bottom / _zoomfactor, _top / _zoomfactor, _nearPlane, _farPlane);
 		}
 
 		// flip the sign of Y scaling factor because GLM was originally designed for OpenGL, where the Y coordinate of the clip coordinates is inverted
