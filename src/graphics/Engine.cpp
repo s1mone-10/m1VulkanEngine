@@ -1,6 +1,7 @@
 #include "Engine.hpp"
 #include "log/Log.hpp"
 #include "Queue.hpp"
+#include "SceneObject.hpp"
 
 #include <stdexcept>
 #include <iostream>
@@ -14,9 +15,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-#define TINYOBJLOADER_IMPLEMENTATION
-#include <tiny_obj_loader.h>
-
 #include <chrono>
 #include <unordered_map>
 
@@ -27,15 +25,11 @@ namespace m1
     {
         Log::Get().Info("Engine constructor");
 
-		loadModel();
-
         recreateSwapChain();
 		_descriptor = std::make_unique<Descritor>(_device);
         _pipeline = std::make_unique<Pipeline>(_device, *_swapChain, _descriptor->getDescriptorSetLayout());
         _drawSceneCmdBuffers = _device.getGraphicsQueue().getPersistentCommandPool().createCommandBuffers(FRAMES_IN_FLIGHT);
 		createTextureImage();
-        createVertexBuffer(mesh.Vertices);
-        createIndexBuffer(mesh.Indices);
         createUniformBuffers();
 		_descriptor->updateDescriotorSets(_uniformBuffers, *_texture);
         createSyncObjects();
@@ -66,6 +60,12 @@ namespace m1
         mainLoop();
     }
 
+    void Engine::addSceneObject(std::unique_ptr<SceneObject> obj)
+    {
+        obj->Mesh.compile(_device);
+        _sceneObjects.push_back(std::move(obj));
+    }
+
     void Engine::mainLoop()
     {
         auto currentTime = std::chrono::high_resolution_clock::now();
@@ -79,8 +79,8 @@ namespace m1
             float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
             currentTime = newTime;
 
-			// process input
-			processInput(frameTime);
+            // process input
+            processInput(frameTime);
 
             drawFrame();
         }
@@ -293,27 +293,21 @@ namespace m1
         scissor.extent = _swapChain->getExtent();
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        // bind the vertex buffer
-        VkBuffer vertexBuffers[] = { _vertexBuffer->getVkBuffer() };
-        VkDeviceSize offsets[] = { 0 };
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-
-        // bind the index buffer
-        vkCmdBindIndexBuffer(commandBuffer, _indexBuffer->getVkBuffer(), 0, VK_INDEX_TYPE_UINT32);
-
         // bind the descriptor set
         VkDescriptorSet descriptorSet = _descriptor->getDescriptorSet(_currentFrame);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline->getLayout(), 0, 1, &descriptorSet, 0, nullptr);
 
-		// push constants
+        // push constants
         PushConstantData push
         {
             .color = {0.5f, 0.0f, 0.5f}
         };
         vkCmdPushConstants(commandBuffer, _pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantData), &push);
 
-        // draw command
-        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.Indices.size()), 1, 0, 0, 0);
+        for (auto& obj : _sceneObjects)
+        {
+            obj->Mesh.draw(commandBuffer);
+        }
 
         // end render pass
         vkCmdEndRenderPass(commandBuffer);
@@ -361,40 +355,6 @@ namespace m1
 		camera.setAspectRatio(_swapChain->getAspectRatio());
     }
 
-    void Engine::createVertexBuffer(const std::vector<Vertex>& vertices)
-    {
-        Log::Get().Info("Creating vertex buffer");
-        VkDeviceSize size = sizeof(vertices[0]) * vertices.size();
-
-        // Create a staging buffer accessible to CPU to upload the vertex data
-        Buffer stagingBuffer{ _device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
-        
-        // Copy vertex data to the staging buffer
-        stagingBuffer.copyDataToBuffer((void*)vertices.data());
-
-        // Create the actual vertex buffer with device local memory for better performance
-        _vertexBuffer = std::make_unique<Buffer>(_device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-        copyBuffer(stagingBuffer, *_vertexBuffer, size);
-    }
-
-    void Engine::createIndexBuffer(const std::vector<uint32_t>& indices)
-    {
-        Log::Get().Info("Creating index buffer");
-        VkDeviceSize size = sizeof(indices[0]) * indices.size();
-
-        // Create a staging buffer accessible to CPU to upload the vertex data
-        Buffer stagingBuffer{ _device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
-
-        // Copy indices data to the staging buffer
-        stagingBuffer.copyDataToBuffer((void*)indices.data());
-
-        // Create the actual index buffer with device local memory for better performance
-        _indexBuffer = std::make_unique<Buffer>(_device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-        copyBuffer(stagingBuffer, *_indexBuffer, size);
-    }
-
     void Engine::createUniformBuffers()
     {
         Log::Get().Info("Creating uniform buffers");
@@ -412,22 +372,7 @@ namespace m1
         }
     }
 
-    void Engine::copyBuffer(const Buffer& srcBuffer, const Buffer& dstBuffer, VkDeviceSize size)
-    {
-        // Memory transfer operations are executed using command buffers.
-		// Begin one-time command
-        VkCommandBuffer commandBuffer = _device.getGraphicsQueue().beginOneTimeCommand();
-
-        // Copy buffer
-        VkBufferCopy copyRegion{};
-        copyRegion.srcOffset = 0; // Optional
-        copyRegion.dstOffset = 0; // Optional
-        copyRegion.size = size;
-        vkCmdCopyBuffer(commandBuffer, srcBuffer.getVkBuffer(), dstBuffer.getVkBuffer(), 1, &copyRegion);
-
-		// Execute the command
-		_device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
-    }
+    
 
     void Engine::copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height)
     {
@@ -692,68 +637,5 @@ namespace m1
             1, &barrier);
 
         _device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
-    }
-
-    void Engine::loadModel()
-    {
-        tinyobj::attrib_t attrib;
-        std::vector<tinyobj::shape_t> shapes;
-        std::vector<tinyobj::material_t> materials;
-        std::string warn, err;
-
-        if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, MODEL_PATH.c_str()))
-        {
-            throw std::runtime_error(warn + err);
-        }
-
-        std::unordered_map<Vertex, uint32_t> uniqueVertices{};
-
-        for (const auto& shape : shapes)
-        {
-            for (const auto& index : shape.mesh.indices)
-            {
-                Vertex vertex{};
-
-                if (index.vertex_index >= 0)
-                {
-                    vertex.pos = {
-                        attrib.vertices[3 * index.vertex_index + 0],
-                        attrib.vertices[3 * index.vertex_index + 1],
-                        attrib.vertices[3 * index.vertex_index + 2],
-                    };
-
-                    vertex.color = {
-                        attrib.colors[3 * index.vertex_index + 0],
-                        attrib.colors[3 * index.vertex_index + 1],
-                        attrib.colors[3 * index.vertex_index + 2],
-                    };
-                }
-
-                if (index.normal_index >= 0)
-                {
-                    vertex.normal = {
-                        attrib.normals[3 * index.normal_index + 0],
-                        attrib.normals[3 * index.normal_index + 1],
-                        attrib.normals[3 * index.normal_index + 2],
-                    };
-                }
-
-                if (index.texcoord_index >= 0)
-                {
-                    vertex.texCoord = {
-                        attrib.texcoords[2 * index.texcoord_index + 0],
-                        1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-                    };
-                }
-
-                if (uniqueVertices.count(vertex) == 0)
-                {
-                    uniqueVertices[vertex] = static_cast<uint32_t>(mesh.Vertices.size());
-                    mesh.Vertices.push_back(vertex);
-                }
-
-                mesh.Indices.push_back(uniqueVertices[vertex]);
-            }
-        }
     }
 } // namespace m1

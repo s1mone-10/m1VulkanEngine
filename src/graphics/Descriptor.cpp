@@ -1,6 +1,9 @@
 #include "Descriptor.hpp"
 #include "Device.hpp"
 #include "Engine.hpp"
+#include "../log/Log.hpp"
+
+// std
 #include <stdexcept>
 #include <iostream>
 
@@ -19,7 +22,7 @@ namespace m1
         vkDestroyDescriptorPool(_device.getVkDevice(), _descriptorPool, nullptr);
 
         vkDestroyDescriptorSetLayout(_device.getVkDevice(), _descriptorSetLayout, nullptr);
-        std::cout << "Descriptor destroyed" << std::endl;
+        Log::Get().Info("Descriptor destroyed");
     }
 
     void Descritor::createDescriptorSetLayout()
