@@ -38,6 +38,7 @@ namespace m1
 		void recreateSwapChain();
         
 		void createUniformBuffers();
+        void initLights();
         
         void copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height);
         void createTextureImage();
@@ -64,6 +65,7 @@ namespace m1
         std::unique_ptr<Texture> _texture;
 
 		std::vector<std::unique_ptr<Buffer>> _uniformBuffers;
+        std::unique_ptr<Buffer> _lightsUbo;
 		std::unique_ptr<Descritor> _descriptor;
 		
         std::vector<std::unique_ptr<SceneObject>> _sceneObjects{};

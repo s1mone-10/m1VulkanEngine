@@ -1,7 +1,7 @@
 #pragma once
 
 // libs
-#include <glm/gtc/matrix_transform.hpp>
+#include "glm_config.hpp"
 
 // std
 #include <memory>

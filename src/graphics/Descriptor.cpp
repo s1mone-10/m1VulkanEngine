@@ -45,8 +45,17 @@ namespace m1
         samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         samplerLayoutBinding.pImmutableSamplers = nullptr;
 
+		// Lights Ubo layout binding
+        VkDescriptorSetLayoutBinding lightsUboLayoutBinding{
+            .binding = 2, // binding number. Correspond number used in the shaders
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = 1, // number of descriptors in the binding, for arrays
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT, // which shader stages will access this binding
+            .pImmutableSamplers = nullptr // Optional
+        };
+
         // DescriptorSet Info
-		std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
+		std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboLayoutBinding, samplerLayoutBinding, lightsUboLayoutBinding };
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -62,7 +71,7 @@ namespace m1
 		// Pool sizes
         std::array<VkDescriptorPoolSize, 2> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT);
+        poolSizes[0].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT * 2); // *2 => camera and lights UBO
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         poolSizes[1].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT);
 
@@ -93,8 +102,14 @@ namespace m1
             throw std::runtime_error("failed to allocate descriptor sets!");
     }
 
-    void Descritor::updateDescriotorSets(const std::vector<std::unique_ptr<Buffer>>& buffers, const Texture& texture)
+    void Descritor::updateDescriotorSets(const std::vector<std::unique_ptr<Buffer>>& buffers, const Texture& texture, const Buffer& lightsUbo)
     {
+        // Uniform Buffer Info
+        VkDescriptorBufferInfo lightUboInfo{};
+        lightUboInfo.buffer = lightsUbo.getVkBuffer();
+        lightUboInfo.offset = 0;
+        lightUboInfo.range = sizeof(LightsUbo); // or VK_WHOLE_SIZE
+
         // populate each DescriptorSet
         for (size_t i = 0; i < Engine::FRAMES_IN_FLIGHT; i++)
         {
@@ -131,7 +146,18 @@ namespace m1
             textureDescriptorWrite.descriptorCount = 1;
             textureDescriptorWrite.pImageInfo = &imageInfo;
 
-			std::array<VkWriteDescriptorSet, 2> descriptorWrites = { bufferDescriptorWrite, textureDescriptorWrite };
+            // Lights Ubo Descriptor Write
+            VkWriteDescriptorSet lightsDescriptorWrite{};
+            lightsDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            lightsDescriptorWrite.dstSet = _descriptorSets[i];
+            lightsDescriptorWrite.dstBinding = 2;
+            lightsDescriptorWrite.dstArrayElement = 0;
+            lightsDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            lightsDescriptorWrite.descriptorCount = 1;
+            // set the struct that actually configure the descriptors
+            lightsDescriptorWrite.pBufferInfo = &lightUboInfo;
+
+			std::array<VkWriteDescriptorSet, 3> descriptorWrites = { bufferDescriptorWrite, textureDescriptorWrite, lightsDescriptorWrite };
 
             vkUpdateDescriptorSets(_device.getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }

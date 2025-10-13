@@ -2,25 +2,25 @@
 #include "log/Log.hpp"
 #include "Queue.hpp"
 #include "SceneObject.hpp"
+#include "Utils.hpp"
 
-#include <stdexcept>
-#include <iostream>
-#include <vector>
-
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+//libs
+#include "glm_config.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+// std
+#include <stdexcept>
+#include <iostream>
+#include <vector>
 #include <chrono>
 #include <unordered_map>
 
+
+
 namespace m1
 {
-
     Engine::Engine()
     {
         Log::Get().Info("Engine constructor");
@@ -31,7 +31,8 @@ namespace m1
         _drawSceneCmdBuffers = _device.getGraphicsQueue().getPersistentCommandPool().createCommandBuffers(FRAMES_IN_FLIGHT);
 		createTextureImage();
         createUniformBuffers();
-		_descriptor->updateDescriotorSets(_uniformBuffers, *_texture);
+        initLights();
+		_descriptor->updateDescriotorSets(_uniformBuffers, *_texture, *_lightsUbo);
         createSyncObjects();
     }
 
@@ -201,6 +202,7 @@ namespace m1
 		ubo.model = glm::mat4(1.0f);
 		ubo.view = camera.getViewMatrix();
 		ubo.proj = camera.getProjectionMatrix();
+		ubo.normalMatrix = glm::transpose(glm::inverse(ubo.model));
         
         _uniformBuffers[currentImage]->copyDataToBuffer(&ubo);
     }
@@ -372,7 +374,26 @@ namespace m1
         }
     }
 
-    
+    void Engine::initLights()
+    {
+        // define lights
+        LightsUbo lightsUbo{};
+
+        // Ambient light
+        lightsUbo.ambient = glm::vec4(0.2f, 0.2f, 0.2f, 1.0f); // soft gray ambient
+
+        // Directional light (like sunlight)
+        lightsUbo.lights[0].position = glm::vec4(-0.5f, -1.0f, -0.3f, 0.0f); // w=0 => dir light
+        lightsUbo.lights[0].color = glm::vec4(1.0f, 1.0f, 0.9f, 3.0f);     // warm white, intensity=3.0
+        lightsUbo.numLights = 1;
+
+        // Create the lights ubo with device local memory for better performance
+        VkDeviceSize lightsUboSize = sizeof(LightsUbo);
+        _lightsUbo = std::make_unique<Buffer>(_device, lightsUboSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        // upload lights data to buffer
+        Utils::uploadToDeviceBuffer(_device, *_lightsUbo, lightsUboSize, &lightsUbo);
+    }
 
     void Engine::copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height)
     {

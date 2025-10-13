@@ -36,8 +36,9 @@ int main()
 void loadScene(m1::Engine& engine)
 {
     //const std::string MODEL_PATH = "../../../resources/viking_room.obj";
-    const std::string MODEL_PATH = "../../../resources/colored_cube.obj";
+    //const std::string MODEL_PATH = "../../../resources/colored_cube.obj";
     //const std::string MODEL_PATH = "../../../resources/smooth_vase.obj";
+    const std::string MODEL_PATH = "../../../resources/flat_vase.obj";
     const std::string TEXTURE_PATH = "../../../resources/viking_room.png";
 
     loadObj(engine, MODEL_PATH);
@@ -54,7 +55,7 @@ void loadObj(m1::Engine& engine, const std::string path)
     {
         throw std::runtime_error(warn + err);
     }
-
+    
     std::unordered_map<m1::Vertex, uint32_t> uniqueVertices{};
     auto scenObj = m1::SceneObject::createSceneObject();
 

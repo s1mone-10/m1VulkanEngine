@@ -1,12 +1,10 @@
 #pragma once
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-#include <glm/gtx/hash.hpp>
-
+//libs
+#include "../graphics/glm_config.hpp"
 #include <vulkan/vulkan.h>
+
+// std
 #include <array>
 #include <functional>
 
@@ -33,6 +31,7 @@ namespace m1
 		glm::mat4 model;
 		glm::mat4 view;
 		glm::mat4 proj;
+		glm::mat3 normalMatrix;
 	};
 };
 

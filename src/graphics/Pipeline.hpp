@@ -1,13 +1,12 @@
 #pragma once
 
+//libs
 #include <vulkan/vulkan.h>
+#include "glm_config.hpp"
+
+// std
 #include <vector>
 #include <string>
-
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/vec4.hpp>
-#include <glm/mat4x4.hpp>
 
 namespace m1 {
     class Device; // Forward declaration

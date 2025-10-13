@@ -1,12 +1,31 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
 #include <geometry/Vertex.hpp>
+
+// libs
+#include <vulkan/vulkan.h>
+
+// std
 #include <vector>
 
 namespace m1
 {
 	class Device; // Forward declaration
+
+	#define MAX_LIGHTS 10
+
+	struct Light
+	{
+		glm::vec4 position;  // w=0 directional, w=1 point
+		glm::vec4 color;     // rgb = color, a = intensity
+	};
+
+	struct LightsUbo
+	{
+		glm::vec4 ambient;   // rgb = ambient color, a = intensity
+		Light lights[MAX_LIGHTS];
+		int numLights;
+	};
 
 	class Buffer
 	{

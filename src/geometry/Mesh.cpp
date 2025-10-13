@@ -44,31 +44,21 @@ namespace m1
     {
         VkDeviceSize size = sizeof(Vertices[0]) * Vertices.size();
 
-        // Create a staging buffer accessible to CPU to upload the vertex data
-        Buffer stagingBuffer{ device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
-
-        // Copy vertex data to the staging buffer
-        stagingBuffer.copyDataToBuffer((void*)Vertices.data());
-
         // Create the actual vertex buffer with device local memory for better performance
         _vertexBuffer = std::make_unique<Buffer>(device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        Utils::copyBuffer(device, stagingBuffer, *_vertexBuffer, size);
+        // upload vertex data to buffer
+        Utils::uploadToDeviceBuffer(device, *_vertexBuffer, size, (void*)Vertices.data());
     }
 
     void Mesh::createIndexBuffer(const Device& device)
     {
         VkDeviceSize size = sizeof(Indices[0]) * Indices.size();
 
-        // Create a staging buffer accessible to CPU to upload the vertex data
-        Buffer stagingBuffer{ device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
-
-        // Copy indices data to the staging buffer
-        stagingBuffer.copyDataToBuffer((void*)Indices.data());
-
         // Create the actual index buffer with device local memory for better performance
         _indexBuffer = std::make_unique<Buffer>(device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        Utils::copyBuffer(device, stagingBuffer, *_indexBuffer, size);
+        // upload indices data to buffer
+        Utils::uploadToDeviceBuffer(device, *_indexBuffer, size, (void*)Indices.data());
     }
 }

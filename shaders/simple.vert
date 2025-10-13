@@ -1,16 +1,5 @@
 #version 450 // Specifies the GLSL version
 
-layout(binding = 0) uniform UniformBufferObject {
-    mat4 model;
-    mat4 view;
-    mat4 proj;
-} ubo;
-
-layout(push_constant) uniform Push {
-    vec2 offset;
-    vec3 color;
-} push;
-
 layout (location = 0) in vec3 position;
 layout (location = 1) in vec3 color;
 layout (location = 2) in vec3 normal;
@@ -18,6 +7,20 @@ layout (location = 3) in vec2 texCoord;
 
 layout (location = 0) out vec3 fragColor;
 layout (location = 1) out vec2 fragTexCoord;
+layout (location = 2) out vec3 fragPos;
+layout (location = 3) out vec3 fragNormal;
+
+layout(binding = 0) uniform UniformBufferObject {
+    mat4 model;
+    mat4 view;
+    mat4 proj;
+    mat3 normalMatrix;
+} ubo;
+
+//layout(push_constant) uniform Push {
+//    vec2 offset;
+//    vec3 color;
+//} push;
 
 void main() {
 
@@ -28,4 +31,6 @@ void main() {
 
     fragColor = color; // Pass the color to the fragment shader
     fragTexCoord = texCoord;
+    fragPos = vec3(ubo.model * vec4(position, 1.0));
+    fragNormal = normalize(mat3(ubo.normalMatrix) * normal);
 }
