@@ -67,8 +67,8 @@ namespace m1
     {
         Log::Get().Info("Creating graphics pipeline");
 		// read shaders code
-        std::vector<char> vertShaderCode = readFile("..\\..\\..\\shaders\\compiled\\simple.vert.spv");
-        std::vector<char> fragShaderCode = readFile("..\\..\\..\\shaders\\compiled\\simple.frag.spv");
+        std::vector<char> vertShaderCode = readFile(R"(..\shaders\compiled\simple.vert.spv)");
+        std::vector<char> fragShaderCode = readFile(R"(..\shaders\compiled\simple.frag.spv)");
 
         // wrap to shader modules
         VkShaderModule vertShaderModule = createShaderModule(device, vertShaderCode);

@@ -2,3 +2,5 @@ out
 shaders/compiled
 .vs
 /CMakeSettings.json
+.idea
+cmake-build-debug

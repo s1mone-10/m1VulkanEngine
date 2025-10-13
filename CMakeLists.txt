@@ -8,6 +8,7 @@ cmake_minimum_required(VERSION 3.11.0)
 
 set(NAME m1VulkanEngine) # set the application name
 
+message(STATUS "C++ compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER}")
 message(STATUS "using ${CMAKE_GENERATOR}") # Display the CMake generator being used (e.g., "Visual Studio 16 2019", "MinGW Makefiles")
 if (CMAKE_GENERATOR STREQUAL "MinGW Makefiles") # Check if the generator is for MinGW Makefiles
     if (NOT MINGW_PATH) # If using MinGW, ensure the path is set

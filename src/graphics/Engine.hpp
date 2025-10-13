@@ -52,7 +52,7 @@ namespace m1
         const uint32_t  WIDTH = 800;
         const uint32_t  HEIGHT = 600;
 
-        const std::string TEXTURE_PATH = "../../../resources/viking_room.png";
+        const std::string TEXTURE_PATH = "../resources/viking_room.png";
 
         Camera camera{};
 
