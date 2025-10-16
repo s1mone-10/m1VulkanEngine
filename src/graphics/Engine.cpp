@@ -63,7 +63,7 @@ namespace m1
 
     void Engine::addSceneObject(std::unique_ptr<SceneObject> obj)
     {
-        obj->Mesh.compile(_device);
+        obj->Mesh->compile(_device);
         _sceneObjects.push_back(std::move(obj));
     }
 
@@ -308,7 +308,7 @@ namespace m1
 
         for (auto& obj : _sceneObjects)
         {
-            obj->Mesh.draw(commandBuffer);
+            obj->Mesh->draw(commandBuffer);
         }
 
         // end render pass

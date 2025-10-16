@@ -17,6 +17,8 @@ namespace m1
 		Mesh();
 		~Mesh();
 
+		static std::unique_ptr<Mesh> createCube();
+
 		void compile(const Device& device);
 		void draw(VkCommandBuffer commandBuffer);
 

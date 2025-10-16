@@ -21,12 +21,15 @@ namespace m1
 			return std::unique_ptr<SceneObject>(new SceneObject(currentId++));
 		}
 
+		void setMesh(std::unique_ptr<Mesh> mesh) { Mesh = std::move(mesh); }
+		void setMaterial(Material* material) { Material = material; }
+
 		uint64_t Id;
 		glm::mat4 Transform{ 1.0f };
-		Mesh Mesh{};
+		std::unique_ptr<Mesh> Mesh = nullptr;
 		Material* Material = nullptr;
 
 	private:
-		SceneObject(uint64_t id) : Id{ id } {}
+		explicit SceneObject(const uint64_t id) : Id{ id } { Mesh = std::make_unique<m1::Mesh>();}
 	};
 }

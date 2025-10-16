@@ -11,7 +11,8 @@
 #include <tiny_obj_loader.h>
 
 void loadScene(m1::Engine& engine);
-void loadObj(m1::Engine& engine, const std::string path);
+void loadObj(m1::Engine& engine, const std::string &path);
+void loadCubes(m1::Engine& engine, const uint32_t numCubes);
 
 int main()
 {
@@ -35,16 +36,18 @@ int main()
 
 void loadScene(m1::Engine& engine)
 {
-    //const std::string MODEL_PATH = "../resources/viking_room.obj";
+    const std::string MODEL_PATH = "../resources/viking_room.obj";
     //const std::string MODEL_PATH = "../resources/colored_cube.obj";
     //const std::string MODEL_PATH = "../resources/smooth_vase.obj";
-    const std::string MODEL_PATH = "../resources/flat_vase.obj";
+    //const std::string MODEL_PATH = "../resources/flat_vase.obj";
     const std::string TEXTURE_PATH = "../resources/viking_room.png";
 
-    loadObj(engine, MODEL_PATH);
+
+    loadCubes(engine, 1);
+    //loadObj(engine, MODEL_PATH);
 }
 
-void loadObj(m1::Engine& engine, const std::string path)
+void loadObj(m1::Engine& engine, const std::string &path)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -57,7 +60,7 @@ void loadObj(m1::Engine& engine, const std::string path)
     }
     
     std::unordered_map<m1::Vertex, uint32_t> uniqueVertices{};
-    auto scenObj = m1::SceneObject::createSceneObject();
+    auto sceneObj = m1::SceneObject::createSceneObject();
 
     for (const auto& shape : shapes)
     {
@@ -99,14 +102,23 @@ void loadObj(m1::Engine& engine, const std::string path)
 
             if (uniqueVertices.count(vertex) == 0)
             {
-                uniqueVertices[vertex] = static_cast<uint32_t>(scenObj->Mesh.Vertices.size());
-                scenObj->Mesh.Vertices.push_back(vertex);
+                uniqueVertices[vertex] = static_cast<uint32_t>(sceneObj->Mesh->Vertices.size());
+                sceneObj->Mesh->Vertices.push_back(vertex);
             }
 
-            scenObj->Mesh.Indices.push_back(uniqueVertices[vertex]);
+            sceneObj->Mesh->Indices.push_back(uniqueVertices[vertex]);
         }
     }
 
-    engine.addSceneObject(std::move(scenObj));
+    engine.addSceneObject(std::move(sceneObj));
+}
+
+void loadCubes(m1::Engine &engine, const uint32_t numCubes)
+{
+    auto sceneObj = m1::SceneObject::createSceneObject();
+
+    sceneObj->setMesh(m1::Mesh::createCube());
+
+    engine.addSceneObject(std::move(sceneObj));
 }
 

@@ -16,12 +16,12 @@
 
 namespace m1
 {
-    struct SceneObject;
+    class SceneObject;
 
     class Engine
     {
     public:
-        static const int FRAMES_IN_FLIGHT = 2;
+        static constexpr int FRAMES_IN_FLIGHT = 2;
 
         Engine();
         ~Engine();

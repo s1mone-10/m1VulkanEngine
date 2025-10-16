@@ -33,6 +33,7 @@ void main(){
     //outColor = vec4(push.color, 1.0);
     
     //outColor = texture(texSampler, fragTexCoord);
+    //return;
 
     // lighting
     vec3 norm = normalize(fragNormal);
