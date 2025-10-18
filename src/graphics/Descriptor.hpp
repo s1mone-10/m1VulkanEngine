@@ -10,19 +10,20 @@ namespace m1
 	class Buffer;
 	class Texture;
 
-	class Descritor
+	class Descriptor
 	{
 	public:
-		Descritor(const Device& device);
-		~Descritor();
+		Descriptor(const Device& device);
+		~Descriptor();
 
 		// Non-copyable, non-movable
-		Descritor(const Descritor&) = delete;
-		Descritor& operator=(const Descritor&) = delete;
-		Descritor(Descritor&&) = delete;
-		Descritor& operator=(Descritor&&) = delete;
+		Descriptor(const Descriptor&) = delete;
+		Descriptor& operator=(const Descriptor&) = delete;
+		Descriptor(Descriptor&&) = delete;
+		Descriptor& operator=(Descriptor&&) = delete;
 
-		void updateDescriotorSets(const std::vector<std::unique_ptr<Buffer>>& buffers, const Texture& texture, const Buffer& lightsUbo);
+		void updateDescriptorSets(const std
+		                          ::vector<std::unique_ptr<Buffer>> &objectUboBuffers, const std::vector<std::unique_ptr<Buffer>>& frameUboBuffers, const Texture& texture, const Buffer& lightsUbo);
 		VkDescriptorSetLayout getDescriptorSetLayout() { return _descriptorSetLayout; }
 		VkDescriptorSet getDescriptorSet(uint32_t index) { return _descriptorSets[index]; }
 

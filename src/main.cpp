@@ -47,7 +47,7 @@ void loadScene(m1::Engine& engine)
     //loadObj(engine, MODEL_PATH);
 }
 
-void loadObj(m1::Engine& engine, const std::string &path)
+void loadObj(m1::Engine& engine, const std::string& path)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -116,9 +116,14 @@ void loadObj(m1::Engine& engine, const std::string &path)
 void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 {
     auto sceneObj = m1::SceneObject::createSceneObject();
-
     sceneObj->setMesh(m1::Mesh::createCube());
+    engine.addSceneObject(std::move(sceneObj));
 
+    sceneObj = m1::SceneObject::createSceneObject();
+    sceneObj->setMesh(m1::Mesh::createCube());
+    auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(1.5f, 0.5f, 2.0f));
+    transform = glm::scale(transform, glm::vec3(.2f));
+    sceneObj->setTransform(transform);
     engine.addSceneObject(std::move(sceneObj));
 }
 

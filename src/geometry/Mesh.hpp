@@ -20,7 +20,7 @@ namespace m1
 		static std::unique_ptr<Mesh> createCube();
 
 		void compile(const Device& device);
-		void draw(VkCommandBuffer commandBuffer);
+		void draw(VkCommandBuffer commandBuffer) const;
 
 		std::vector<Vertex> Vertices;
 		std::vector<uint32_t> Indices;

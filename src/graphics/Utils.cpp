@@ -1,6 +1,5 @@
 #include "Utils.hpp"
 #include "Queue.hpp"
-#include <memory>
 
 namespace m1
 {
@@ -31,6 +30,6 @@ namespace m1
         stagingBuffer.copyDataToBuffer(data);
 
         // Copy staging buffer to destination buffer
-        Utils::copyBuffer(device, stagingBuffer, dstBuffer, size);
+        copyBuffer(device, stagingBuffer, dstBuffer, size);
     }
 }

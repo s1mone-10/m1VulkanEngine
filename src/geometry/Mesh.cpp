@@ -26,7 +26,7 @@ namespace m1
         createIndexBuffer(device);
     }
 
-    void Mesh::draw(VkCommandBuffer commandBuffer)
+    void Mesh::draw(VkCommandBuffer commandBuffer) const
     {
         // bind the vertex buffer
         VkBuffer vertexBuffers[] = { _vertexBuffer->getVkBuffer() };
@@ -81,8 +81,8 @@ namespace m1
 		};
 		const glm::vec3 colors[8] =
 		{
-			{1,0,0}, {0,1,0}, {0,0,1}, {1,1,0},
-			{1,0,1}, {0,1,1}, {1,1,1}, {0,0,0}
+			{1,0,0}, {1,0,0}, {1,0,0}, {1,0,0},
+			{1,0,0}, {1,0,0}, {1,0,0}, {1,0,0}
 		};
 		const glm::vec2 texCoords[4] =
 		{

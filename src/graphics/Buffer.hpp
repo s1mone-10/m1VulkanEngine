@@ -5,9 +5,6 @@
 // libs
 #include <vulkan/vulkan.h>
 
-// std
-#include <vector>
-
 namespace m1
 {
 	class Device; // Forward declaration
@@ -25,6 +22,18 @@ namespace m1
 		glm::vec4 ambient;   // rgb = ambient color, a = intensity
 		Light lights[MAX_LIGHTS];
 		int numLights;
+	};
+
+	struct FrameUbo
+	{
+		glm::mat4 view;
+		glm::mat4 proj;
+	};
+
+	struct ObjectUbo
+	{
+		glm::mat4 model;
+		glm::mat3 normalMatrix;
 	};
 
 	class Buffer

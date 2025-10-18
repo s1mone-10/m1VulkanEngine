@@ -13,19 +13,18 @@ layout (location = 3) in vec3 fragNormal;
 // specify the out location (index of the framebuffer attachment) and out variable
 layout (location = 0) out vec4 outColor;
 
-layout (binding = 1) uniform sampler2D texSampler;
+layout (binding = 2) uniform sampler2D texSampler;
 
-layout(binding = 2) uniform LightsUbo {
+layout(binding = 3) uniform LightsUbo {
     vec4 ambient; // rgb = ambient color, a = intensity
     Light lights[10];
     int numLights;
 } lightsUbo;
 
-
-//layout(push_constant) uniform Push {
-//    vec2 offset;
-//    vec3 color;
-//} push;
+layout(push_constant) uniform Push {
+    mat4 model;
+    mat3 normalMatrix;
+} push;
 
 void main(){
     //outColor = vec4(fragColor, 1.0); // rgba color, range [0, 1]

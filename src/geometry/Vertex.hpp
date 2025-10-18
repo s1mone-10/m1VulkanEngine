@@ -25,14 +25,6 @@ namespace m1
 			return pos == other.pos && color == other.color && normal == other.normal && texCoord == other.texCoord;
 		}
 	};
-
-	struct UniformBufferObject
-	{
-		glm::mat4 model;
-		glm::mat4 view;
-		glm::mat4 proj;
-		glm::mat3 normalMatrix;
-	};
 };
 
 namespace std

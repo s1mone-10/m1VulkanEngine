@@ -12,12 +12,8 @@
 
 // std
 #include <stdexcept>
-#include <iostream>
 #include <vector>
 #include <chrono>
-#include <unordered_map>
-
-
 
 namespace m1
 {
@@ -26,13 +22,13 @@ namespace m1
         Log::Get().Info("Engine constructor");
 
         recreateSwapChain();
-		_descriptor = std::make_unique<Descritor>(_device);
+		_descriptor = std::make_unique<Descriptor>(_device);
         _pipeline = std::make_unique<Pipeline>(_device, *_swapChain, _descriptor->getDescriptorSetLayout());
         _drawSceneCmdBuffers = _device.getGraphicsQueue().getPersistentCommandPool().createCommandBuffers(FRAMES_IN_FLIGHT);
 		createTextureImage();
         createUniformBuffers();
         initLights();
-		_descriptor->updateDescriotorSets(_uniformBuffers, *_texture, *_lightsUbo);
+		_descriptor->updateDescriptorSets(_objectUboBuffers, _frameUboBuffers, *_texture, *_lightsUboBuffer);
         createSyncObjects();
     }
 
@@ -99,8 +95,8 @@ namespace m1
 			- Present the swap chain image (waiting on the command buffer to finish)
         */
 
-		// Update the uniform buffer
-        updateUniformBuffer(_currentFrame);
+		// Update the frame uniform buffer
+        updateFrameUbo();
 
         // wait for the previous frame to finish (with Fence wait on the CPU)
         vkWaitForFences(_device.getVkDevice(), 1, &_frameFences[_currentFrame], VK_TRUE, UINT64_MAX);
@@ -196,21 +192,26 @@ namespace m1
         _currentFrame = (_currentFrame + 1) % FRAMES_IN_FLIGHT;
     }
 
-    void Engine::updateUniformBuffer(uint32_t currentImage)
+    void Engine::updateFrameUbo()
     {
-        UniformBufferObject ubo{};
-		ubo.model = glm::mat4(1.0f);
-		ubo.view = camera.getViewMatrix();
-		ubo.proj = camera.getProjectionMatrix();
-		ubo.normalMatrix = glm::transpose(glm::inverse(ubo.model));
-        
-        _uniformBuffers[currentImage]->copyDataToBuffer(&ubo);
+    	_frameUbos[_currentFrame].view = camera.getViewMatrix();
+    	_frameUbos[_currentFrame].proj = camera.getProjectionMatrix();
+
+        _frameUboBuffers[_currentFrame]->copyDataToBuffer(&_frameUbos[_currentFrame]);
+    }
+
+	void Engine::updateObjectUbo(const SceneObject& sceneObject)
+    {
+    	_objectUbos[_currentFrame].model = sceneObject.Transform;
+    	_objectUbos[_currentFrame].normalMatrix = glm::transpose(glm::inverse(sceneObject.Transform));
+
+    	_objectUboBuffers[_currentFrame]->copyDataToBuffer(&_objectUbos[_currentFrame]);
     }
 
     void Engine::createSyncObjects()
     {
-        // use a separate semaphore per swap chain image (even if the frame count is different)
-        // to synchornize between acquiring and presenting images
+        // use separate semaphore per swap chain image (even if the frame count is different)
+        // to synchronize between acquiring and presenting images
         size_t imageCount = _swapChain->getImageCount();
         _imageAvailableSems.resize(imageCount);
         _drawCmdExecutedSems.resize(imageCount);
@@ -245,9 +246,27 @@ namespace m1
         }
     }
 
+    void Engine::drawObjectsLoop(VkCommandBuffer commandBuffer)
+    {
+	    for (auto& obj : _sceneObjects)
+	    {
+	    	//updateObjectUbo(*obj); // TODO: how to update the object ubo instead of using push constants?
+
+	    	// push constants
+	    	PushConstantData push
+			{
+				.model = obj->Transform,
+				.normalMatrix = glm::transpose(glm::inverse(obj->Transform))
+			};
+	    	vkCmdPushConstants(commandBuffer, _pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantData), &push);
+
+		    obj->Mesh->draw(commandBuffer);
+	    }
+    }
+
     void Engine::recordDrawCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex)
     {
-        // it can be execute on separate thread
+        // it can be executed on a separate thread
 
         // begin command buffer recording
         VkCommandBufferBeginInfo beginInfo{};
@@ -299,17 +318,7 @@ namespace m1
         VkDescriptorSet descriptorSet = _descriptor->getDescriptorSet(_currentFrame);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline->getLayout(), 0, 1, &descriptorSet, 0, nullptr);
 
-        // push constants
-        PushConstantData push
-        {
-            .color = {0.5f, 0.0f, 0.5f}
-        };
-        vkCmdPushConstants(commandBuffer, _pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantData), &push);
-
-        for (auto& obj : _sceneObjects)
-        {
-            obj->Mesh->draw(commandBuffer);
-        }
+        drawObjectsLoop(commandBuffer);
 
         // end render pass
         vkCmdEndRenderPass(commandBuffer);
@@ -360,17 +369,30 @@ namespace m1
     void Engine::createUniformBuffers()
     {
         Log::Get().Info("Creating uniform buffers");
-        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
-        _uniformBuffers.resize(FRAMES_IN_FLIGHT);       
+    	// init arrays
+    	VkDeviceSize frameUboSize = sizeof(FrameUbo);
+        _frameUboBuffers.resize(FRAMES_IN_FLIGHT);
+    	_frameUbos.resize(FRAMES_IN_FLIGHT);
+
+    	VkDeviceSize objectUboSize = sizeof(ObjectUbo);
+    	_objectUboBuffers.resize(FRAMES_IN_FLIGHT);
+    	_objectUbos.resize(FRAMES_IN_FLIGHT);
 
         for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
         {
-            // Use std::unique_ptr to avoid move/copy assignment of Buffer
-            _uniformBuffers[i] = std::make_unique<Buffer>(_device, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+            // VK_MEMORY_PROPERTY_HOST_COHERENT_BIT: ensures that writes to the mapped memory by the host are automatically visible to the driver (no need for an explicit flush)
+        	// persistent mapping because we need to update it every frame
 
-            // persistent mapping because we need to update it every frame
-            _uniformBuffers[i]->mapMemory();
+        	// create frame ubo
+            _frameUboBuffers[i] = std::make_unique<Buffer>(_device, frameUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+            _frameUboBuffers[i]->mapMemory(); // persistent mapping
+        	_frameUbos[i] = {};
+
+        	// create object ubo
+        	_objectUboBuffers[i] = std::make_unique<Buffer>(_device, objectUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        	_objectUboBuffers[i]->mapMemory(); // persistent mapping
+        	_objectUbos[i] = {};
         }
     }
 
@@ -389,10 +411,10 @@ namespace m1
 
         // Create the lights ubo with device local memory for better performance
         VkDeviceSize lightsUboSize = sizeof(LightsUbo);
-        _lightsUbo = std::make_unique<Buffer>(_device, lightsUboSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        _lightsUboBuffer = std::make_unique<Buffer>(_device, lightsUboSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
         // upload lights data to buffer
-        Utils::uploadToDeviceBuffer(_device, *_lightsUbo, lightsUboSize, &lightsUbo);
+        Utils::uploadToDeviceBuffer(_device, *_lightsUboBuffer, lightsUboSize, &lightsUbo);
     }
 
     void Engine::copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height)

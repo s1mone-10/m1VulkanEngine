@@ -14,8 +14,8 @@ namespace m1 {
 
     struct PushConstantData
     {
-        glm::vec2 offset;
-        alignas(16) glm::vec3 color; // https://vulkan-tutorial.com/Uniform_buffers/Descriptor_pool_and_sets#page_Alignment-requirements
+        glm::mat4 model;
+        alignas(16) glm::mat3 normalMatrix; // https://vulkan-tutorial.com/Uniform_buffers/Descriptor_pool_and_sets#page_Alignment-requirements
     };
 
     class Pipeline {

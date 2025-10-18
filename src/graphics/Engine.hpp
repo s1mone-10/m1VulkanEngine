@@ -32,11 +32,12 @@ namespace m1
     private:
         void mainLoop();
         void drawFrame();
-        void updateUniformBuffer(uint32_t currentImage);
+        void updateFrameUbo();
+        void updateObjectUbo(const SceneObject &sceneObject);
         void createSyncObjects();
+        void drawObjectsLoop(VkCommandBuffer commandBuffer);
         void recordDrawCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 		void recreateSwapChain();
-        
 		void createUniformBuffers();
         void initLights();
         
@@ -64,9 +65,12 @@ namespace m1
 
         std::unique_ptr<Texture> _texture;
 
-		std::vector<std::unique_ptr<Buffer>> _uniformBuffers;
-        std::unique_ptr<Buffer> _lightsUbo;
-		std::unique_ptr<Descritor> _descriptor;
+		std::vector<std::unique_ptr<Buffer>> _frameUboBuffers;
+    	std::vector<FrameUbo> _frameUbos;
+    	std::vector<std::unique_ptr<Buffer>> _objectUboBuffers;
+    	std::vector<ObjectUbo> _objectUbos;
+    	std::unique_ptr<Buffer> _lightsUboBuffer;
+		std::unique_ptr<Descriptor> _descriptor;
 		
         std::vector<std::unique_ptr<SceneObject>> _sceneObjects{};
         uint32_t _currentFrame = 0;

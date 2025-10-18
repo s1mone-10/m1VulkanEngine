@@ -4,3 +4,4 @@ shaders/compiled
 /CMakeSettings.json
 .idea
 cmake-build-debug
+.clang-format
