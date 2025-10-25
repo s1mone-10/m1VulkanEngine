@@ -3,6 +3,7 @@
 #include "Queue.hpp"
 #include "SceneObject.hpp"
 #include "Utils.hpp"
+#include "geometry/Mesh.hpp"
 
 //libs
 #include "glm_config.hpp"
@@ -23,12 +24,13 @@ namespace m1
 
         recreateSwapChain();
 		_descriptor = std::make_unique<Descriptor>(_device);
-        _pipeline = std::make_unique<Pipeline>(_device, *_swapChain, _descriptor->getDescriptorSetLayout());
+        _pipeline = std::make_unique<Pipeline>(_device, *_swapChain, *_descriptor);
         _drawSceneCmdBuffers = _device.getGraphicsQueue().getPersistentCommandPool().createCommandBuffers(FRAMES_IN_FLIGHT);
 		createTextureImage();
         createUniformBuffers();
         initLights();
-		_descriptor->updateDescriptorSets(_objectUboBuffers, _frameUboBuffers, *_texture, *_lightsUboBuffer);
+		_descriptor->updateDescriptorSets(_objectUboBuffers, _frameUboBuffers, *_lightsUboBuffer);
+
         createSyncObjects();
     }
 
@@ -59,8 +61,18 @@ namespace m1
 
     void Engine::addSceneObject(std::unique_ptr<SceneObject> obj)
     {
-        obj->Mesh->compile(_device);
         _sceneObjects.push_back(std::move(obj));
+    }
+
+    void Engine::addMaterial(std::unique_ptr<Material> material)
+    {
+	    _materials.try_emplace(material->getName(), std::move(material));
+    }
+
+    void Engine::compile()
+    {
+	    compileMaterials();
+    	compileSceneObjects();
     }
 
     void Engine::mainLoop()
@@ -260,6 +272,15 @@ namespace m1
 			};
 	    	vkCmdPushConstants(commandBuffer, _pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantData), &push);
 
+	    	if (obj->MaterialUboIndex >=0 && obj->MaterialUboIndex != _currentMaterialUboIndex)
+	    	{
+	    		_currentMaterialUboIndex = obj->MaterialUboIndex;
+	    		uint32_t dynamicOffset = _currentMaterialUboIndex * _materialUboAlignment;
+	    		VkDescriptorSet descriptorSet = _descriptor->getMaterialDescriptorSet(_currentFrame);
+	    		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline->getLayout(), 1, 1, &descriptorSet, 1, &dynamicOffset);
+
+	    	}
+
 		    obj->Mesh->draw(commandBuffer);
 	    }
     }
@@ -415,6 +436,53 @@ namespace m1
 
         // upload lights data to buffer
         Utils::uploadToDeviceBuffer(_device, *_lightsUboBuffer, lightsUboSize, &lightsUbo);
+    }
+
+    void Engine::compileSceneObjects()
+    {
+	    for (auto& obj : _sceneObjects)
+	    {
+	    	auto matName = obj->Mesh->getMaterialName();
+	    	if (!matName.empty())
+	    	{
+	    		auto materialIt = _materials.find(matName);
+	    		if (materialIt == _materials.end())
+	    			throw std::runtime_error("Material '" + matName + "' not found");
+
+	    		obj->MaterialUboIndex = materialIt->second->getUboIndex();
+	    	}
+
+	    	obj->Mesh->compile(_device);
+	    }
+    }
+
+    void Engine::compileMaterials()
+    {
+    	if (_materials.empty())
+    		return;
+
+	    _materialUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialUbo));
+	    size_t bufferSize = _materials.size() * _materialUboAlignment;
+
+    	for (const auto & kv : _materials)
+    	{
+    		_materialUbos.emplace_back(*kv.second);
+    		kv.second->setUboIndex(_materialUbos.size() - 1);
+    	}
+
+	    _materialDynUboBuffers.resize(FRAMES_IN_FLIGHT);
+	    for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
+	    {
+		    // create buffer
+		    _materialDynUboBuffers[i] = std::make_unique<Buffer>(_device, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+	    	// copy materialUbos data to buffer
+	    	_materialDynUboBuffers[i]->mapMemory();
+	    	_materialDynUboBuffers[i]->copyDataToBuffer(_materialUbos.data());
+	    	_materialDynUboBuffers[i]->unmapMemory();
+	    }
+
+    	_descriptor->updateMaterialDescriptorSets(_materialDynUboBuffers, *_texture);
     }
 
     void Engine::copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height)

@@ -22,18 +22,27 @@ namespace m1
 		Descriptor(Descriptor&&) = delete;
 		Descriptor& operator=(Descriptor&&) = delete;
 
-		void updateDescriptorSets(const std
-		                          ::vector<std::unique_ptr<Buffer>> &objectUboBuffers, const std::vector<std::unique_ptr<Buffer>>& frameUboBuffers, const Texture& texture, const Buffer& lightsUbo);
-		VkDescriptorSetLayout getDescriptorSetLayout() { return _descriptorSetLayout; }
-		VkDescriptorSet getDescriptorSet(uint32_t index) { return _descriptorSets[index]; }
+		void updateDescriptorSets(const std::vector<std::unique_ptr<Buffer>> &objectUboBuffers, const std::vector<std::unique_ptr<Buffer>> &
+		                          frameUboBuffers, const Buffer &lightsUbo);
+		void updateMaterialDescriptorSets(const std::vector<std::unique_ptr<Buffer>> &materialDynUboBuffers,
+		                                  const Texture &texture);
+		VkDescriptorSetLayout getDescriptorSetLayout() const { return _descriptorSetLayout; }
+		VkDescriptorSet getDescriptorSet(uint32_t index) const { return _descriptorSets[index]; }
+		VkDescriptorSetLayout getMaterialDescriptorSetLayout() const { return _materialDescriptorSetLayout; }
+		VkDescriptorSet getMaterialDescriptorSet(uint32_t index) const { return _materialDescriptorSets[index]; }
 
 	private:
 		const Device& _device;
 		VkDescriptorSetLayout _descriptorSetLayout = VK_NULL_HANDLE;
+		VkDescriptorSetLayout _materialDescriptorSetLayout = VK_NULL_HANDLE;
 		VkDescriptorPool _descriptorPool;
 		std::vector<VkDescriptorSet> _descriptorSets;
+		std::vector<VkDescriptorSet> _materialDescriptorSets;
 
 		void createDescriptorSetLayout();
+
+		void createMaterialDescriptorSetLayout();
+
 		void createDescriptorPool();
 		void createDescriptorSets();
 	};

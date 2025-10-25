@@ -10,12 +10,12 @@ layout (location = 1) out vec2 fragTexCoord;
 layout (location = 2) out vec3 fragPos;
 layout (location = 3) out vec3 fragNormal;
 
-layout(binding = 0) uniform ObjectUbo {
+layout(set = 0, binding = 0) uniform ObjectUbo {
     mat4 model;
     mat3 normalMatrix;
 } objectUbo;
 
-layout(binding = 1) uniform FrameUbo {
+layout(set = 0, binding = 1) uniform FrameUbo {
     mat4 view;
     mat4 proj;
 } frameUbo;

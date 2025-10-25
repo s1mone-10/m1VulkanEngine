@@ -23,8 +23,8 @@ namespace m1
     Device::~Device()
     {
 		// destroy command pools before destroying the device
-        _graphicsQueue = NULL;
-        _presentQueue = NULL;
+        _graphicsQueue = nullptr;
+        _presentQueue = nullptr;
 
 		// physical device is implicitly destroyed when the VkInstance is destroyed
         // Device queues are implicitly destroyed when the device is destroyed
@@ -72,7 +72,7 @@ namespace m1
 
     bool Device::isLinearFilteringSupported(VkFormat format, VkImageTiling tiling)
     {
-        // Check if image format supports linear blitting
+        // Check if the image format supports linear blitting
         VkFormatProperties formatProperties;
         vkGetPhysicalDeviceFormatProperties(_physicalDevice, format, &formatProperties);
 
@@ -203,13 +203,16 @@ namespace m1
 
 		// get the max msaa samples (color and depth)
         VkSampleCountFlags counts = deviceProperties.limits.framebufferColorSampleCounts & deviceProperties.limits.framebufferDepthSampleCounts;
-        maxMsaaSamples = counts & VK_SAMPLE_COUNT_64_BIT ? VK_SAMPLE_COUNT_64_BIT :
+        _maxMsaaSamples = counts & VK_SAMPLE_COUNT_64_BIT ? VK_SAMPLE_COUNT_64_BIT :
                          counts & VK_SAMPLE_COUNT_32_BIT ? VK_SAMPLE_COUNT_32_BIT :
                          counts & VK_SAMPLE_COUNT_16_BIT ? VK_SAMPLE_COUNT_16_BIT :
                          counts & VK_SAMPLE_COUNT_8_BIT  ? VK_SAMPLE_COUNT_8_BIT  :
                          counts & VK_SAMPLE_COUNT_4_BIT  ? VK_SAMPLE_COUNT_4_BIT  :
                          counts & VK_SAMPLE_COUNT_2_BIT  ? VK_SAMPLE_COUNT_2_BIT  :
 			             VK_SAMPLE_COUNT_1_BIT;
+
+		// get the alignment for uniform buffers
+		_minUniformBufferOffsetAlignment = deviceProperties.limits.minUniformBufferOffsetAlignment;
 
 		Log::Get().Info("Device " + std::string(deviceProperties.deviceName) + " is suitable");
         Log::Get().Info("Device maxPushConstantsSize: " + std::to_string(deviceProperties.limits.maxPushConstantsSize) + "bytes");
@@ -326,4 +329,18 @@ namespace m1
         Log::Get().Error("failed to find suitable memory type!");
         throw std::runtime_error("failed to find suitable memory type!");
     }
+
+	VkDeviceSize Device::getUniformBufferAlignment(VkDeviceSize uboInstanceSize)
+	{
+		// Vulkan requires each element in a dynamic uniform buffer to be aligned to VkPhysicalDeviceLimits::minUniformBufferOffsetAlignment.
+		// If you have multiple UBO instances in one buffer (e.g., per-object data),
+		// each instance must start at an address that’s a multiple of that alignment value.
+
+		if (_minUniformBufferOffsetAlignment > 0)
+		{
+			// round up to the nearest multiple of _minUniformBufferOffsetAlignment
+			return (uboInstanceSize + _minUniformBufferOffsetAlignment - 1) & ~(_minUniformBufferOffsetAlignment - 1);
+		}
+		return uboInstanceSize;
+	}
 } // namespace m1

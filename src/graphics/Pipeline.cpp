@@ -1,18 +1,18 @@
 #include "Pipeline.hpp"
 #include "Device.hpp"
 #include "SwapChain.hpp"
+#include "Descriptor.hpp"
 #include "geometry/Vertex.hpp"
 #include "log/Log.hpp"
 #include <stdexcept>
 #include <fstream>
-#include <iostream>
 
 namespace m1
 {
-    Pipeline::Pipeline(const Device& device, const SwapChain& swapChain, const VkDescriptorSetLayout descriptorSetLayout) : _device(device)
+    Pipeline::Pipeline(const Device& device, const SwapChain& swapChain, const Descriptor& descriptor) : _device(device)
     {
         Log::Get().Info("Creating pipeline");
-        createGraphicsPipeline(device, swapChain, descriptorSetLayout);
+        createGraphicsPipeline(device, swapChain, descriptor);
     }
 
     Pipeline::~Pipeline()
@@ -63,10 +63,10 @@ namespace m1
         return shaderModule;
     }
 
-    void Pipeline::createGraphicsPipeline(const Device& device, const SwapChain& swapChain, const VkDescriptorSetLayout descriptorSetLayout)
+    void Pipeline::createGraphicsPipeline(const Device& device, const SwapChain& swapChain, const Descriptor& descriptor)
     {
         Log::Get().Info("Creating graphics pipeline");
-		// read shaders code
+		// read shaders' code
         std::vector<char> vertShaderCode = readFile(R"(..\shaders\compiled\simple.vert.spv)");
         std::vector<char> fragShaderCode = readFile(R"(..\shaders\compiled\simple.frag.spv)");
 
@@ -199,10 +199,15 @@ namespace m1
         };
 
         // layout info: specify layout of dynamic values (descriptors and push constant) for shaders
+    	std::array setLayouts =
+    	{
+    		descriptor.getDescriptorSetLayout(),    // set 0
+			descriptor.getMaterialDescriptorSetLayout(), // set 1
+		};
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+        pipelineLayoutInfo.setLayoutCount = setLayouts.size();
+        pipelineLayoutInfo.pSetLayouts = setLayouts.data();
         pipelineLayoutInfo.pushConstantRangeCount = 1;
         pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 

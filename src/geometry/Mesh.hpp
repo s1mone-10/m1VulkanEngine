@@ -4,6 +4,7 @@
 
 //std
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace m1 
@@ -19,6 +20,8 @@ namespace m1
 
 		static std::unique_ptr<Mesh> createCube();
 
+		void setMaterialName(const std::string& materialName) { _materialName = materialName; }
+		const std::string& getMaterialName() const { return _materialName; }
 		void compile(const Device& device);
 		void draw(VkCommandBuffer commandBuffer) const;
 
@@ -30,5 +33,7 @@ namespace m1
 
 		std::unique_ptr<Buffer> _vertexBuffer;
 		std::unique_ptr<Buffer> _indexBuffer;
+
+		std::string _materialName;
 	};
 }

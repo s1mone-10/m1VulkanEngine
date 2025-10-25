@@ -8,11 +8,13 @@
 #include "Pipeline.hpp"
 #include "Buffer.hpp"
 #include "Texture.hpp"
-#include "geometry/Mesh.hpp"
+#include "geometry/Material.hpp"
 #include "Camera.hpp"
 
 #include <memory>
 #include <vector>
+#include <string>
+#include <unordered_map>
 
 namespace m1
 {
@@ -28,6 +30,8 @@ namespace m1
 
         void run();
         void addSceneObject(std::unique_ptr<SceneObject> obj);
+    	void addMaterial(std::unique_ptr<Material> material);
+    	void compile();
 
     private:
         void mainLoop();
@@ -40,6 +44,8 @@ namespace m1
 		void recreateSwapChain();
 		void createUniformBuffers();
         void initLights();
+    	void compileSceneObjects();
+    	void compileMaterials();
         
         void copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height);
         void createTextureImage();
@@ -71,14 +77,19 @@ namespace m1
     	std::vector<ObjectUbo> _objectUbos;
     	std::unique_ptr<Buffer> _lightsUboBuffer;
 		std::unique_ptr<Descriptor> _descriptor;
+    	std::vector<std::unique_ptr<Buffer>> _materialDynUboBuffers;
+    	std::vector<MaterialUbo> _materialUbos;
+    	VkDeviceSize _materialUboAlignment = -1;
 		
         std::vector<std::unique_ptr<SceneObject>> _sceneObjects{};
+        std::unordered_map<std::string, std::unique_ptr<Material>> _materials{};
+    	uint64_t _currentMaterialUboIndex = -1;
         uint32_t _currentFrame = 0;
 
 		// Synchronization objects (semaphores for GPU-GPU sync, fences for CPU-GPU sync)
         std::vector<VkSemaphore> _imageAvailableSems;
         std::vector<VkSemaphore> _drawCmdExecutedSems;
         std::vector<VkFence> _frameFences;
-        VkSemaphore _acquireSemaphore; // only used during acquire of an image, then swapped into _imageAvailableSems
+        VkSemaphore _acquireSemaphore; // only used during acquiring of an image, then swapped into _imageAvailableSems
     };
 }

@@ -43,11 +43,12 @@ namespace m1
         const Queue& getGraphicsQueue() const { return *_graphicsQueue; }
         const Queue& getPresentQueue() const { return *_presentQueue; }
         VkSurfaceKHR getSurface() const { return _surface; }
-		VkSampleCountFlagBits getMaxMsaaSamples() const { return maxMsaaSamples; }
+		VkSampleCountFlagBits getMaxMsaaSamples() const { return _maxMsaaSamples; }
         SwapChainProperties getSwapChainProperties() const { return getSwapChainProperties(_physicalDevice); };
         VkDeviceMemory allocateMemory(VkMemoryRequirements memRequirements, VkMemoryPropertyFlags properties) const;
         VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
         bool isLinearFilteringSupported(VkFormat format, VkImageTiling tiling);
+    	VkDeviceSize getUniformBufferAlignment(VkDeviceSize uboInstanceSize);
 
     private:
         void createSurface(const Window& window);
@@ -59,7 +60,7 @@ namespace m1
         QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
         SwapChainProperties getSwapChainProperties(const VkPhysicalDevice device) const;
         uint32_t findMemoryTypeIndex(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
-        
+
         Instance _instance;
         VkSurfaceKHR _surface = VK_NULL_HANDLE;
         VkPhysicalDevice _physicalDevice = VK_NULL_HANDLE;
@@ -67,7 +68,8 @@ namespace m1
         std::unique_ptr<Queue> _graphicsQueue;
         std::unique_ptr<Queue> _presentQueue;
         QueueFamilyIndices _queueFamilies;
-        VkSampleCountFlagBits maxMsaaSamples = VK_SAMPLE_COUNT_1_BIT;
+        VkSampleCountFlagBits _maxMsaaSamples = VK_SAMPLE_COUNT_1_BIT;
+    	VkDeviceSize _minUniformBufferOffsetAlignment = 0;
 
         const std::vector<const char*> _requiredExtensions = { 
             VK_KHR_SWAPCHAIN_EXTENSION_NAME // Not all graphics cards are capable of presenting images

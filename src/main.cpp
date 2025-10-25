@@ -2,6 +2,8 @@
 #include "graphics/Engine.hpp"
 #include "graphics/SceneObject.hpp"
 #include "geometry/Vertex.hpp"
+#include "geometry/Mesh.hpp"
+#include "geometry/Material.hpp"
 
 //libs
 #define GLFW_INCLUDE_VULKAN
@@ -22,6 +24,7 @@ int main()
     try
     {
         loadScene(app);
+    	app.compile();
         app.run();
     }
     catch (const std::exception &e)
@@ -115,12 +118,48 @@ void loadObj(m1::Engine& engine, const std::string& path)
 
 void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 {
+	// Initialize materials array with different material types
+
+	// Shiny material (high specular, moderate diffuse)
+	engine.addMaterial(std::make_unique<m1::Material>(
+		"shiny",
+		glm::vec3(0.7f, 0.0f, 0.7f),
+		glm::vec3(1.0f, 1.0f, 1.0f),
+		glm::vec3(0.1f, 0.1f, 0.1f),
+		32.0f,
+		1.0f
+	));
+
+	// Matte material (low specular, high diffuse)
+	engine.addMaterial(std::make_unique<m1::Material>(
+		"matte",
+		glm::vec3(0.8f, 0.8f, 0.8f),
+		glm::vec3(0.1f, 0.1f, 0.1f),
+		glm::vec3(0.1f, 0.1f, 0.1f),
+		1.0f,
+		1.0f
+	));
+
+	// Emissive material (very high specular and diffuse for glow effect)
+	engine.addMaterial(std::make_unique<m1::Material>(
+		"emissive",
+		glm::vec3(5.0f, 5.0f, 5.0f),
+		glm::vec3(5.0f, 5.0f, 5.0f),
+		glm::vec3(1.0f, 1.0f, 1.0f),
+		64.0f,
+		1.0f
+	));
+
     auto sceneObj = m1::SceneObject::createSceneObject();
-    sceneObj->setMesh(m1::Mesh::createCube());
+	auto mesh = m1::Mesh::createCube();
+	mesh->setMaterialName("shiny");
+    sceneObj->setMesh(std::move(mesh));
     engine.addSceneObject(std::move(sceneObj));
 
     sceneObj = m1::SceneObject::createSceneObject();
-    sceneObj->setMesh(m1::Mesh::createCube());
+	mesh = m1::Mesh::createCube();
+	mesh->setMaterialName("emissive");
+    sceneObj->setMesh(std::move(mesh));
     auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(1.5f, 0.5f, 2.0f));
     transform = glm::scale(transform, glm::vec3(.2f));
     sceneObj->setTransform(transform);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Descriptor.hpp"
+
 //libs
 #include <vulkan/vulkan.h>
 #include "glm_config.hpp"
@@ -8,7 +10,8 @@
 #include <vector>
 #include <string>
 
-namespace m1 {
+namespace m1
+{
     class Device; // Forward declaration
     class SwapChain; // Forward declaration
 
@@ -20,7 +23,7 @@ namespace m1 {
 
     class Pipeline {
     public:
-        Pipeline(const Device& device, const SwapChain& swapChain, const VkDescriptorSetLayout descriptorSetLayout);
+        Pipeline(const Device& device, const SwapChain& swapChain, const Descriptor& descriptor);
         ~Pipeline();
 
         // Non-copyable, non-movable
@@ -35,7 +38,7 @@ namespace m1 {
     private:
         static std::vector<char> readFile(const std::string& filename);
         VkShaderModule createShaderModule(const Device& device, const std::vector<char>& code);
-        void createGraphicsPipeline(const Device& device, const SwapChain& swapChain, const VkDescriptorSetLayout descriptorSetLayout);
+        void createGraphicsPipeline(const Device& device, const SwapChain& swapChain, const Descriptor& descriptor);
         void createDescriptorSetLayout();
 
         VkPipeline _graphicsPipeline = VK_NULL_HANDLE;

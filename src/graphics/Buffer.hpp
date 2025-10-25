@@ -1,6 +1,7 @@
 #pragma once
 
 #include <geometry/Vertex.hpp>
+#include <geometry/Material.hpp>
 
 // libs
 #include <vulkan/vulkan.h>
@@ -36,6 +37,26 @@ namespace m1
 		glm::mat3 normalMatrix;
 	};
 
+	struct alignas(16) MaterialUbo
+	{
+	public:
+		MaterialUbo(const Material& material)
+		{
+			diffuseColor = material.getDiffuseColor();
+			specularColor = material.getSpecularColor();
+			ambientColor = material.getAmbientColor();
+			shininess = material.getShininess();
+			opacity = material.getOpacity();
+		}
+
+		glm::vec3 diffuseColor;
+		glm::vec3 specularColor;
+		glm::vec3 ambientColor;
+		float shininess;
+		float opacity;
+		float padding[2]; // pad to 16 bytes
+	};
+
 	class Buffer
 	{
 	public:
@@ -52,6 +73,7 @@ namespace m1
 		void mapMemory();
 		void unmapMemory();
 		void copyDataToBuffer(void* data);
+		VkDeviceSize getSize() const { return _size; }
 
 	private:
 		VkBuffer _vkBuffer;
