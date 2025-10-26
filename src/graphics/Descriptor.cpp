@@ -258,7 +258,8 @@ namespace m1
 	    }
     }
 
-	void Descriptor::updateMaterialDescriptorSets(const std::vector<std::unique_ptr<Buffer> > &materialDynUboBuffers, const Texture &texture)
+	void Descriptor::updateMaterialDescriptorSets(const std::vector<std::unique_ptr<Buffer> > &materialDynUboBuffers,
+													const Texture &texture,	VkDeviceSize materialUboAlignment)
     {
 	    // populate each DescriptorSet
 	    for (size_t i = 0; i < Engine::FRAMES_IN_FLIGHT; i++)
@@ -268,7 +269,7 @@ namespace m1
 			{
 				.buffer = materialDynUboBuffers[i]->getVkBuffer(),
 				.offset = 0,
-				.range = materialDynUboBuffers[i]->getSize()
+				.range = materialUboAlignment
 			};
 
 	    	// Material Descriptor Write

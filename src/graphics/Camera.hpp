@@ -17,7 +17,6 @@ namespace m1
 		Camera();
 		void setPerspectiveProjection(float aspectRatio, float fov = 45.0f, float nearPlane = 0.1f, float farPlane = 100.0f);
 		void setOrthographicProjection(float left, float right, float bottom, float top, float nearPlane = 0.1f, float farPlane = 100.0f);
-		void setPorjectionType(ProjectionType type) { _projectionType = type; updateProjectionMatrix(); }
 		void setViewDirection(const glm::vec3& position, const glm::vec3& direction, const glm::vec3& up = glm::vec3(0.0f, -1.0f, 0.0f));
 		void setViewTarget(const glm::vec3& position, const glm::vec3& target, const glm::vec3& up = glm::vec3(0.0f, -1.0f, 0.0f));
 		void setPosition(const glm::vec3& pos) { _position = pos; updateViewMatrix(); }

@@ -25,7 +25,7 @@ namespace m1
 		void updateDescriptorSets(const std::vector<std::unique_ptr<Buffer>> &objectUboBuffers, const std::vector<std::unique_ptr<Buffer>> &
 		                          frameUboBuffers, const Buffer &lightsUbo);
 		void updateMaterialDescriptorSets(const std::vector<std::unique_ptr<Buffer>> &materialDynUboBuffers,
-		                                  const Texture &texture);
+		                                  const Texture &texture, VkDeviceSize materialUboAlignment);
 		VkDescriptorSetLayout getDescriptorSetLayout() const { return _descriptorSetLayout; }
 		VkDescriptorSet getDescriptorSet(uint32_t index) const { return _descriptorSets[index]; }
 		VkDescriptorSetLayout getMaterialDescriptorSetLayout() const { return _materialDescriptorSetLayout; }

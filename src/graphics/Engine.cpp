@@ -482,7 +482,7 @@ namespace m1
 	    	_materialDynUboBuffers[i]->unmapMemory();
 	    }
 
-    	_descriptor->updateMaterialDescriptorSets(_materialDynUboBuffers, *_texture);
+    	_descriptor->updateMaterialDescriptorSets(_materialDynUboBuffers, *_texture, _materialUboAlignment);
     }
 
     void Engine::copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height)
