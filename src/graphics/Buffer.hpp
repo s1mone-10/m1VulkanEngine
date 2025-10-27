@@ -37,7 +37,7 @@ namespace m1
 		glm::mat3 normalMatrix;
 	};
 
-	struct alignas(16) MaterialUbo
+	struct MaterialUbo
 	{
 	public:
 		MaterialUbo(const Material& material)
@@ -49,12 +49,11 @@ namespace m1
 			opacity = material.getOpacity();
 		}
 
+		float shininess;
+		float opacity;
 		glm::vec3 diffuseColor;
 		glm::vec3 specularColor;
 		glm::vec3 ambientColor;
-		float shininess;
-		float opacity;
-		float padding[2]; // pad to 16 bytes
 	};
 
 	class Buffer

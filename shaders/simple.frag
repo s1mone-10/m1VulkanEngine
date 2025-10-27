@@ -13,13 +13,13 @@ layout (location = 3) in vec3 fragNormal;
 // specify the out location (index of the framebuffer attachment) and out variable
 layout (location = 0) out vec4 outColor;
 
-layout ( set =1, binding = 0) uniform MaterialUbo {
+layout (set =1, binding = 0) uniform MaterialUbo {
+    float shininess;
+    float opacity;
     vec3 diffuseColor;
     vec3 specularColor;
     vec3 ambientColor;
-    float shininess;
-    float opacity;
-} materialsUbo;
+} materialUbo;
 
 layout (set = 1, binding = 1) uniform sampler2D texSampler;
 
@@ -54,6 +54,6 @@ void main(){
     vec3 ambient = lightsUbo.ambient.rgb * lightsUbo.ambient.a;
 
 
-    outColor = vec4(materialsUbo.diffuseColor * (ambient + diffuse), 1.0);
+    outColor = vec4(materialUbo.diffuseColor * (ambient + diffuse), 1.0);
     //outColor = vec4(fragColor * (ambient + diffuse), 1.0);
 }
