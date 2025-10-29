@@ -123,9 +123,9 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	// Shiny material (high specular, moderate diffuse)
 	engine.addMaterial(std::make_unique<m1::Material>(
 		"shiny",
-		glm::vec3(0.7f, 0.0f, 0.7f),
+		glm::vec3(0.7f, 0.0f, 0.0f),
 		glm::vec3(1.0f, 1.0f, 1.0f),
-		glm::vec3(0.1f, 0.1f, 0.1f),
+		glm::vec3(0.7f, 0.0f, 0.0f),
 		32.0f,
 		1.0f
 	));

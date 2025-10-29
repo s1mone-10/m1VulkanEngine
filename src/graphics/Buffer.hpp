@@ -14,8 +14,8 @@ namespace m1
 
 	struct Light
 	{
-		glm::vec4 position;  // w=0 directional, w=1 point
-		glm::vec4 color;     // rgb = color, a = intensity
+		glm::vec4 posDir;  // w=0 directional, w=1 point
+		glm::vec4 color;   // rgb = color, a = intensity
 	};
 
 	struct LightsUbo
@@ -29,6 +29,7 @@ namespace m1
 	{
 		glm::mat4 view;
 		glm::mat4 proj;
+		glm::vec3 camPos;
 	};
 
 	struct ObjectUbo

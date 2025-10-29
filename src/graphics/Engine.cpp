@@ -206,10 +206,12 @@ namespace m1
 
     void Engine::updateFrameUbo()
     {
-    	_frameUbos[_currentFrame].view = camera.getViewMatrix();
-    	_frameUbos[_currentFrame].proj = camera.getProjectionMatrix();
+	    auto& framUbo = _frameUbos[_currentFrame];
+    	framUbo.view = camera.getViewMatrix();
+    	framUbo.proj = camera.getProjectionMatrix();
+    	framUbo.camPos = camera.getPosition();
 
-        _frameUboBuffers[_currentFrame]->copyDataToBuffer(&_frameUbos[_currentFrame]);
+        _frameUboBuffers[_currentFrame]->copyDataToBuffer(&framUbo);
     }
 
 	void Engine::updateObjectUbo(const SceneObject& sceneObject)
@@ -278,7 +280,6 @@ namespace m1
 	    		uint32_t dynamicOffset = _currentMaterialUboIndex * _materialUboAlignment;
 	    		VkDescriptorSet descriptorSet = _descriptor->getMaterialDescriptorSet(_currentFrame);
 	    		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline->getLayout(), 1, 1, &descriptorSet, 1, &dynamicOffset);
-
 	    	}
 
 		    obj->Mesh->draw(commandBuffer);
@@ -423,12 +424,17 @@ namespace m1
         LightsUbo lightsUbo{};
 
         // Ambient light
-        lightsUbo.ambient = glm::vec4(0.2f, 0.2f, 0.2f, 1.0f); // soft gray ambient
+        lightsUbo.ambient = glm::vec4(1.0f, 1.0f, 1.0f, 0.1f); // soft gray ambient
+
+    	lightsUbo.numLights = 2;
 
         // Directional light (like sunlight)
-        lightsUbo.lights[0].position = glm::vec4(-0.5f, -1.0f, -0.3f, 0.0f); // w=0 => dir light
-        lightsUbo.lights[0].color = glm::vec4(1.0f, 1.0f, 0.9f, 3.0f);     // warm white, intensity=3.0
-        lightsUbo.numLights = 1;
+        lightsUbo.lights[1].posDir = glm::vec4(-0.5f, 1.0f, -0.3f, 0.0f); // w=0 => dir light
+        lightsUbo.lights[1].color = glm::vec4(1.0f, 1.0f, 0.9f, 0.5f);     // warm white, intensity=1.0
+
+    	// Point light
+    	lightsUbo.lights[0].posDir = glm::vec4(1.5f, 0.5f, 2.0f, 1.0f); // w=1 => point light
+    	lightsUbo.lights[0].color = glm::vec4(1.0f, 1.0f, 1.0f, 0.5f); // warm white, intensity=3.0
 
         // Create the lights ubo with device local memory for better performance
         VkDeviceSize lightsUboSize = sizeof(LightsUbo);

@@ -48,7 +48,7 @@ namespace m1
 		    .binding = 1,
 		    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 		    .descriptorCount = 1,
-		    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+		    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
 		    .pImmutableSamplers = nullptr
 	    };
 

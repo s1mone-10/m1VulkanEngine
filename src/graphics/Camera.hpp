@@ -15,10 +15,13 @@ namespace m1
 		};
 
 		Camera();
+
+		// get/set
 		void setPerspectiveProjection(float aspectRatio, float fov = 45.0f, float nearPlane = 0.1f, float farPlane = 100.0f);
 		void setOrthographicProjection(float left, float right, float bottom, float top, float nearPlane = 0.1f, float farPlane = 100.0f);
 		void setViewDirection(const glm::vec3& position, const glm::vec3& direction, const glm::vec3& up = glm::vec3(0.0f, -1.0f, 0.0f));
 		void setViewTarget(const glm::vec3& position, const glm::vec3& target, const glm::vec3& up = glm::vec3(0.0f, -1.0f, 0.0f));
+		const glm::vec3& getPosition () const { return _position; }
 		void setPosition(const glm::vec3& pos) { _position = pos; updateViewMatrix(); }
 		void setTarget(const glm::vec3& target) { _target = target; updateViewMatrix(); }
 		void setUp(const glm::vec3& up) { _up = up; updateViewMatrix(); }
