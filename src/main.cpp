@@ -18,6 +18,7 @@ void loadCubes(m1::Engine& engine, const uint32_t numCubes);
 
 int main()
 {
+	//m1::Log::Get().SetLevel(m1::LogLevel::None);
     m1::Log::Get().Info("Application starting");
     m1::Engine app;
 
@@ -46,7 +47,7 @@ void loadScene(m1::Engine& engine)
     const std::string TEXTURE_PATH = "../resources/viking_room.png";
 
 
-    loadCubes(engine, 1);
+    loadCubes(engine, 3);
     //loadObj(engine, MODEL_PATH);
 }
 
@@ -124,7 +125,7 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	engine.addMaterial(std::make_unique<m1::Material>(
 		"shiny",
 		glm::vec3(0.7f, 0.0f, 0.0f),
-		glm::vec3(1.0f, 1.0f, 1.0f),
+		glm::vec3(0.5f, 0.5f, 0.5f),
 		glm::vec3(0.7f, 0.0f, 0.0f),
 		32.0f,
 		1.0f
@@ -160,9 +161,26 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	mesh = m1::Mesh::createCube();
 	mesh->setMaterialName("emissive");
     sceneObj->setMesh(std::move(mesh));
-    auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(1.5f, 0.5f, 2.0f));
-    transform = glm::scale(transform, glm::vec3(.2f));
+    auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(1.2f, 1.2f, 2.2f));
+    transform = glm::scale(transform, glm::vec3(.1f));
     sceneObj->setTransform(transform);
     engine.addSceneObject(std::move(sceneObj));
+
+	for (uint32_t i = 0; i < numCubes; i++)
+	{
+		for (uint32_t j = 0; j < numCubes; j++)
+		{
+			for (uint32_t k = 0; k < numCubes; k++)
+			{
+				sceneObj = m1::SceneObject::createSceneObject();
+				mesh = m1::Mesh::createCube();
+				mesh->setMaterialName("matte");
+				sceneObj->setMesh(std::move(mesh));
+				transform = glm::translate(glm::mat4(1.0f), glm::vec3(i* 2, j * 2, k * 2));
+				sceneObj->setTransform(transform);
+				engine.addSceneObject(std::move(sceneObj));
+			}
+		}
+	}
 }
 

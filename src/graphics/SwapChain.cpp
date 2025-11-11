@@ -279,8 +279,8 @@ namespace m1
             resolveAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         }
         
-        // A single render pass can consist of multiple subpasses. For example a sequence of post-processing effects
-        // Every subpass can references one or more of the attachments
+        // A single render pass can consist of multiple subpasses. For example, a sequence of post-processing effects
+        // Every subpass can reference one or more of the attachments
 
         // define subpass
         VkSubpassDescription subpass{};

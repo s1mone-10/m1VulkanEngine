@@ -274,7 +274,7 @@ namespace m1
 			};
 	    	vkCmdPushConstants(commandBuffer, _pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantData), &push);
 
-	    	if (obj->MaterialUboIndex >=0 && obj->MaterialUboIndex != _currentMaterialUboIndex)
+	    	if (obj->MaterialUboIndex >= 0 && obj->MaterialUboIndex != _currentMaterialUboIndex)
 	    	{
 	    		_currentMaterialUboIndex = obj->MaterialUboIndex;
 	    		uint32_t dynamicOffset = _currentMaterialUboIndex * _materialUboAlignment;
@@ -430,11 +430,11 @@ namespace m1
 
         // Directional light (like sunlight)
         lightsUbo.lights[1].posDir = glm::vec4(-0.5f, 1.0f, -0.3f, 0.0f); // w=0 => dir light
-        lightsUbo.lights[1].color = glm::vec4(1.0f, 1.0f, 0.9f, 0.5f);     // warm white, intensity=1.0
+        lightsUbo.lights[1].color = glm::vec4(1.0f, 1.0f, 1.0f, 0.5f);
 
     	// Point light
-    	lightsUbo.lights[0].posDir = glm::vec4(1.5f, 0.5f, 2.0f, 1.0f); // w=1 => point light
-    	lightsUbo.lights[0].color = glm::vec4(1.0f, 1.0f, 1.0f, 0.5f); // warm white, intensity=3.0
+    	lightsUbo.lights[0].posDir = glm::vec4(1.2f, 1.2f, 2.2f, 1.0f); // w=1 => point light
+    	lightsUbo.lights[0].color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
 
         // Create the lights ubo with device local memory for better performance
         VkDeviceSize lightsUboSize = sizeof(LightsUbo);
