@@ -24,6 +24,7 @@ namespace m1
             bool FramebufferResized = false;
 			bool IsMinimized = false;
             int getPressedKey();
+    		void setTitle(const char* title) { glfwSetWindowTitle(_glfwWindow, title); }
 
         private:
             void InitWindow();

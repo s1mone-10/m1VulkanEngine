@@ -75,23 +75,39 @@ namespace m1
     	compileSceneObjects();
     }
 
+	int _frameCount = 0;
+	float _framesTime = 0.0f;
+
     void Engine::mainLoop()
     {
-        auto currentTime = std::chrono::high_resolution_clock::now();
+        auto prevTime = std::chrono::high_resolution_clock::now();
 
         while (!_window.shouldClose())
         {
             glfwPollEvents();
 
+        	drawFrame();
+
             // update frame time
-            auto newTime = std::chrono::high_resolution_clock::now();
-            float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
-            currentTime = newTime;
+        	_frameCount++;
+            auto currentTime = std::chrono::high_resolution_clock::now();
+            float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - prevTime).count();
+            prevTime = currentTime;
 
-            // process input
-            processInput(frameTime);
+        	// process input
+        	processInput(frameTime);
 
-            drawFrame();
+        	// update fps
+        	// NOTE: VK_PRESENT_MODE_FIFO_KHR enables vertical sync and caps FPS to the monitor refresh rate.
+        	_framesTime += frameTime;
+        	if (_framesTime >= 1.0f)
+        	{
+        		double fps = 1.0f / (_framesTime / _frameCount);
+        		_window.setTitle(std::format("Vulkan App | FPS: {:.1f}", fps).c_str());
+
+        		_framesTime = 0.0f;
+        		_frameCount = 0;
+        	}
         }
     }
 
