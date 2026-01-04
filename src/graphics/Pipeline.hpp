@@ -15,35 +15,80 @@ namespace m1
     class Device; // Forward declaration
     class SwapChain; // Forward declaration
 
+	enum PipelineName
+	{
+		LIGHTING,
+		PARTICLES
+	};
+
     struct PushConstantData
     {
         glm::mat4 model;
         alignas(16) glm::mat3 normalMatrix; // https://vulkan-tutorial.com/Uniform_buffers/Descriptor_pool_and_sets#page_Alignment-requirements
     };
 
-    class Pipeline {
+    struct GraphicsPipelineConfig
+    {
+    	// shaders
+        std::string vertShaderPath;
+        std::string fragShaderPath;
+
+    	// vertex binding and attributes
+        VkVertexInputBindingDescription vertexBindingDescription;
+        std::vector<VkVertexInputAttributeDescription> vertexAttributeDescriptions;
+
+    	// fixed function
+    	VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    	VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL;
+    	VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT;
+    	VkFrontFace frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+    	// multisampling
+    	VkSampleCountFlagBits rasterizationSamples;
+
+    	// depth
+    	bool depthTestEnable = true;
+    	bool depthWriteEnable = true;
+
+    	// blending
+    	bool blendEnable = false;
+
+    	// layouts
+    	uint32_t setLayoutCount;
+    	VkDescriptorSetLayout* pSetLayouts;
+    	VkRenderPass renderPass;
+    };
+
+    class Pipeline
+	{
     public:
-        Pipeline(const Device& device, const SwapChain& swapChain, const Descriptor& descriptor);
+        Pipeline(const Device& device, VkPipeline pipeline, VkPipelineLayout pipelineLayout);
         ~Pipeline();
 
-        // Non-copyable, non-movable
+        //Non-copyable, non-movable
         Pipeline(const Pipeline&) = delete;
         Pipeline& operator=(const Pipeline&) = delete;
         Pipeline(Pipeline&&) = delete;
         Pipeline& operator=(Pipeline&&) = delete;
 
-        VkPipeline getVkPipeline() const { return _graphicsPipeline; }
+        VkPipeline getVkPipeline() const { return _pipeline; }
         VkPipelineLayout getLayout() const { return _pipelineLayout; }
 
     private:
-        static std::vector<char> readFile(const std::string& filename);
-        VkShaderModule createShaderModule(const Device& device, const std::vector<char>& code);
-        void createGraphicsPipeline(const Device& device, const SwapChain& swapChain, const Descriptor& descriptor);
-        void createDescriptorSetLayout();
-
-        VkPipeline _graphicsPipeline = VK_NULL_HANDLE;
+        VkPipeline _pipeline = VK_NULL_HANDLE;
         VkPipelineLayout _pipelineLayout = VK_NULL_HANDLE;
 
-        const Device& _device;
+    	const Device& _device;
     };
+
+	class PipelineFactory
+	{
+	public:
+		static std::unique_ptr<Pipeline> createGraphicsPipeline(const Device& device, const GraphicsPipelineConfig& config);
+		static std::unique_ptr<Pipeline> createComputePipeline(const Device& device, const Descriptor& descriptor);
+
+	private:
+		static std::vector<char> readFile(const std::string& filename);
+		static VkShaderModule createShaderModule(const Device& device, const std::vector<char>& code);
+	};
 }

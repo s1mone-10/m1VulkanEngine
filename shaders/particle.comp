@@ -1,0 +1,49 @@
+#version 450
+
+struct Particle {
+    vec2 position;
+    vec2 velocity;
+    vec4 color;
+};
+
+layout(std140, binding = 3) readonly buffer ParticleSSBOIn {
+    Particle particlesIn[ ];
+};
+
+layout(std140, binding = 4) buffer ParticleSSBOOut {
+    Particle particlesOut[ ];
+};
+
+// COMPUTE SPACE
+// Work groups and Invocations define an abstract execution model for how compute workloads are processed
+// by the GPU in three dimensions (x, y, and z).
+// Work groups are collections of invocations that execute the same compute shader. Are set by the application.
+// Invocations are the individual executions of the compute shader within a work group. Are set by the compute shader itself.
+// Invocations can potentially run in parallel and within a single workgroup have access to shared memory.
+
+// defines the number invocations of this compute shader in the current work group.
+layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+void main() {
+
+    /*
+    Inside a compute shader there are :
+    gl_LocalInvocationID → index of invocation inside the current workgroup
+    gl_WorkGroupID → index of the workgroup currently being operated on
+    gl_GlobalInvocationID → global index of the invocation (gl_WorkGroupID * gl_WorkGroupSize + gl_LocalInvocationID).
+    */
+    uint index = gl_GlobalInvocationID.x;
+
+    Particle particleIn = particlesIn[index];
+
+    particlesOut[index].position = particleIn.position + particleIn.velocity.xy * 0.016; // Assuming a fixed time step of 16ms
+    particlesOut[index].velocity = particleIn.velocity;
+
+    // Limit particles inside square by flipping the movement at border
+    if ((particlesOut[index].position.x <= -1.0) || (particlesOut[index].position.x >= 1.0)) {
+        particlesOut[index].velocity.x = -particlesOut[index].velocity.x;
+    }
+    if ((particlesOut[index].position.y <= -1.0) || (particlesOut[index].position.y >= 1.0)) {
+        particlesOut[index].velocity.y = -particlesOut[index].velocity.y;
+    }
+}

@@ -24,6 +24,7 @@ namespace m1
     {
     public:
         static constexpr int FRAMES_IN_FLIGHT = 2;
+        static constexpr int PARTICLES_COUNT = 8192;
 
         Engine();
         ~Engine();
@@ -40,9 +41,13 @@ namespace m1
         void updateObjectUbo(const SceneObject &sceneObject);
         void createSyncObjects();
         void drawObjectsLoop(VkCommandBuffer commandBuffer);
-        void recordDrawCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex);
-		void recreateSwapChain();
+    	void drawParticles(VkCommandBuffer commandBuffer);
+        void recordDrawSceneCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+        void recordComputeCommands(VkCommandBuffer commandBuffer);
+        void recreateSwapChain();
+    	void createPipelines();
 		void createUniformBuffers();
+        void initParticles();
         void initLights();
     	void compileSceneObjects();
     	void compileMaterials();
@@ -66,8 +71,10 @@ namespace m1
         Window _window{ WIDTH, HEIGHT, "Vulkan App" };
         Device _device{ _window };
         std::unique_ptr<SwapChain> _swapChain;
-        std::unique_ptr<Pipeline> _pipeline;
+    	std::unordered_map<PipelineName, std::unique_ptr<Pipeline>> _graphicsPipelines;
+        std::unique_ptr<Pipeline> _computePipeline;
         std::vector<VkCommandBuffer> _drawSceneCmdBuffers;
+        std::vector<VkCommandBuffer> _computeCmdBuffers;
 
         std::unique_ptr<Texture> _texture;
 
@@ -80,6 +87,8 @@ namespace m1
     	std::vector<std::unique_ptr<Buffer>> _materialDynUboBuffers;
     	std::vector<MaterialUbo> _materialUbos;
     	VkDeviceSize _materialUboAlignment = -1;
+
+    	std::vector<std::unique_ptr<Buffer>> _particleSSboBuffers;
 		
         std::vector<std::unique_ptr<SceneObject>> _sceneObjects{};
         std::unordered_map<std::string, std::unique_ptr<Material>> _materials{};
@@ -91,5 +100,7 @@ namespace m1
         std::vector<VkSemaphore> _drawCmdExecutedSems;
         std::vector<VkFence> _frameFences;
         VkSemaphore _acquireSemaphore; // only used during acquiring of an image, then swapped into _imageAvailableSems
+    	std::vector<VkSemaphore> _computeCmdExecutedSems;
+    	std::vector<VkFence> _computeFences;
     };
 }

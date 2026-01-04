@@ -48,7 +48,7 @@ namespace m1
         _vertexBuffer = std::make_unique<Buffer>(device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
         // upload vertex data to buffer
-        Utils::uploadToDeviceBuffer(device, *_vertexBuffer, size, (void*)Vertices.data());
+        Utils::uploadToDeviceBuffer(device, *_vertexBuffer, size, Vertices.data());
     }
 
     void Mesh::createIndexBuffer(const Device& device)
@@ -59,7 +59,7 @@ namespace m1
         _indexBuffer = std::make_unique<Buffer>(device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
         // upload indices data to buffer
-        Utils::uploadToDeviceBuffer(device, *_indexBuffer, size, (void*)Indices.data());
+        Utils::uploadToDeviceBuffer(device, *_indexBuffer, size, Indices.data());
     }
 
 	std::unique_ptr<Mesh> Mesh::createCube()

@@ -58,7 +58,7 @@ namespace m1
         // TODO: now one operation executed synchronously.
         // Combine these operations in a single command buffer and execute them asynchronously
 
-		// Wait for the operations finish
+		// Wait for the operations to finish
         vkQueueWaitIdle(_queue);
 
 		// Free the command buffer

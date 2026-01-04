@@ -47,7 +47,7 @@ void loadScene(m1::Engine& engine)
     const std::string TEXTURE_PATH = "../resources/viking_room.png";
 
 
-    loadCubes(engine, 3);
+    loadCubes(engine, 1);
     //loadObj(engine, MODEL_PATH);
 }
 

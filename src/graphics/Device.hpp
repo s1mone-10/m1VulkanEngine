@@ -42,6 +42,7 @@ namespace m1
         QueueFamilyIndices getQueueFamilyIndices() const { return _queueFamilies; }
         const Queue& getGraphicsQueue() const { return *_graphicsQueue; }
         const Queue& getPresentQueue() const { return *_presentQueue; }
+        const Queue& getComputeQueue() const { return *_computeQueue; }
         VkSurfaceKHR getSurface() const { return _surface; }
 		VkSampleCountFlagBits getMaxMsaaSamples() const { return _maxMsaaSamples; }
         SwapChainProperties getSwapChainProperties() const { return getSwapChainProperties(_physicalDevice); };
@@ -67,6 +68,7 @@ namespace m1
         VkDevice _vkDevice = VK_NULL_HANDLE;
         std::unique_ptr<Queue> _graphicsQueue;
         std::unique_ptr<Queue> _presentQueue;
+        std::unique_ptr<Queue> _computeQueue;
         QueueFamilyIndices _queueFamilies;
         VkSampleCountFlagBits _maxMsaaSamples = VK_SAMPLE_COUNT_1_BIT;
     	VkDeviceSize _minUniformBufferOffsetAlignment = 0;

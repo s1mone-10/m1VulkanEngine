@@ -3,8 +3,10 @@
 #include "Engine.hpp"
 #include "Buffer.hpp"
 #include "../log/Log.hpp"
+#include "geometry/Particle.hpp"
 
 // std
+#include <array>
 #include <stdexcept>
 
 namespace m1
@@ -29,6 +31,10 @@ namespace m1
     void Descriptor::createDescriptorSetLayout()
     {
 	    // Blueprint for the pipeline to know which resources are going to be accessed by the shaders
+
+		// create different sets based on update frequency
+		// set = 0 -> Ubo, Ssbo (per frame/object update)
+		// set = 1 -> Material
 
 	    // Most frequently updated UBO first in binding order for performance optimization
 
@@ -62,12 +68,34 @@ namespace m1
 		    .pImmutableSamplers = nullptr
 	    };
 
+		// Particles SSBO layout binding (two bindings are required due to multiple frame-in flights,
+		// as I need to read from the previous frame and write to the current one).
+		VkDescriptorSetLayoutBinding particleSsboInLayoutBinding
+		{
+			.binding = 3,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
+		VkDescriptorSetLayoutBinding particleSsboOutLayoutBinding
+		{
+			.binding = 4,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
 	    // DescriptorSet Info
 	    std::array bindings =
 	    {
 		    objectUboLayoutBinding,
 		    frameUboLayoutBinding,
 	    	lightsUboLayoutBinding,
+	    	particleSsboInLayoutBinding,
+	    	particleSsboOutLayoutBinding
 	    };
 
 	    VkDescriptorSetLayoutCreateInfo layoutInfo
@@ -131,13 +159,15 @@ namespace m1
     void Descriptor::createDescriptorPool()
     {
 	    // Pool sizes
-	    std::array<VkDescriptorPoolSize, 3> poolSizes{};
+	    std::array<VkDescriptorPoolSize, 4> poolSizes{};
 	    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         poolSizes[0].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT * 3); // *3 => frame, object and lights UBO
 		poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 		poolSizes[1].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT); // materials ubo
         poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         poolSizes[2].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT);
+		poolSizes[3].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		poolSizes[3].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT) * 2; // *2 => prev and current frame SSBO
 
         // DescriptorPool Info
         VkDescriptorPoolCreateInfo poolInfo{};
@@ -161,7 +191,7 @@ namespace m1
         allocInfo.pSetLayouts = layouts.data();
 
         // create DescriptorSets
-        _descriptorSets.resize(Engine::FRAMES_IN_FLIGHT);
+		_descriptorSets.assign(Engine::FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
         if (vkAllocateDescriptorSets(_device.getVkDevice(), &allocInfo, _descriptorSets.data()) != VK_SUCCESS)
             throw std::runtime_error("failed to allocate descriptor sets!");
 
@@ -176,14 +206,15 @@ namespace m1
 		};
 
 		// create material descriptor sets
-		_materialDescriptorSets.resize(Engine::FRAMES_IN_FLIGHT);
+		_materialDescriptorSets.assign(Engine::FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
 		if (vkAllocateDescriptorSets(_device.getVkDevice(), &materialAllocInfo, _materialDescriptorSets.data()) != VK_SUCCESS)
 			throw std::runtime_error("failed to allocate descriptor sets!");
     }
 
-    void Descriptor::updateDescriptorSets(const std::vector<std::unique_ptr<Buffer> > &objectUboBuffers,
-                                          const std::vector<std::unique_ptr<Buffer> > &frameUboBuffers,
-                                          const Buffer &lightsUbo)
+    void Descriptor::updateDescriptorSets(const std::vector<std::unique_ptr<Buffer>> &objectUboBuffers,
+                                          const std::vector<std::unique_ptr<Buffer>> &frameUboBuffers,
+                                          const Buffer &lightsUbo,
+                                          const std::vector<std::unique_ptr<Buffer>> &particlesSsboBuffers)
     {
 	    // LightUbo Info
 	    VkDescriptorBufferInfo lightUboInfo
@@ -248,12 +279,46 @@ namespace m1
 			    .pBufferInfo = &lightUboInfo
 		    };
 
+	    	// Particles Ssbo previous frame
+	    	VkDescriptorBufferInfo particlesSsboInfoPrevFrame{};
+	    	particlesSsboInfoPrevFrame.buffer = particlesSsboBuffers[(i - 1) % Engine::FRAMES_IN_FLIGHT]->getVkBuffer();
+	    	particlesSsboInfoPrevFrame.offset = 0;
+	    	particlesSsboInfoPrevFrame.range = sizeof(Particle) * Engine::PARTICLES_COUNT;
+
+	    	VkWriteDescriptorSet particlesDescriptorWritePrevFrame
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = _descriptorSets[i],
+				.dstBinding = 3,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				.pBufferInfo = &particlesSsboInfoPrevFrame
+			};
+
+	    	// Particles Ssbo current frame
+	    	VkDescriptorBufferInfo particlesSsboInfoCurrentFrame{};
+	    	particlesSsboInfoCurrentFrame.buffer = particlesSsboBuffers[i]->getVkBuffer();
+	    	particlesSsboInfoCurrentFrame.offset = 0;
+	    	particlesSsboInfoCurrentFrame.range = sizeof(Particle) * Engine::PARTICLES_COUNT;
+
+	    	VkWriteDescriptorSet particlesDescriptorWriteCurrentFrame
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = _descriptorSets[i],
+				.dstBinding = 4,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				.pBufferInfo = &particlesSsboInfoCurrentFrame
+			};
+
 		    std::array descriptorWrites =
 		    {
-			    objectUboWrite, frameUboWrite, lightsDescriptorWrite
+			    objectUboWrite, frameUboWrite, lightsDescriptorWrite, particlesDescriptorWritePrevFrame, particlesDescriptorWriteCurrentFrame
 		    };
 
-		    vkUpdateDescriptorSets(_device.getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()),
+		    vkUpdateDescriptorSets(_device.getVkDevice(), descriptorWrites.size(),
 		                           descriptorWrites.data(), 0, nullptr);
 	    }
     }

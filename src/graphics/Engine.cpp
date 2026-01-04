@@ -4,6 +4,7 @@
 #include "SceneObject.hpp"
 #include "Utils.hpp"
 #include "geometry/Mesh.hpp"
+#include "geometry/Particle.hpp"
 
 //libs
 #include "glm_config.hpp"
@@ -12,9 +13,11 @@
 #include <stb_image.h>
 
 // std
+#include <array>
 #include <stdexcept>
 #include <vector>
 #include <chrono>
+#include <random>
 
 namespace m1
 {
@@ -24,12 +27,14 @@ namespace m1
 
         recreateSwapChain();
 		_descriptor = std::make_unique<Descriptor>(_device);
-        _pipeline = std::make_unique<Pipeline>(_device, *_swapChain, *_descriptor);
+        createPipelines();
         _drawSceneCmdBuffers = _device.getGraphicsQueue().getPersistentCommandPool().createCommandBuffers(FRAMES_IN_FLIGHT);
+        _computeCmdBuffers = _device.getComputeQueue().getPersistentCommandPool().createCommandBuffers(FRAMES_IN_FLIGHT);
 		createTextureImage();
         createUniformBuffers();
         initLights();
-		_descriptor->updateDescriptorSets(_objectUboBuffers, _frameUboBuffers, *_lightsUboBuffer);
+    	initParticles();
+		_descriptor->updateDescriptorSets(_objectUboBuffers, _frameUboBuffers, *_lightsUboBuffer, _particleSSboBuffers);
 
         createSyncObjects();
     }
@@ -49,7 +54,11 @@ namespace m1
         vkDestroySemaphore(_device.getVkDevice(), _acquireSemaphore, nullptr);
 
         for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
-            vkDestroyFence(_device.getVkDevice(), _frameFences[i], nullptr);
+        {
+	        vkDestroyFence(_device.getVkDevice(), _frameFences[i], nullptr);
+	        vkDestroyFence(_device.getVkDevice(), _computeFences[i], nullptr);
+        	vkDestroySemaphore(_device.getVkDevice(), _computeCmdExecutedSems[i], nullptr);
+        }
 
         Log::Get().Info("Engine destroyed");
     }
@@ -89,7 +98,7 @@ namespace m1
         	drawFrame();
 
             // update frame time
-        	_frameCount++;
+         	_frameCount++;
             auto currentTime = std::chrono::high_resolution_clock::now();
             float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - prevTime).count();
             prevTime = currentTime;
@@ -102,11 +111,11 @@ namespace m1
         	_framesTime += frameTime;
         	if (_framesTime >= 1.0f)
         	{
-        		double fps = 1.0f / (_framesTime / _frameCount);
-        		_window.setTitle(std::format("Vulkan App | FPS: {:.1f}", fps).c_str());
+			double fps = 1.0f / (_framesTime / _frameCount);
+			_window.setTitle(std::format("Vulkan App | FPS: {:.1f}", fps).c_str());
 
-        		_framesTime = 0.0f;
-        		_frameCount = 0;
+			_framesTime = 0.0f;
+			_frameCount = 0;
         	}
         }
     }
@@ -123,6 +132,31 @@ namespace m1
 			- Present the swap chain image (waiting on the command buffer to finish)
         */
 
+	    // record and submit compute commands
+	    {
+	    	// wait for the previous computation to finish
+		    vkWaitForFences(_device.getVkDevice(), 1, &_computeFences[_currentFrame], VK_TRUE, UINT64_MAX);
+	    	vkResetFences(_device.getVkDevice(), 1, &_computeFences[_currentFrame]);
+
+	    	// record compute commands
+	    	vkResetCommandBuffer(_computeCmdBuffers[_currentFrame], 0);
+	    	recordComputeCommands(_computeCmdBuffers[_currentFrame]);
+
+	    	VkSubmitInfo computeSubmitInfo
+			{
+				.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+				// command buffers
+				.commandBufferCount = 1,
+				.pCommandBuffers = &_computeCmdBuffers[_currentFrame],
+				// signal semaphore
+				.signalSemaphoreCount = 1,
+				.pSignalSemaphores = &_computeCmdExecutedSems[_currentFrame],
+			};
+
+	    	if (vkQueueSubmit(_device.getComputeQueue().getVkQueue(), 1, &computeSubmitInfo, _computeFences[_currentFrame]) != VK_SUCCESS)
+				throw std::runtime_error("failed to submit compute command buffer!");
+	    }
+
 		// Update the frame uniform buffer
         updateFrameUbo();
 
@@ -133,7 +167,7 @@ namespace m1
         uint32_t imageIndex;
         auto result = vkAcquireNextImageKHR(_device.getVkDevice(), _swapChain->getVkSwapChain(), UINT64_MAX, _acquireSemaphore, VK_NULL_HANDLE, &imageIndex);
 
-        // Since I don't know the image index in advance, I use a staging semaphore that is then swapped with the one in the array.
+        // Since I don't know the image index in advance, I use a staging semaphore then swapped with the one in the array.
         VkSemaphore temp = _acquireSemaphore;
         _acquireSemaphore = _imageAvailableSems[imageIndex];
         _imageAvailableSems[imageIndex] = temp;
@@ -145,34 +179,34 @@ namespace m1
             recreateSwapChain();
             return;
         }
-        else if (result != VK_SUCCESS && 
-			result != VK_SUBOPTIMAL_KHR) // swap chain no longer matches the surface properties exactly, but can still be used to present to the surface successfully
+        if (result != VK_SUCCESS &&
+            result != VK_SUBOPTIMAL_KHR) // swap chain no longer matches the surface properties exactly, but can still be used to present to the surface successfully
         {
-            Log::Get().Error("failed to acquire swap chain image!");
-            throw std::runtime_error("failed to acquire swap chain image!");
+	        Log::Get().Error("failed to acquire swap chain image!");
+	        throw std::runtime_error("failed to acquire swap chain image!");
         }
 
-		// reset the fence to unsignaled state
+        // reset the fence to unsignaled state
         vkResetFences(_device.getVkDevice(), 1, &_frameFences[_currentFrame]);
 
-        // record the command buffer
+        // record the drawing commands
         vkResetCommandBuffer(_drawSceneCmdBuffers[_currentFrame], 0);
-        recordDrawCommands(_drawSceneCmdBuffers[_currentFrame], imageIndex);
+        recordDrawSceneCommands(_drawSceneCmdBuffers[_currentFrame], imageIndex);
 
         // specify the semaphores and stages to wait on
         // Each entry in the waitStages array corresponds to the semaphore with the same index in waitSemaphores
-        VkSemaphore waitSemaphores[] = { _imageAvailableSems[imageIndex] };
-        VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; // in which stage(s) of the pipeline to wait
+        VkSemaphore waitSemaphores[] = { _computeCmdExecutedSems[_currentFrame], _imageAvailableSems[imageIndex] };
+        VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; // in which stage(s) of the pipeline to wait
 
         // specify which semaphores to signal once the command buffer has finished executing
-        VkSemaphore submitSignalSemaphores[] = { _drawCmdExecutedSems[imageIndex] };
-        
+        VkSemaphore cmdExecutedSignalSemaphores[] = { _drawCmdExecutedSems[imageIndex] };
+
         // submit info
         VkSubmitInfo submitInfo
         {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
             //wait semaphores
-			.waitSemaphoreCount = 1,
+			.waitSemaphoreCount = 2,
             .pWaitSemaphores = waitSemaphores,
             .pWaitDstStageMask = waitStages,
 			// command buffers
@@ -180,10 +214,10 @@ namespace m1
             .pCommandBuffers = &_drawSceneCmdBuffers[_currentFrame],
 			// signal semaphore
             .signalSemaphoreCount = 1,
-            .pSignalSemaphores = submitSignalSemaphores,
+            .pSignalSemaphores = cmdExecutedSignalSemaphores,
         };
 
-		// submit the command buffer (fence will be signaled when the command buffer finishes executing)
+		// submit the command buffer (the fence will be signaled when the command buffer finishes executing)
         if (vkQueueSubmit(_device.getGraphicsQueue().getVkQueue(), 1, &submitInfo, _frameFences[_currentFrame]) != VK_SUCCESS)
         {
             Log::Get().Error("failed to submit draw command buffer!");
@@ -194,7 +228,7 @@ namespace m1
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         presentInfo.waitSemaphoreCount = 1;
-        presentInfo.pWaitSemaphores = submitSignalSemaphores; // wait for the command buffer to finish
+        presentInfo.pWaitSemaphores = cmdExecutedSignalSemaphores; // wait for the command buffer to finish
 
         VkSwapchainKHR swapChains[] = { _swapChain->getVkSwapChain() };
         presentInfo.swapchainCount = 1;
@@ -243,10 +277,12 @@ namespace m1
         // use separate semaphore per swap chain image (even if the frame count is different)
         // to synchronize between acquiring and presenting images
         size_t imageCount = _swapChain->getImageCount();
-        _imageAvailableSems.resize(imageCount);
-        _drawCmdExecutedSems.resize(imageCount);
+        _imageAvailableSems.assign(imageCount, VK_NULL_HANDLE);
+        _drawCmdExecutedSems.assign(imageCount, VK_NULL_HANDLE);
 
-        _frameFences.resize(FRAMES_IN_FLIGHT);
+        _frameFences.assign(FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
+    	_computeCmdExecutedSems.assign(FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
+        _computeFences.assign(FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
 
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -269,7 +305,9 @@ namespace m1
 
         for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
         {
-            if (vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &_frameFences[i]) != VK_SUCCESS)
+            if (vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &_frameFences[i]) != VK_SUCCESS ||
+				vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &_computeFences[i]) != VK_SUCCESS ||
+				vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_computeCmdExecutedSems[i]) != VK_SUCCESS)
             {
                 throw std::runtime_error("failed to create synchronization fence");
             }
@@ -278,31 +316,57 @@ namespace m1
 
     void Engine::drawObjectsLoop(VkCommandBuffer commandBuffer)
     {
-	    for (auto& obj : _sceneObjects)
-	    {
-	    	//updateObjectUbo(*obj); // TODO: how to update the object ubo instead of using push constants?
+    	// bind pipeline
+    	Pipeline* graphicsPipeline = _graphicsPipelines.at(LIGHTING).get();
+    	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->getVkPipeline());
 
-	    	// push constants
-	    	PushConstantData push
-			{
-				.model = obj->Transform,
-				.normalMatrix = glm::transpose(glm::inverse(obj->Transform))
-			};
-	    	vkCmdPushConstants(commandBuffer, _pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantData), &push);
+    	// bind descriptor set
+    	VkDescriptorSet descriptorSet0 = _descriptor->getDescriptorSet(_currentFrame);
+    	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->getLayout(), 0, 1, &descriptorSet0, 0, nullptr);
 
-	    	if (obj->MaterialUboIndex >= 0 && obj->MaterialUboIndex != _currentMaterialUboIndex)
-	    	{
-	    		_currentMaterialUboIndex = obj->MaterialUboIndex;
-	    		uint32_t dynamicOffset = _currentMaterialUboIndex * _materialUboAlignment;
-	    		VkDescriptorSet descriptorSet = _descriptor->getMaterialDescriptorSet(_currentFrame);
-	    		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline->getLayout(), 1, 1, &descriptorSet, 1, &dynamicOffset);
-	    	}
+    	for (auto& obj : _sceneObjects)
+    	{
+    		//updateObjectUbo(*obj); // TODO: how to update the object ubo instead of using push constants?
 
-		    obj->Mesh->draw(commandBuffer);
-	    }
+    		auto currentPipeline = graphicsPipeline;
+    		// determine which pipeline to use for this object
+    		if (obj->PipelineKey.has_value())
+    			currentPipeline = _graphicsPipelines.at(obj->PipelineKey.value()).get();
+
+    		// push constants
+    		PushConstantData push
+    		{
+    			.model = obj->Transform,
+    			.normalMatrix = glm::transpose(glm::inverse(obj->Transform))
+    		};
+    		vkCmdPushConstants(commandBuffer, currentPipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantData), &push);
+
+    		if (obj->MaterialUboIndex >= 0 && obj->MaterialUboIndex != _currentMaterialUboIndex)
+    		{
+    			_currentMaterialUboIndex = obj->MaterialUboIndex;
+    			uint32_t dynamicOffset = _currentMaterialUboIndex * _materialUboAlignment;
+    			VkDescriptorSet descriptorSet = _descriptor->getMaterialDescriptorSet(_currentFrame);
+    			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 1, 1, &descriptorSet, 1, &dynamicOffset);
+    		}
+
+    		obj->Mesh->draw(commandBuffer);
+    	}
     }
 
-    void Engine::recordDrawCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+    void Engine::drawParticles(VkCommandBuffer commandBuffer) {
+	    Pipeline* particlePipeline = _graphicsPipelines.at(PARTICLES).get();
+	    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, particlePipeline->getVkPipeline());
+
+	    VkDescriptorSet descriptorSet = _descriptor->getDescriptorSet(_currentFrame);
+	    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, particlePipeline->getLayout(), 0, 1, &descriptorSet, 0, nullptr);
+
+	    VkBuffer vertexBuffers[] = { _particleSSboBuffers[_currentFrame]->getVkBuffer() };
+	    VkDeviceSize offsets[] = { 0 };
+	    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+	    vkCmdDraw(commandBuffer, PARTICLES_COUNT, 1, 0, 0);
+    }
+
+    void Engine::recordDrawSceneCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex)
     {
         // it can be executed on a separate thread
 
@@ -333,9 +397,6 @@ namespace m1
 
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-        // bind the graphics pipeline
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline->getVkPipeline());
-
         // set viewport
         VkViewport viewport{};
         viewport.x = 0.0f;
@@ -352,11 +413,11 @@ namespace m1
         scissor.extent = _swapChain->getExtent();
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        // bind the descriptor set
-        VkDescriptorSet descriptorSet = _descriptor->getDescriptorSet(_currentFrame);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline->getLayout(), 0, 1, &descriptorSet, 0, nullptr);
-
+    	// draw objects
         drawObjectsLoop(commandBuffer);
+
+    	// draw particles
+    	drawParticles(commandBuffer);
 
         // end render pass
         vkCmdEndRenderPass(commandBuffer);
@@ -367,6 +428,26 @@ namespace m1
             Log::Get().Error("failed to record command buffer!");
             throw std::runtime_error("failed to record command buffer!");
         }
+    }
+
+	void Engine::recordComputeCommands(VkCommandBuffer commandBuffer)
+    {
+    	VkCommandBufferBeginInfo beginInfo{};
+    	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+    	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
+    		throw std::runtime_error("failed to begin recording command buffer!");
+
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline->getVkPipeline());
+    	VkDescriptorSet descriptorSet = _descriptor->getDescriptorSet(_currentFrame);
+    	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline->getLayout(), 0, 1, &descriptorSet, 0, 0);
+
+    	// groupsCount = PARTICLE_COUNT / 256 because we defined in the particle shader 256 invocations for each group
+    	vkCmdDispatch(commandBuffer, PARTICLES_COUNT / 256, 1, 1);
+
+		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+			throw std::runtime_error("failed to record command buffer!");
+		}
     }
 
     void Engine::recreateSwapChain()
@@ -404,6 +485,49 @@ namespace m1
 		camera.setAspectRatio(_swapChain->getAspectRatio());
     }
 
+	void Engine::createPipelines()
+	{
+    	// create LIGHTING pipeline
+    	std::array setLayouts =
+    	{
+    		_descriptor->getDescriptorSetLayout(),    // set 0
+			_descriptor->getMaterialDescriptorSetLayout(), // set 1
+		};
+
+    	GraphicsPipelineConfig lightingPipelineInfo
+    	{
+    		.vertShaderPath = R"(..\shaders\compiled\simple.vert.spv)",
+    		.fragShaderPath = R"(..\shaders\compiled\simple.frag.spv)",
+    		.vertexBindingDescription = Vertex::getBindingDescription(),
+    		.vertexAttributeDescriptions = Vertex::getAttributeDescriptions(),
+    		.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+    		.rasterizationSamples = _swapChain->getSamples(),
+    		.setLayoutCount = setLayouts.size(),
+    		.pSetLayouts = setLayouts.data(),
+    		.renderPass = _swapChain->getRenderPass(),
+    	};
+    	_graphicsPipelines.emplace(LIGHTING, PipelineFactory::createGraphicsPipeline(_device, lightingPipelineInfo));
+
+    	// create PARTICLES pipeline
+    	std::array particlesSetLayouts = { _descriptor->getDescriptorSetLayout() };
+    	GraphicsPipelineConfig particlesPipelineInfo
+		{
+			.vertShaderPath = R"(..\shaders\compiled\particle.vert.spv)",
+			.fragShaderPath = R"(..\shaders\compiled\particle.frag.spv)",
+			.vertexBindingDescription = Particle::getVertexBindingDescription(),
+			.vertexAttributeDescriptions = Particle::getVertexAttributeDescriptions(),
+			.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
+			.rasterizationSamples = _swapChain->getSamples(),
+			.setLayoutCount = particlesSetLayouts.size(),
+			.pSetLayouts = particlesSetLayouts.data(),
+			.renderPass = _swapChain->getRenderPass(),
+		};
+    	_graphicsPipelines.emplace(PARTICLES, PipelineFactory::createGraphicsPipeline(_device, particlesPipelineInfo));
+
+    	// create Compute pipeline
+    	_computePipeline = PipelineFactory::createComputePipeline(_device, *_descriptor);
+    }
+
     void Engine::createUniformBuffers()
     {
         Log::Get().Info("Creating uniform buffers");
@@ -432,6 +556,50 @@ namespace m1
         	_objectUboBuffers[i]->mapMemory(); // persistent mapping
         	_objectUbos[i] = {};
         }
+    }
+
+	void Engine::initParticles()
+    {
+    	Log::Get().Info("Creating shader storage buffers");
+
+    	// Initialize particles
+    	std::default_random_engine rndEngine((unsigned)time(nullptr));
+    	std::uniform_real_distribution<float> rndDist(0.0f, 1.0f);
+
+    	// Initial particle positions on a circle
+    	std::vector<Particle> particles(PARTICLES_COUNT);
+    	for (auto& particle : particles)
+    	{
+			float r = 0.25f * sqrt(rndDist(rndEngine));
+			float theta = rndDist(rndEngine) * 2 * 3.14159265358979323846;
+			float x = r * cos(theta) * HEIGHT / WIDTH;
+			float y = r * sin(theta);
+			particle.position = glm::vec2(x, y);
+			particle.velocity = glm::normalize(glm::vec2(x,y)) * 0.05f;
+			particle.color = glm::vec4(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine), 1.0f);
+		}
+
+		VkDeviceSize bufferSize = sizeof(Particle) * PARTICLES_COUNT;
+
+		// Create a staging buffer accessible to CPU to upload the data
+		Buffer stagingBuffer{ _device, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
+
+		// Copy data to the staging buffer
+		stagingBuffer.copyDataToBuffer(particles.data());
+
+		// init array of SSBO buffers
+		_particleSSboBuffers.resize(FRAMES_IN_FLIGHT);
+
+		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
+		{
+			// create the SSBO buffer
+			// VK_BUFFER_USAGE_STORAGE_BUFFER_BIT: to be read and write in the compute shader
+			// VK_BUFFER_USAGE_VERTEX_BUFFER_BIT: to be used in the vertex shader
+			_particleSSboBuffers[i] = std::make_unique<Buffer>(_device, bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT , VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+			// Copy staging buffer to SSBO buffer
+			Utils::copyBuffer(_device, stagingBuffer, *_particleSSboBuffers[i], bufferSize);
+		}
     }
 
     void Engine::initLights()

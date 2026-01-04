@@ -18,6 +18,7 @@ namespace m1
         createLogicalDevice();
         _graphicsQueue = std::make_unique<Queue>(*this, _queueFamilies.graphicsFamily.value(), 0);
         _presentQueue = std::make_unique<Queue>(*this, _queueFamilies.presentFamily.value(), 0);
+        _computeQueue = std::make_unique<Queue>(*this, _queueFamilies.graphicsFamily.value(), 0);
     }
 
     Device::~Device()
@@ -25,6 +26,7 @@ namespace m1
 		// destroy command pools before destroying the device
         _graphicsQueue = nullptr;
         _presentQueue = nullptr;
+        _computeQueue = nullptr;
 
 		// physical device is implicitly destroyed when the VkInstance is destroyed
         // Device queues are implicitly destroyed when the device is destroyed
@@ -252,8 +254,11 @@ namespace m1
         for (const auto& queueFamily : queueFamilies)
         {
             // graphicsFamily
-            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT
+            	&& queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT)
             {
+            	// family that support both graphics and compute operations.
+            	// For async compute I should use a dedicated compute queue family.
                 indices.graphicsFamily = i;
             }
 

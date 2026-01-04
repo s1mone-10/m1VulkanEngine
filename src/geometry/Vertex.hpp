@@ -5,8 +5,8 @@
 #include <vulkan/vulkan.h>
 
 // std
-#include <array>
 #include <functional>
+#include <vector>
 
 namespace m1
 {
@@ -18,7 +18,7 @@ namespace m1
 		glm::vec2 texCoord;
 
 		static VkVertexInputBindingDescription getBindingDescription();
-		static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions();
+		static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions();
 
 		bool operator==(const Vertex& other) const
 		{
