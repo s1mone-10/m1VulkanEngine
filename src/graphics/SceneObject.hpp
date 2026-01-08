@@ -30,7 +30,7 @@ namespace m1
 		std::unique_ptr<Mesh> Mesh = nullptr;
 		int32_t MaterialUboIndex = -1;
 		// Optional: which pipeline to use when drawing this object
-		std::optional<PipelineName> PipelineKey = std::nullopt;
+		std::optional<PipelineType> PipelineKey = std::nullopt;
 
 	private:
 		explicit SceneObject(const uint64_t id) : Id{ id } { }

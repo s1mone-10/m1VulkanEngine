@@ -62,7 +62,7 @@ namespace m1
         Utils::uploadToDeviceBuffer(device, *_indexBuffer, size, Indices.data());
     }
 
-	std::unique_ptr<Mesh> Mesh::createCube()
+	std::unique_ptr<Mesh> Mesh::createCube(const glm::vec3& color)
 	{
 		auto mesh = std::make_unique<Mesh>();
 
@@ -81,8 +81,8 @@ namespace m1
 		};
 		const glm::vec3 colors[8] =
 		{
-			{1,0,0}, {1,0,0}, {1,0,0}, {1,0,0},
-			{1,0,0}, {1,0,0}, {1,0,0}, {1,0,0}
+			color, color, color, color,
+			color, color, color, color
 		};
 		const glm::vec2 texCoords[4] =
 		{

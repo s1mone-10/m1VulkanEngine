@@ -2,6 +2,9 @@
 
 #include "Vertex.hpp"
 
+//libs
+#include "graphics/glm_config.hpp"
+
 //std
 #include <memory>
 #include <string>
@@ -18,7 +21,7 @@ namespace m1
 		Mesh();
 		~Mesh();
 
-		static std::unique_ptr<Mesh> createCube();
+		static std::unique_ptr<Mesh> createCube(const glm::vec3& color = glm::vec3(1.0f, 0.0f, 0.0f));
 
 		void setMaterialName(const std::string& materialName) { _materialName = materialName; }
 		const std::string& getMaterialName() const { return _materialName; }

@@ -15,10 +15,11 @@ namespace m1
     class Device; // Forward declaration
     class SwapChain; // Forward declaration
 
-	enum PipelineName
+	enum class PipelineType
 	{
-		LIGHTING,
-		PARTICLES
+		NoLight,
+		PhongLighting,
+		Particles
 	};
 
     struct PushConstantData

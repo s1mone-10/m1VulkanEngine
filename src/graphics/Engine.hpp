@@ -24,6 +24,7 @@ namespace m1
     {
     public:
         static constexpr int FRAMES_IN_FLIGHT = 2;
+    	static constexpr auto DEFAULT_PIPELINE = PipelineType::PhongLighting;
         static constexpr int PARTICLES_COUNT = 8192;
 
         Engine();
@@ -71,7 +72,7 @@ namespace m1
         Window _window{ WIDTH, HEIGHT, "Vulkan App" };
         Device _device{ _window };
         std::unique_ptr<SwapChain> _swapChain;
-    	std::unordered_map<PipelineName, std::unique_ptr<Pipeline>> _graphicsPipelines;
+    	std::unordered_map<PipelineType, std::unique_ptr<Pipeline>> _graphicsPipelines;
         std::unique_ptr<Pipeline> _computePipeline;
         std::vector<VkCommandBuffer> _drawSceneCmdBuffers;
         std::vector<VkCommandBuffer> _computeCmdBuffers;

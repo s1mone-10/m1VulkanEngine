@@ -62,7 +62,7 @@ void loadObj(m1::Engine& engine, const std::string& path)
     {
         throw std::runtime_error(warn + err);
     }
-    
+
     std::unordered_map<m1::Vertex, uint32_t> uniqueVertices{};
     auto sceneObj = m1::SceneObject::createSceneObject();
 
@@ -157,13 +157,14 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
     sceneObj->setMesh(std::move(mesh));
     engine.addSceneObject(std::move(sceneObj));
 
+	// cube that represents the light source
     sceneObj = m1::SceneObject::createSceneObject();
-	mesh = m1::Mesh::createCube();
-	mesh->setMaterialName("emissive");
+	mesh = m1::Mesh::createCube(glm::vec3(1.0f, 1.0f, 1.0f));
     sceneObj->setMesh(std::move(mesh));
     auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(1.2f, 1.2f, 2.2f));
     transform = glm::scale(transform, glm::vec3(.1f));
     sceneObj->setTransform(transform);
+	sceneObj->PipelineKey = m1::PipelineType::NoLight;
     engine.addSceneObject(std::move(sceneObj));
 
 	for (uint32_t i = 0; i < numCubes; i++)
