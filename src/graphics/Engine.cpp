@@ -57,8 +57,9 @@ namespace m1
 		{
 			vkDestroyFence(_device.getVkDevice(), _frameFences[i], nullptr);
 			vkDestroyFence(_device.getVkDevice(), _computeFences[i], nullptr);
-			vkDestroySemaphore(_device.getVkDevice(), _computeCmdExecutedSems[i], nullptr);
 		}
+
+		vkDestroySemaphore(_device.getVkDevice(), _timelineSemaphore, nullptr);
 
 		Log::Get().Info("Engine destroyed");
 	}
@@ -132,6 +133,12 @@ namespace m1
 			- Present the swap chain image (waiting on the command buffer to finish)
 		*/
 
+		// Update timeline values for this frame
+		uint64_t computeWaitValue = _timelineSemaphoreValue;
+		uint64_t computeSignalValue = ++_timelineSemaphoreValue;
+		uint64_t graphicsWaitValue = computeSignalValue;
+		uint64_t graphicsSignalValue = ++_timelineSemaphoreValue;
+
 		// record and submit compute commands
 		{
 			// wait for the previous computation to finish
@@ -142,17 +149,36 @@ namespace m1
 			vkResetCommandBuffer(_computeCmdBuffers[_currentFrame], 0);
 			recordComputeCommands(_computeCmdBuffers[_currentFrame]);
 
+			VkTimelineSemaphoreSubmitInfo computeTimelineInfo
+			{
+				.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
+				.waitSemaphoreValueCount = 1,
+				.pWaitSemaphoreValues = &computeWaitValue,
+				.signalSemaphoreValueCount = 1,
+				.pSignalSemaphoreValues = &computeSignalValue
+			};
+
+			VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT };
+
 			VkSubmitInfo computeSubmitInfo
 			{
 				.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+				// timeline info
+				.pNext = &computeTimelineInfo,
+				// wait semaphore
+				.waitSemaphoreCount = 1,
+				.pWaitSemaphores = &_timelineSemaphore,
+				.pWaitDstStageMask = waitStages,
 				// command buffers
 				.commandBufferCount = 1,
 				.pCommandBuffers = &_computeCmdBuffers[_currentFrame],
 				// signal semaphore
 				.signalSemaphoreCount = 1,
-				.pSignalSemaphores = &_computeCmdExecutedSems[_currentFrame],
+				.pSignalSemaphores = &_timelineSemaphore,
 			};
 
+			// TODO Timeline semaphore: on the submit call I get a warning from the validation layer.
+			// The device maxTimelineSemaphoreValueDifference is zero, I don't know exactly what means and how to handle it
 	    	if (vkQueueSubmit(_device.getComputeQueue().getVkQueue(), 1, &computeSubmitInfo, _computeFences[_currentFrame]) != VK_SUCCESS)
 				throw std::runtime_error("failed to submit compute command buffer!");
 		}
@@ -195,16 +221,28 @@ namespace m1
 
 		// specify the semaphores and stages to wait on
 		// Each entry in the waitStages array corresponds to the semaphore with the same index in waitSemaphores
-		VkSemaphore waitSemaphores[] = {_computeCmdExecutedSems[_currentFrame], _imageAvailableSems[imageIndex]};
+		VkSemaphore waitSemaphores[] = {_timelineSemaphore, _imageAvailableSems[imageIndex]};
         VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; // in which stage(s) of the pipeline to wait
 
+		// specify which value of timeline semaphore to wait or signal
+		VkTimelineSemaphoreSubmitInfo graphicsTimelineInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
+			.waitSemaphoreValueCount = 1,
+			.pWaitSemaphoreValues = &graphicsWaitValue,
+			.signalSemaphoreValueCount  = 1,
+			.pSignalSemaphoreValues = &graphicsSignalValue
+		};
+
 		// specify which semaphores to signal once the command buffer has finished executing
-		VkSemaphore cmdExecutedSignalSemaphores[] = {_drawCmdExecutedSems[imageIndex]};
+		VkSemaphore cmdExecutedSignalSemaphores[] = {_timelineSemaphore, _drawCmdExecutedSems[imageIndex]};
 
 		// submit info
 		VkSubmitInfo submitInfo
 		{
 			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+			// timeline info
+			.pNext = &graphicsTimelineInfo,
 			//wait semaphores
 			.waitSemaphoreCount = 2,
 			.pWaitSemaphores = waitSemaphores,
@@ -213,7 +251,7 @@ namespace m1
 			.commandBufferCount = 1,
 			.pCommandBuffers = &_drawSceneCmdBuffers[_currentFrame],
 			// signal semaphore
-			.signalSemaphoreCount = 1,
+			.signalSemaphoreCount = 2,
 			.pSignalSemaphores = cmdExecutedSignalSemaphores,
 		};
 
@@ -281,7 +319,6 @@ namespace m1
 		_drawCmdExecutedSems.assign(imageCount, VK_NULL_HANDLE);
 
 		_frameFences.assign(FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
-		_computeCmdExecutedSems.assign(FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
 		_computeFences.assign(FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
 
 		VkSemaphoreCreateInfo semaphoreInfo{};
@@ -306,12 +343,23 @@ namespace m1
 		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 		{
 			if (vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &_frameFences[i]) != VK_SUCCESS ||
-			    vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &_computeFences[i]) != VK_SUCCESS ||
-				vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_computeCmdExecutedSems[i]) != VK_SUCCESS)
+			    vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &_computeFences[i]) != VK_SUCCESS)
 			{
 				throw std::runtime_error("failed to create synchronization fence");
 			}
 		}
+
+		// create timeline semaphore
+		VkSemaphoreTypeCreateInfo typeInfo =
+		{
+			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
+			.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
+			.initialValue = 0
+		};
+		semaphoreInfo.pNext = &typeInfo;
+		if (vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_timelineSemaphore))
+			throw std::runtime_error("failed to create timeline semaphore");
+		_timelineSemaphoreValue = 0;
 	}
 
 	void Engine::drawObjectsLoop(VkCommandBuffer commandBuffer)

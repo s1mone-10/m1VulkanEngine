@@ -101,7 +101,8 @@ namespace m1
         std::vector<VkSemaphore> _drawCmdExecutedSems;
         std::vector<VkFence> _frameFences;
         VkSemaphore _acquireSemaphore; // only used during acquiring of an image, then swapped into _imageAvailableSems
-    	std::vector<VkSemaphore> _computeCmdExecutedSems;
+    	VkSemaphore _timelineSemaphore;
+    	uint64_t _timelineSemaphoreValue = 0;
     	std::vector<VkFence> _computeFences;
     };
 }

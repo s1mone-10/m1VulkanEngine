@@ -374,7 +374,7 @@ namespace m1
 
     void SwapChain::createDepthImage()
     {
-        // find format that support specified tiling and flags
+        // find format that supports specified tiling and flags
         VkFormat depthFormat = _device.findSupportedFormat(
             { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
             VK_IMAGE_TILING_OPTIMAL,

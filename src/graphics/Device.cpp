@@ -152,9 +152,15 @@ namespace m1
 		deviceFeatures.samplerAnisotropy = VK_TRUE; // enable anisotropic filtering
 		deviceFeatures.sampleRateShading = VK_TRUE; // enable sample shading (for better quality when using MSAA)
 
+		// Enable timeline semaphore feature
+		VkPhysicalDeviceTimelineSemaphoreFeatures timelineFeatures{};
+		timelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
+		timelineFeatures.timelineSemaphore = VK_TRUE;
+
         // Device info
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        createInfo.pNext = &timelineFeatures;
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
         createInfo.pEnabledFeatures = &deviceFeatures;
@@ -180,47 +186,59 @@ namespace m1
     }
 
     bool Device::isDeviceSuitable(VkPhysicalDevice device)
-    {
-        VkPhysicalDeviceProperties deviceProperties;
-        VkPhysicalDeviceFeatures deviceFeatures;
-        vkGetPhysicalDeviceProperties(device, &deviceProperties);
-        vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+	{
+		VkPhysicalDeviceProperties deviceProperties;
+		VkPhysicalDeviceFeatures deviceFeatures;
+		vkGetPhysicalDeviceProperties(device, &deviceProperties);
+		vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 
-        if(!deviceFeatures.samplerAnisotropy)
+		VkPhysicalDeviceTimelineSemaphoreProperties timelineProps{};
+		timelineProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_PROPERTIES;
+		VkPhysicalDeviceProperties2 props2{};
+		props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+		props2.pNext = &timelineProps;
+		vkGetPhysicalDeviceProperties2(device, &props2);
+		auto matTim = timelineProps.maxTimelineSemaphoreValueDifference;
+
+		if(!deviceFeatures.samplerAnisotropy)
 			return false;
 
-        // check queue families
-        _queueFamilies = findQueueFamilies(device);
-        if (!_queueFamilies.isComplete())
-            return false;
+		// check queue families
+		_queueFamilies = findQueueFamilies(device);
+		if (!_queueFamilies.isComplete())
+			return false;
 
-        // check extensions support
-        if (!checkDeviceExtensionSupport(device))
-            return false;
+		// check extensions support
+		if (!checkDeviceExtensionSupport(device))
+			return false;
 
-        // check swapChain support
-        auto swapChainProperties = getSwapChainProperties(device);
-        if (swapChainProperties.formats.empty() || swapChainProperties.presentModes.empty())
-            return false;
+		// check swapChain support
+		auto swapChainProperties = getSwapChainProperties(device);
+		if (swapChainProperties.formats.empty() || swapChainProperties.presentModes.empty())
+			return false;
 
 		// get the max msaa samples (color and depth)
-        VkSampleCountFlags counts = deviceProperties.limits.framebufferColorSampleCounts & deviceProperties.limits.framebufferDepthSampleCounts;
-        _maxMsaaSamples = counts & VK_SAMPLE_COUNT_64_BIT ? VK_SAMPLE_COUNT_64_BIT :
-                         counts & VK_SAMPLE_COUNT_32_BIT ? VK_SAMPLE_COUNT_32_BIT :
-                         counts & VK_SAMPLE_COUNT_16_BIT ? VK_SAMPLE_COUNT_16_BIT :
-                         counts & VK_SAMPLE_COUNT_8_BIT  ? VK_SAMPLE_COUNT_8_BIT  :
-                         counts & VK_SAMPLE_COUNT_4_BIT  ? VK_SAMPLE_COUNT_4_BIT  :
-                         counts & VK_SAMPLE_COUNT_2_BIT  ? VK_SAMPLE_COUNT_2_BIT  :
-			             VK_SAMPLE_COUNT_1_BIT;
+		VkSampleCountFlags counts = deviceProperties.limits.framebufferColorSampleCounts & deviceProperties.limits.framebufferDepthSampleCounts;
+		_maxMsaaSamples = counts & VK_SAMPLE_COUNT_64_BIT ? VK_SAMPLE_COUNT_64_BIT :
+						 counts & VK_SAMPLE_COUNT_32_BIT ? VK_SAMPLE_COUNT_32_BIT :
+						 counts & VK_SAMPLE_COUNT_16_BIT ? VK_SAMPLE_COUNT_16_BIT :
+						 counts & VK_SAMPLE_COUNT_8_BIT  ? VK_SAMPLE_COUNT_8_BIT  :
+						 counts & VK_SAMPLE_COUNT_4_BIT  ? VK_SAMPLE_COUNT_4_BIT  :
+						 counts & VK_SAMPLE_COUNT_2_BIT  ? VK_SAMPLE_COUNT_2_BIT  :
+						 VK_SAMPLE_COUNT_1_BIT;
 
 		// get the alignment for uniform buffers
 		_minUniformBufferOffsetAlignment = deviceProperties.limits.minUniformBufferOffsetAlignment;
 
+		// log device info
 		Log::Get().Info("Device " + std::string(deviceProperties.deviceName) + " is suitable");
-        Log::Get().Info("Device maxPushConstantsSize: " + std::to_string(deviceProperties.limits.maxPushConstantsSize) + "bytes");
+		uint32_t v = deviceProperties.apiVersion;
+		Log::Get().Info("Vulkan version: " + std::to_string(VK_VERSION_MAJOR(v)) + "." +
+			std::to_string(VK_VERSION_MINOR(v)) + "." + std::to_string(VK_VERSION_PATCH(v)));
+		Log::Get().Info("Device maxPushConstantsSize: " + std::to_string(deviceProperties.limits.maxPushConstantsSize) + "bytes");
 
-        return true;
-    }
+		return true;
+	}
 
     bool Device::checkDeviceExtensionSupport(VkPhysicalDevice device)
     {
