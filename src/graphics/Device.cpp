@@ -161,16 +161,6 @@ namespace m1
         createInfo.enabledExtensionCount = static_cast<uint32_t>(_requiredExtensions.size());
         createInfo.ppEnabledExtensionNames = _requiredExtensions.data();
 
-        if (Instance::enableValidationLayers)
-        {
-            createInfo.enabledLayerCount = static_cast<uint32_t>(_instance.validationLayers.size());
-            createInfo.ppEnabledLayerNames = _instance.validationLayers.data();
-        }
-        else
-        {
-            createInfo.enabledLayerCount = 0;
-        }
-
         // Create logical device
         if (vkCreateDevice(_physicalDevice, &createInfo, nullptr, &_vkDevice) != VK_SUCCESS)
         {
