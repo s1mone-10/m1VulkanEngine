@@ -18,7 +18,7 @@ void loadCubes(m1::Engine& engine, const uint32_t numCubes);
 
 int main()
 {
-	//m1::Log::Get().SetLevel(m1::LogLevel::None);
+	m1::Log::Get().SetLevel(m1::LogLevel::Warning);
     m1::Log::Get().Info("Application starting");
     m1::Engine app;
 
