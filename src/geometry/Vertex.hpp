@@ -1,14 +1,12 @@
 #pragma once
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-#include <glm/gtx/hash.hpp>
-
+//libs
+#include "../graphics/glm_config.hpp"
 #include <vulkan/vulkan.h>
-#include <array>
+
+// std
 #include <functional>
+#include <vector>
 
 namespace m1
 {
@@ -16,19 +14,16 @@ namespace m1
 	{
 		glm::vec3 pos;
 		glm::vec3 color;
+		glm::vec3 normal;
 		glm::vec2 texCoord;
+
+		static VkVertexInputBindingDescription getBindingDescription();
+		static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions();
 
 		bool operator==(const Vertex& other) const
 		{
-			return pos == other.pos && color == other.color && texCoord == other.texCoord;
+			return pos == other.pos && color == other.color && normal == other.normal && texCoord == other.texCoord;
 		}
-	};
-
-	struct UniformBufferObject
-	{
-		glm::mat4 model;
-		glm::mat4 view;
-		glm::mat4 proj;
 	};
 };
 

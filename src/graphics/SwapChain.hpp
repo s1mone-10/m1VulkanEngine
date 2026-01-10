@@ -14,7 +14,7 @@ namespace m1
     class SwapChain
     {
     public:
-        SwapChain(const Device& device, const Window& window, VkSwapchainKHR oldSwapChain = VK_NULL_HANDLE);
+        SwapChain(const Device& device, const Window& window, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT, VkSwapchainKHR oldSwapChain = VK_NULL_HANDLE);
         ~SwapChain();
 
         // Non-copyable, non-movable
@@ -26,16 +26,19 @@ namespace m1
         VkSwapchainKHR getVkSwapChain() const { return _vkSwapChain; }
         VkFormat getImageFormat() const { return _imageFormat; }
         VkExtent2D getExtent() const { return _extent; }
+        float getAspectRatio() const { return _extent.width / (float) _extent.height; }
         const std::vector<VkImageView>& getImageViews() const { return _imageViews; }
         size_t getImageCount() const { return _images.size(); }
 		VkRenderPass getRenderPass() const { return _renderPass; }
         VkFramebuffer getFrameBuffer(int index) { return _framebuffers[index]; }
+		VkSampleCountFlagBits getSamples() const { return _samples; }
 
     private:
         void createSwapChain(const Window& window, VkSwapchainKHR oldSpawChain);
         void createImages();
         void createRenderPass();
         void createFramebuffers();
+        void createColorImage();
         void createDepthImage();
         bool hasStencilComponent(VkFormat format);
 
@@ -46,13 +49,15 @@ namespace m1
         VkSwapchainKHR _vkSwapChain = VK_NULL_HANDLE;
         VkFormat _imageFormat;
         VkExtent2D _extent;
+        VkSampleCountFlagBits _samples;
 
         std::vector<VkImage> _images;
         std::vector<VkImageView> _imageViews;
         std::vector<VkFramebuffer> _framebuffers;
         
+        std::unique_ptr<Image> _colorImage;
         std::unique_ptr<Image> _depthImage;
-
+        
         VkRenderPass _renderPass;
 
         const Device& _device;

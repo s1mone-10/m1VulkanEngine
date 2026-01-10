@@ -22,9 +22,10 @@ namespace m1
         Texture(Texture&&) = delete;
         Texture& operator=(Texture&&) = delete;
 
-        VkImage getImage() const { return _image->getVkImage(); }
-        VkImageView getImageView() const { return _image->getVkImageView(); }
+        Image& getImage() const { return *_image; }
         VkSampler getSampler() const { return _sampler; }
+        uint32_t getWidth() const { return _image->getWidth(); }
+        uint32_t getHeight() const { return _image->getHeight(); }
 
     private:
         void createTextureImage(uint32_t width, uint32_t height);

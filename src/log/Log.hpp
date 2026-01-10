@@ -14,7 +14,8 @@ namespace m1 {
         Info,
         Debug,
         Warning,
-        Error
+        Error,
+    	None
     };
 
     class Log {

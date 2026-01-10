@@ -12,11 +12,13 @@
 
 namespace m1
 {
-    SwapChain::SwapChain(const Device& device, const Window& window, VkSwapchainKHR oldSwapChain) : _device(device)
+	SwapChain::SwapChain(const Device& device, const Window& window, VkSampleCountFlagBits samples, VkSwapchainKHR oldSwapChain) : _device(device), _samples(samples)
     {
         Log::Get().Info("Creating swap chain");
         createSwapChain(window, oldSwapChain);
         createImages();
+		if (_samples != VK_SAMPLE_COUNT_1_BIT)
+		    createColorImage();
 		createDepthImage();
         createRenderPass();
 		createFramebuffers();
@@ -200,60 +202,85 @@ namespace m1
     /// </summary>
     void SwapChain::createRenderPass()
     {
-		/* Method overview
-		- define the attachments that will be used during rendering (color, depth, stencil, etc.)
-		- define the subpasses that will be used in the render pass
-		- define any dependencies between the subpasses and external operations
-		- create the render pass object
+        /* Method overview
+        - define the attachments that will be used during rendering (color, depth, stencil, etc.)
+        - define the subpasses that will be used in the render pass
+        - define any dependencies between the subpasses and external operations
+        - create the render pass object
         */
 
 
-		/* Layouts overview
+        /* Layouts overview
         - An image layout describes how the GPU should treat the memory of an image (layout of the pixels in memory).
         - Images need to be transitioned to specific layouts that are suitable for the operation that they're going to be involved in next.
         - RenderPass and Subpasses automatically take care of image layout transitions.
-		- attachment.initialLayout => layout before the render pass begins
-		- attachment.finalLayout => layout to automatically transition to when the render pass ends
-		- attachmentRef.layout => layout during the subpass
+        - attachment.initialLayout => layout before the render pass begins
+        - attachment.finalLayout => layout to automatically transition to when the render pass ends
+        - attachmentRef.layout => layout during the subpass
         */
 
-		// color attachment
+		bool msaaEnabled = (_samples != VK_SAMPLE_COUNT_1_BIT);
+
+        // attachments array
+        std::vector<VkAttachmentDescription> attachments;
+
+        // color attachment
         VkAttachmentDescription colorAttachment{};
         colorAttachment.format = _imageFormat;
-        colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT; // no multisampling
+        colorAttachment.samples = _samples;
         colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // operation to perform on the attachment before rendering
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE; // operation to perform on the attachment after rendering
         colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // don't care about the previous content
-        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // image to be presented in the swap chain
+        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        colorAttachment.finalLayout = msaaEnabled
+            ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL // MSAA -> needs resolve
+            : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // no MSAA -> render directly to swapchain
+        attachments.push_back(colorAttachment);
+
+        // color attachment reference
+        VkAttachmentReference colorAttachmentRef{};
+        colorAttachmentRef.attachment = 0; // index in the attachmentsArray
+        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
         // depth attachment
         VkAttachmentDescription depthAttachment{};
-		depthAttachment.format = _depthImage->getFormat();
-        depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        depthAttachment.format = _depthImage->getFormat();
+        depthAttachment.samples = _samples;
         depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // we don't need the depth data after rendering is finished
+        depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        attachments.push_back(depthAttachment);
 
-		// attachments array
-        std::array<VkAttachmentDescription, 2> attachmentsArray = { colorAttachment, depthAttachment };
-
-        // A single render pass can consist of multiple subpasses. For example a sequence of post-processing effects
-        // Every subpass can references one or more of the attachments
-
-		// color attachment reference
-        VkAttachmentReference colorAttachmentRef{};
-		colorAttachmentRef.attachment = 0; // index in the attachmentsArray
-        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-		// depth attachment reference
+        // depth attachment reference
         VkAttachmentReference depthAttachmentRef{};
         depthAttachmentRef.attachment = 1;
         depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        // resolve attachment (only if MSAA > 1)
+        VkAttachmentReference resolveAttachmentRef{};
+        if (msaaEnabled)
+        {
+            VkAttachmentDescription colorResolveAttachment{};
+            colorResolveAttachment.format = _imageFormat;
+            colorResolveAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+            colorResolveAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            colorResolveAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            colorResolveAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            colorResolveAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            colorResolveAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            colorResolveAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // image to be presented in the swap chain
+            attachments.push_back(colorResolveAttachment);
+
+            resolveAttachmentRef.attachment = 2;
+            resolveAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        }
+        
+        // A single render pass can consist of multiple subpasses. For example, a sequence of post-processing effects
+        // Every subpass can reference one or more of the attachments
 
         // define subpass
         VkSubpassDescription subpass{};
@@ -261,25 +288,30 @@ namespace m1
         subpass.colorAttachmentCount = 1;
         //The index of the attachment in this array is directly referenced from the fragment shader with the layout(location = 0) out vec4 outColor directive!
         subpass.pColorAttachments = &colorAttachmentRef;
+        subpass.pResolveAttachments = msaaEnabled ? &resolveAttachmentRef : nullptr;
         subpass.pDepthStencilAttachment = &depthAttachmentRef;
-
-		// define subpass dependencies: to handle image layout transitions
-        VkSubpassDependency dependency{};
-		// indices of source and destination subpasses
-		dependency.srcSubpass = VK_SUBPASS_EXTERNAL; // subpass before or after the render pass depending on whether it's used as a source or destination
-		dependency.dstSubpass = 0; // index of the subpass in the render pass
-        // operations to wait on and the stages in which these operations occur
-        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-        dependency.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
         
-        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        // define subpass dependencies: to handle/synchronize image layout transitions
+        VkSubpassDependency dependency
+        {
+            // indices of source and destination subpasses
+            .srcSubpass = VK_SUBPASS_EXTERNAL, // subpass before or after the render pass depending on whether it's used as a source or destination
+            .dstSubpass = 0, // index of the subpass in the render pass
+
+            // stages in which these access operations occur
+            .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+
+            // memory access operations to wait on
+            .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+        };
 
         // render pass info
         VkRenderPassCreateInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        renderPassInfo.attachmentCount = static_cast<uint32_t>(attachmentsArray.size());
-        renderPassInfo.pAttachments = attachmentsArray.data();
+        renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+        renderPassInfo.pAttachments = attachments.data();
         renderPassInfo.subpassCount = 1;
         renderPassInfo.pSubpasses = &subpass;
         renderPassInfo.dependencyCount = 1;
@@ -288,7 +320,6 @@ namespace m1
         // create the render pass
         if (vkCreateRenderPass(_device.getVkDevice(), &renderPassInfo, nullptr, &_renderPass) != VK_SUCCESS)
         {
-            Log::Get().Error("failed to create render pass!");
             throw std::runtime_error("failed to create render pass!");
         }
     }
@@ -302,14 +333,19 @@ namespace m1
 
         for (size_t i = 0; i < _framebuffers.size(); i++)
         {
-            std::array<VkImageView, 2> attachments = { _imageViews[i], _depthImage->getVkImageView() };
+            // objects that should be bound to the respective renderPass pAttachment array
+            std::vector<VkImageView> attachments;
+            if(_samples == VK_SAMPLE_COUNT_1_BIT)
+                attachments = { _imageViews[i], _depthImage->getVkImageView()}; // no MSAA -> render directly into swap chain image
+			else
+                attachments = { _colorImage->getVkImageView(), _depthImage->getVkImageView(), _imageViews[i]}; // MSAA -> render into multisampled image first
 
 			// Framebuffer info
             VkFramebufferCreateInfo framebufferInfo{};
             framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
             framebufferInfo.renderPass = _renderPass;
             framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-            framebufferInfo.pAttachments = attachments.data(); // objects that should be bound to the respective renderPass pAttachment array
+            framebufferInfo.pAttachments = attachments.data();
             framebufferInfo.width = _extent.width;
             framebufferInfo.height = _extent.height;
             framebufferInfo.layers = 1; // as in the swap chain
@@ -323,6 +359,19 @@ namespace m1
         }
     }
 
+    void SwapChain::createColorImage()
+    {
+        ImageParams params
+        {
+            .extent = _extent,
+            .format = _imageFormat,
+            .usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			.samples = _samples,
+        };
+
+		_colorImage = std::make_unique<Image>(_device, params);
+    }
+
     void SwapChain::createDepthImage()
     {
         // find format that support specified tiling and flags
@@ -332,16 +381,17 @@ namespace m1
             VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
         );
 
+        ImageParams params
+        {
+            .extent = _extent,
+            .format = depthFormat,
+            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            .aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT,
+			.samples = _samples,
+        };
+
         // create the depth image
-        _depthImage = std::make_unique<Image>(
-            _device,
-            _extent.width,
-            _extent.height,
-            depthFormat,
-            VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-		);
+        _depthImage = std::make_unique<Image>(_device, params);
     }
 
     bool SwapChain::hasStencilComponent(VkFormat format)

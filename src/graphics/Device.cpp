@@ -18,13 +18,15 @@ namespace m1
         createLogicalDevice();
         _graphicsQueue = std::make_unique<Queue>(*this, _queueFamilies.graphicsFamily.value(), 0);
         _presentQueue = std::make_unique<Queue>(*this, _queueFamilies.presentFamily.value(), 0);
+        _computeQueue = std::make_unique<Queue>(*this, _queueFamilies.graphicsFamily.value(), 0);
     }
 
     Device::~Device()
     {
 		// destroy command pools before destroying the device
-        _graphicsQueue = NULL;
-        _presentQueue = NULL;
+        _graphicsQueue = nullptr;
+        _presentQueue = nullptr;
+        _computeQueue = nullptr;
 
 		// physical device is implicitly destroyed when the VkInstance is destroyed
         // Device queues are implicitly destroyed when the device is destroyed
@@ -68,6 +70,24 @@ namespace m1
             }
         }
         throw std::runtime_error("failed to find supported format!");
+    }
+
+    bool Device::isLinearFilteringSupported(VkFormat format, VkImageTiling tiling)
+    {
+        // Check if the image format supports linear blitting
+        VkFormatProperties formatProperties;
+        vkGetPhysicalDeviceFormatProperties(_physicalDevice, format, &formatProperties);
+
+        if (tiling == VK_IMAGE_TILING_LINEAR)
+        {
+            return formatProperties.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+        }
+        else if (tiling == VK_IMAGE_TILING_OPTIMAL)
+        {
+            return formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+        }
+
+        return false;
     }
 
     void Device::createSurface(const Window& window)
@@ -130,6 +150,7 @@ namespace m1
         // Device features
         VkPhysicalDeviceFeatures deviceFeatures{};
 		deviceFeatures.samplerAnisotropy = VK_TRUE; // enable anisotropic filtering
+		deviceFeatures.sampleRateShading = VK_TRUE; // enable sample shading (for better quality when using MSAA)
 
         // Device info
         VkDeviceCreateInfo createInfo{};
@@ -139,16 +160,6 @@ namespace m1
         createInfo.pEnabledFeatures = &deviceFeatures;
         createInfo.enabledExtensionCount = static_cast<uint32_t>(_requiredExtensions.size());
         createInfo.ppEnabledExtensionNames = _requiredExtensions.data();
-
-        if (Instance::enableValidationLayers)
-        {
-            createInfo.enabledLayerCount = static_cast<uint32_t>(_instance.validationLayers.size());
-            createInfo.ppEnabledLayerNames = _instance.validationLayers.data();
-        }
-        else
-        {
-            createInfo.enabledLayerCount = 0;
-        }
 
         // Create logical device
         if (vkCreateDevice(_physicalDevice, &createInfo, nullptr, &_vkDevice) != VK_SUCCESS)
@@ -181,6 +192,22 @@ namespace m1
         auto swapChainProperties = getSwapChainProperties(device);
         if (swapChainProperties.formats.empty() || swapChainProperties.presentModes.empty())
             return false;
+
+		// get the max msaa samples (color and depth)
+        VkSampleCountFlags counts = deviceProperties.limits.framebufferColorSampleCounts & deviceProperties.limits.framebufferDepthSampleCounts;
+        _maxMsaaSamples = counts & VK_SAMPLE_COUNT_64_BIT ? VK_SAMPLE_COUNT_64_BIT :
+                         counts & VK_SAMPLE_COUNT_32_BIT ? VK_SAMPLE_COUNT_32_BIT :
+                         counts & VK_SAMPLE_COUNT_16_BIT ? VK_SAMPLE_COUNT_16_BIT :
+                         counts & VK_SAMPLE_COUNT_8_BIT  ? VK_SAMPLE_COUNT_8_BIT  :
+                         counts & VK_SAMPLE_COUNT_4_BIT  ? VK_SAMPLE_COUNT_4_BIT  :
+                         counts & VK_SAMPLE_COUNT_2_BIT  ? VK_SAMPLE_COUNT_2_BIT  :
+			             VK_SAMPLE_COUNT_1_BIT;
+
+		// get the alignment for uniform buffers
+		_minUniformBufferOffsetAlignment = deviceProperties.limits.minUniformBufferOffsetAlignment;
+
+		Log::Get().Info("Device " + std::string(deviceProperties.deviceName) + " is suitable");
+        Log::Get().Info("Device maxPushConstantsSize: " + std::to_string(deviceProperties.limits.maxPushConstantsSize) + "bytes");
 
         return true;
     }
@@ -217,8 +244,11 @@ namespace m1
         for (const auto& queueFamily : queueFamilies)
         {
             // graphicsFamily
-            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT
+            	&& queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT)
             {
+            	// family that support both graphics and compute operations.
+            	// For async compute I should use a dedicated compute queue family.
                 indices.graphicsFamily = i;
             }
 
@@ -294,4 +324,18 @@ namespace m1
         Log::Get().Error("failed to find suitable memory type!");
         throw std::runtime_error("failed to find suitable memory type!");
     }
+
+	VkDeviceSize Device::getUniformBufferAlignment(VkDeviceSize uboInstanceSize)
+	{
+		// Vulkan requires each element in a dynamic uniform buffer to be aligned to VkPhysicalDeviceLimits::minUniformBufferOffsetAlignment.
+		// If you have multiple UBO instances in one buffer (e.g., per-object data),
+		// each instance must start at an address that’s a multiple of that alignment value.
+
+		if (_minUniformBufferOffsetAlignment > 0)
+		{
+			// round up to the nearest multiple of _minUniformBufferOffsetAlignment
+			return (uboInstanceSize + _minUniformBufferOffsetAlignment - 1) & ~(_minUniformBufferOffsetAlignment - 1);
+		}
+		return uboInstanceSize;
+	}
 } // namespace m1
