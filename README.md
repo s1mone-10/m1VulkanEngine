@@ -20,3 +20,35 @@ This project is still under development. My next steps are:
 *   Implement multithreading for rendering.
 *   Explore and implement instancing.
 *   Continue studying and implementing more advanced Vulkan features.
+
+## Project Structure
+
+```
+.
+├── resources/          # 3D models and textures
+├── shaders/
+│   ├── simple_shader.frag
+│   └── simple_shader.vert
+├── src/
+│   ├── graphics/       # Core rendering engine
+│   │   ├── Engine.hpp
+│   │   ├── Device.hpp
+│   │   ├── SwapChain.hpp
+│   │   └── Pipeline.hpp
+│   ├── Window.hpp
+│   └── main.cpp
+├── CMakeLists.txt      # Main CMake build script
+└── README.md           # This file
+```
+
+*   `src/`: Contains all the C++ source code.
+    *   `graphics/`: Encapsulates the core Vulkan rendering engine.
+        *   `Engine`: The main class that orchestrates the rendering process.
+        *   `Device`: Manages the Vulkan logical and physical devices.
+        *   `SwapChain`: Manages the swap chain for image presentation.
+        *   `Pipeline`: Manages the graphics pipeline configuration.
+    *   `Window`: A class that manages the GLFW window.
+    *   `main.cpp`: The entry point of the application.
+*   `shaders/`: Contains the GLSL shader source code. These are compiled into SPIR-V by CMake.
+*   `resources/`: Contains 3D models and textures.
+*   `CMakeLists.txt`: The main build script for the project.
