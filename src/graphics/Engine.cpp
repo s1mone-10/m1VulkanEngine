@@ -815,14 +815,14 @@ namespace m1
     void Engine::transitionImageLayout(const Image& image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
 	{
 		/*
-		In Vulkan, an image layout describes how the GPU should treat the memory of an image(texture, framebuffer, etc.).
+		In Vulkan, an image layout describes how the GPU should treat the memory of an image (texture, framebuffer, etc.).
 		A layout transition is changing an image from one layout to another, so the GPU knows how to access it correctly.
 		This is done with a pipeline barrier(vkCmdPipelineBarrier), which synchronizes memory access and updates the image layout.
 		*/
 
 		VkCommandBuffer commandBuffer = _device.getGraphicsQueue().beginOneTimeCommand();
 
-		//
+		// Set a memory barrier to synchronize access to the image
 		VkImageMemoryBarrier barrier{};
 		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		barrier.oldLayout = oldLayout; // it's ok to use VK_IMAGE_LAYOUT_UNDEFINED if we don't care about the existing image data
@@ -831,6 +831,7 @@ namespace m1
 		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED; // for queue family ownership transfer, not used here
 		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 
+		// set image info
 		barrier.image = image.getVkImage();
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		barrier.subresourceRange.baseMipLevel = 0;
@@ -881,7 +882,7 @@ namespace m1
 		// We will call this multiple times to blit data to each mip level of the image.
 		// Source and destination of the command will be the same image, but different mip levels.
 
-		// Check if image format supports linear blitting
+		// Check if the image format supports linear blitting
 		if (!_device.isLinearFilteringSupported(image.getFormat(), VK_IMAGE_TILING_OPTIMAL))
 		{
 			Log::Get().Warning("Failed to create mip levels. Texture image format does not support linear blitting!");
