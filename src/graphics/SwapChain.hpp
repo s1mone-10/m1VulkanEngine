@@ -5,16 +5,24 @@
 #include <vector>
 #include <memory>
 
+#include "Image.hpp"
+
 namespace m1
 {
     class Device; // Forward declaration
     class Window;
 	class Image;
 
+	struct SwapChainConfig
+	{
+		VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
+		VkSwapchainKHR oldSwapChain = VK_NULL_HANDLE;
+	};
+
     class SwapChain
     {
     public:
-        SwapChain(const Device& device, const Window& window, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT, VkSwapchainKHR oldSwapChain = VK_NULL_HANDLE);
+        SwapChain(const Device& device, const Window& window, const SwapChainConfig& config);
         ~SwapChain();
 
         // Non-copyable, non-movable
@@ -55,10 +63,10 @@ namespace m1
         std::vector<VkImageView> _imageViews;
         std::vector<VkFramebuffer> _framebuffers;
         
-        std::unique_ptr<Image> _colorImage;
+        std::unique_ptr<Image> _colorImage; // for msaa only
         std::unique_ptr<Image> _depthImage;
         
-        VkRenderPass _renderPass;
+        VkRenderPass _renderPass = VK_NULL_HANDLE;
 
         const Device& _device;
     };

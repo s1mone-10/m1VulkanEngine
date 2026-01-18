@@ -13,6 +13,7 @@ namespace m1
 	Device::Device(const Window& window)
     {
         Log::Get().Info("Creating device");
+		_deviceProperties = {};
         createSurface(window);
         pickPhysicalDevice();
         createLogicalDevice();
@@ -193,18 +194,18 @@ namespace m1
         if (swapChainProperties.formats.empty() || swapChainProperties.presentModes.empty())
             return false;
 
-		// get the max msaa samples (color and depth)
+		// get device properties
         VkSampleCountFlags counts = deviceProperties.limits.framebufferColorSampleCounts & deviceProperties.limits.framebufferDepthSampleCounts;
-        _maxMsaaSamples = counts & VK_SAMPLE_COUNT_64_BIT ? VK_SAMPLE_COUNT_64_BIT :
-                         counts & VK_SAMPLE_COUNT_32_BIT ? VK_SAMPLE_COUNT_32_BIT :
-                         counts & VK_SAMPLE_COUNT_16_BIT ? VK_SAMPLE_COUNT_16_BIT :
-                         counts & VK_SAMPLE_COUNT_8_BIT  ? VK_SAMPLE_COUNT_8_BIT  :
-                         counts & VK_SAMPLE_COUNT_4_BIT  ? VK_SAMPLE_COUNT_4_BIT  :
-                         counts & VK_SAMPLE_COUNT_2_BIT  ? VK_SAMPLE_COUNT_2_BIT  :
-			             VK_SAMPLE_COUNT_1_BIT;
+        _deviceProperties.maxMsaaSamples =	counts & VK_SAMPLE_COUNT_64_BIT ? VK_SAMPLE_COUNT_64_BIT :
+											counts & VK_SAMPLE_COUNT_32_BIT ? VK_SAMPLE_COUNT_32_BIT :
+											counts & VK_SAMPLE_COUNT_16_BIT ? VK_SAMPLE_COUNT_16_BIT :
+											counts & VK_SAMPLE_COUNT_8_BIT  ? VK_SAMPLE_COUNT_8_BIT  :
+											counts & VK_SAMPLE_COUNT_4_BIT  ? VK_SAMPLE_COUNT_4_BIT  :
+											counts & VK_SAMPLE_COUNT_2_BIT  ? VK_SAMPLE_COUNT_2_BIT  :
+											VK_SAMPLE_COUNT_1_BIT;
 
-		// get the alignment for uniform buffers
-		_minUniformBufferOffsetAlignment = deviceProperties.limits.minUniformBufferOffsetAlignment;
+		_deviceProperties.minUniformBufferOffsetAlignment = deviceProperties.limits.minUniformBufferOffsetAlignment;
+		_deviceProperties.apiVersion = deviceProperties.apiVersion;
 
 		Log::Get().Info("Device " + std::string(deviceProperties.deviceName) + " is suitable");
         Log::Get().Info("Device maxPushConstantsSize: " + std::to_string(deviceProperties.limits.maxPushConstantsSize) + "bytes");
@@ -331,10 +332,10 @@ namespace m1
 		// If you have multiple UBO instances in one buffer (e.g., per-object data),
 		// each instance must start at an address that’s a multiple of that alignment value.
 
-		if (_minUniformBufferOffsetAlignment > 0)
+		if (_deviceProperties.minUniformBufferOffsetAlignment > 0)
 		{
 			// round up to the nearest multiple of _minUniformBufferOffsetAlignment
-			return (uboInstanceSize + _minUniformBufferOffsetAlignment - 1) & ~(_minUniformBufferOffsetAlignment - 1);
+			return (uboInstanceSize + _deviceProperties.minUniformBufferOffsetAlignment - 1) & ~(_deviceProperties.minUniformBufferOffsetAlignment - 1);
 		}
 		return uboInstanceSize;
 	}

@@ -133,7 +133,7 @@ namespace m1
         VkPipelineMultisampleStateCreateInfo multisampling{};
         multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
         multisampling.sampleShadingEnable = VK_FALSE; // if enabled, better quality but an additional performance cost
-        multisampling.rasterizationSamples = config.rasterizationSamples;
+        multisampling.rasterizationSamples = config.swapChain.getSamples();
         multisampling.minSampleShading = 0.2f; // min fraction for sample shading; closer to one is smoother
         multisampling.pSampleMask = nullptr; // Optional
         multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
@@ -230,7 +230,7 @@ namespace m1
             
             // set layout and render pas,
             .layout = pipelineLayout,
-            .renderPass = config.renderPass,
+            .renderPass = config.swapChain.getRenderPass(),
             .subpass = 0,
 
             // optional. Vulkan allows you to create a new graphics pipeline by deriving from an existing pipeline

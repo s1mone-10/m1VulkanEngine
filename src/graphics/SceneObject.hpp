@@ -1,17 +1,15 @@
 #pragma once
 
+#include "geometry/Mesh.hpp"
+
 // libs
 #include "glm_config.hpp"
 
 // std
 #include <memory>
-#include <unordered_map>
 
 namespace m1
 {
-	class Material; // forward declaration
-	class Mesh;
-
 	class SceneObject
 	{
 	public:

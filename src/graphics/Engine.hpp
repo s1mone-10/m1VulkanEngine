@@ -20,6 +20,11 @@ namespace m1
 {
     class SceneObject;
 
+	struct EngineConfig
+	{
+		bool msaa = true;
+	};
+
     class Engine
     {
     public:
@@ -27,13 +32,14 @@ namespace m1
     	static constexpr auto DEFAULT_PIPELINE = PipelineType::PhongLighting;
         static constexpr int PARTICLES_COUNT = 8192;
 
-        Engine();
+        Engine(EngineConfig config);
         ~Engine();
 
         void run();
         void addSceneObject(std::unique_ptr<SceneObject> obj);
     	void addMaterial(std::unique_ptr<Material> material);
     	void compile();
+    	const EngineConfig& getConfig() const { return _engineConfig; }
 
     private:
         void mainLoop();
@@ -43,7 +49,7 @@ namespace m1
         void createSyncObjects();
         void drawObjectsLoop(VkCommandBuffer commandBuffer);
     	void drawParticles(VkCommandBuffer commandBuffer);
-        void recordDrawSceneCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+        void recordDrawSceneCommands(VkCommandBuffer commandBuffer, uint32_t swapChainImageIndex);
         void recordComputeCommands(VkCommandBuffer commandBuffer);
         void recreateSwapChain();
     	void createPipelines();
@@ -66,6 +72,8 @@ namespace m1
         const uint32_t  HEIGHT = 600;
 
         const std::string TEXTURE_PATH = "../resources/viking_room.png";
+
+    	EngineConfig _engineConfig{};
 
         Camera camera{};
 

@@ -1,7 +1,6 @@
 #include "SwapChain.hpp"
 #include "Device.hpp"
 #include "Window.hpp"
-#include "Image.hpp"
 #include "log/Log.hpp"
 
 #include <stdexcept>
@@ -12,10 +11,10 @@
 
 namespace m1
 {
-	SwapChain::SwapChain(const Device& device, const Window& window, VkSampleCountFlagBits samples, VkSwapchainKHR oldSwapChain) : _device(device), _samples(samples)
+	SwapChain::SwapChain(const Device& device, const Window& window, const SwapChainConfig& config) : _device(device), _samples(config.samples)
     {
         Log::Get().Info("Creating swap chain");
-        createSwapChain(window, oldSwapChain);
+        createSwapChain(window, config.oldSwapChain);
         createImages();
 		if (_samples != VK_SAMPLE_COUNT_1_BIT)
 		    createColorImage();
@@ -28,7 +27,7 @@ namespace m1
     {
         for (auto framebuffer : _framebuffers)
             vkDestroyFramebuffer(_device.getVkDevice(), framebuffer, nullptr);
-        
+
         vkDestroyRenderPass(_device.getVkDevice(), _renderPass, nullptr);
 
         for (auto imageView : _imageViews)
@@ -107,11 +106,11 @@ namespace m1
         // get images from the swap chain
         uint32_t imageCount;
         vkGetSwapchainImagesKHR(_device.getVkDevice(), _vkSwapChain, &imageCount, nullptr);
-        _images.resize(imageCount);
+        _images.assign(imageCount, VK_NULL_HANDLE);
         vkGetSwapchainImagesKHR(_device.getVkDevice(), _vkSwapChain, &imageCount, _images.data());
 
         // creates images view
-        _imageViews.resize(imageCount);
+        _imageViews.assign(imageCount, VK_NULL_HANDLE);
 
         for (size_t i = 0; i < imageCount; i++)
         {
@@ -328,8 +327,7 @@ namespace m1
     {
         // The attachments specified during render pass creation are bound by wrapping them into a VkFramebuffer object. 
         // A framebuffer object references all of the VkImageView objects that represent the attachments
-
-        _framebuffers.resize(getImageCount());
+        _framebuffers.assign(getImageCount(), VK_NULL_HANDLE);
 
         for (size_t i = 0; i < _framebuffers.size(); i++)
         {

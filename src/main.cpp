@@ -20,13 +20,18 @@ int main()
 {
 	m1::Log::Get().SetLevel(m1::LogLevel::Warning);
     m1::Log::Get().Info("Application starting");
-    m1::Engine app;
+
+	m1::EngineConfig engineConfig
+	{
+		.msaa = true,
+	};
+    m1::Engine engine{engineConfig};
 
     try
     {
-        loadScene(app);
-    	app.compile();
-        app.run();
+        loadScene(engine);
+    	engine.compile();
+        engine.run();
     }
     catch (const std::exception &e)
     {

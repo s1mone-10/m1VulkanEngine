@@ -30,6 +30,9 @@ namespace m1
 
     struct GraphicsPipelineConfig
     {
+    	// swap chain
+    	const SwapChain& swapChain;
+
     	// shaders
         std::string vertShaderPath;
         std::string fragShaderPath;
@@ -44,9 +47,6 @@ namespace m1
     	VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT;
     	VkFrontFace frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
-    	// multisampling
-    	VkSampleCountFlagBits rasterizationSamples;
-
     	// depth
     	bool depthTestEnable = true;
     	bool depthWriteEnable = true;
@@ -57,7 +57,6 @@ namespace m1
     	// layouts
     	uint32_t setLayoutCount;
     	VkDescriptorSetLayout* pSetLayouts;
-    	VkRenderPass renderPass;
     };
 
     class Pipeline

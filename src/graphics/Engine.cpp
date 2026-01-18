@@ -21,7 +21,7 @@
 
 namespace m1
 {
-	Engine::Engine()
+	Engine::Engine(EngineConfig config) : _engineConfig(config)
 	{
 		Log::Get().Info("Engine constructor");
 
@@ -164,13 +164,13 @@ namespace m1
 		vkWaitForFences(_device.getVkDevice(), 1, &_frameFences[_currentFrame], VK_TRUE, UINT64_MAX);
 
 		// acquire an image from the swap chain (signal the semaphore when the image is ready)
-		uint32_t imageIndex;
-        auto result = vkAcquireNextImageKHR(_device.getVkDevice(), _swapChain->getVkSwapChain(), UINT64_MAX, _acquireSemaphore, VK_NULL_HANDLE, &imageIndex);
+		uint32_t swapChainImageIndex;
+        auto result = vkAcquireNextImageKHR(_device.getVkDevice(), _swapChain->getVkSwapChain(), UINT64_MAX, _acquireSemaphore, VK_NULL_HANDLE, &swapChainImageIndex);
 
 		// Since I don't know the image index in advance, I use a staging semaphore then swapped with the one in the array.
 		VkSemaphore temp = _acquireSemaphore;
-		_acquireSemaphore = _imageAvailableSems[imageIndex];
-		_imageAvailableSems[imageIndex] = temp;
+		_acquireSemaphore = _imageAvailableSems[swapChainImageIndex];
+		_imageAvailableSems[swapChainImageIndex] = temp;
 
 		// recreate the swap chain if needed
 		if (result == VK_ERROR_OUT_OF_DATE_KHR) // swap chain is no longer compatible with the surface (e.g. window resized)
@@ -180,7 +180,7 @@ namespace m1
 			return;
 		}
 		if (result != VK_SUCCESS &&
-            result != VK_SUBOPTIMAL_KHR) // swap chain no longer matches the surface properties exactly, but can still be used to present to the surface successfully
+            result != VK_SUBOPTIMAL_KHR) // swap chain no longer matches the surface properties exactly but can still be used to present to the surface successfully
 		{
 			Log::Get().Error("failed to acquire swap chain image!");
 			throw std::runtime_error("failed to acquire swap chain image!");
@@ -191,15 +191,15 @@ namespace m1
 
 		// record the drawing commands
 		vkResetCommandBuffer(_drawSceneCmdBuffers[_currentFrame], 0);
-		recordDrawSceneCommands(_drawSceneCmdBuffers[_currentFrame], imageIndex);
+		recordDrawSceneCommands(_drawSceneCmdBuffers[_currentFrame], swapChainImageIndex);
 
 		// specify the semaphores and stages to wait on
 		// Each entry in the waitStages array corresponds to the semaphore with the same index in waitSemaphores
-		VkSemaphore waitSemaphores[] = {_computeCmdExecutedSems[_currentFrame], _imageAvailableSems[imageIndex]};
+		VkSemaphore waitSemaphores[] = {_computeCmdExecutedSems[_currentFrame], _imageAvailableSems[swapChainImageIndex]};
         VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; // in which stage(s) of the pipeline to wait
 
 		// specify which semaphores to signal once the command buffer has finished executing
-		VkSemaphore cmdExecutedSignalSemaphores[] = {_drawCmdExecutedSems[imageIndex]};
+		VkSemaphore cmdExecutedSignalSemaphores[] = {_drawCmdExecutedSems[swapChainImageIndex]};
 
 		// submit info
 		VkSubmitInfo submitInfo
@@ -233,7 +233,7 @@ namespace m1
 		VkSwapchainKHR swapChains[] = {_swapChain->getVkSwapChain()};
 		presentInfo.swapchainCount = 1;
 		presentInfo.pSwapchains = swapChains;
-		presentInfo.pImageIndices = &imageIndex;
+		presentInfo.pImageIndices = &swapChainImageIndex;
 
 		// present the swap chain image
 		result = vkQueuePresentKHR(_device.getPresentQueue().getVkQueue(), &presentInfo);
@@ -381,7 +381,7 @@ namespace m1
 		vkCmdDraw(commandBuffer, PARTICLES_COUNT, 1, 0, 0);
 	}
 
-	void Engine::recordDrawSceneCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+	void Engine::recordDrawSceneCommands(VkCommandBuffer commandBuffer, uint32_t swapChainImageIndex)
 	{
 		// it can be executed on a separate thread
 
@@ -400,7 +400,7 @@ namespace m1
 		VkRenderPassBeginInfo renderPassInfo{};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderPassInfo.renderPass = _swapChain->getRenderPass();
-		renderPassInfo.framebuffer = _swapChain->getFrameBuffer(imageIndex);
+		renderPassInfo.framebuffer = _swapChain->getFrameBuffer(swapChainImageIndex);
 		renderPassInfo.renderArea.offset = {0, 0};
 		renderPassInfo.renderArea.extent = _swapChain->getExtent();
 
@@ -476,18 +476,15 @@ namespace m1
 
 		vkDeviceWaitIdle(_device.getVkDevice());
 
-		bool msaa = true;
-		VkSampleCountFlagBits samples;
-		samples = msaa ? _device.getMaxMsaaSamples() : VK_SAMPLE_COUNT_1_BIT;
-
-		if (_swapChain == nullptr)
+		SwapChainConfig config
 		{
-			_swapChain = std::make_unique<SwapChain>(_device, _window, samples);
-        }
-        else
+			.samples = _engineConfig.msaa ? _device.getMaxMsaaSamples() : VK_SAMPLE_COUNT_1_BIT,
+		};
+
+		if (_swapChain != nullptr)
 		{
 			std::unique_ptr<SwapChain> oldSwapChain = std::move(_swapChain);
-			_swapChain = std::make_unique<SwapChain>(_device, _window, samples, oldSwapChain->getVkSwapChain());
+			config.oldSwapChain = oldSwapChain->getVkSwapChain();
 
 			/*if (!oldSwapChain->compareSwapFormats(*lveSwapChain.getVkSwapChain()))
 			{
@@ -496,6 +493,8 @@ namespace m1
 
 			_window.FramebufferResized = false;
 		}
+
+		_swapChain = std::make_unique<SwapChain>(_device, _window, config);
 
 		// update camera aspect ratio
 		camera.setAspectRatio(_swapChain->getAspectRatio());
@@ -511,15 +510,14 @@ namespace m1
 
 		GraphicsPipelineConfig noLightPipelineInfo
 		{
+			.swapChain = *_swapChain,
 			.vertShaderPath = R"(..\shaders\compiled\noLight.vert.spv)",
 			.fragShaderPath = R"(..\shaders\compiled\noLight.frag.spv)",
 			.vertexBindingDescription = Vertex::getBindingDescription(),
 			.vertexAttributeDescriptions = Vertex::getAttributeDescriptions(),
 			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-			.rasterizationSamples = _swapChain->getSamples(),
 			.setLayoutCount = noLightSetLayouts.size(),
 			.pSetLayouts = noLightSetLayouts.data(),
-			.renderPass = _swapChain->getRenderPass(),
 		};
 		_graphicsPipelines.emplace(PipelineType::NoLight, PipelineFactory::createGraphicsPipeline(_device, noLightPipelineInfo));
 
@@ -532,15 +530,14 @@ namespace m1
 
 		GraphicsPipelineConfig phongPipelineInfo
 		{
+			.swapChain = *_swapChain,
 			.vertShaderPath = R"(..\shaders\compiled\phong.vert.spv)",
 			.fragShaderPath = R"(..\shaders\compiled\phong.frag.spv)",
 			.vertexBindingDescription = Vertex::getBindingDescription(),
 			.vertexAttributeDescriptions = Vertex::getAttributeDescriptions(),
 			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-			.rasterizationSamples = _swapChain->getSamples(),
 			.setLayoutCount = phongSetLayouts.size(),
 			.pSetLayouts = phongSetLayouts.data(),
-			.renderPass = _swapChain->getRenderPass(),
 		};
     	_graphicsPipelines.emplace(PipelineType::PhongLighting, PipelineFactory::createGraphicsPipeline(_device, phongPipelineInfo));
 
@@ -548,15 +545,14 @@ namespace m1
 		std::array particlesSetLayouts = {_descriptor->getDescriptorSetLayout()};
 		GraphicsPipelineConfig particlesPipelineInfo
 		{
+			.swapChain = *_swapChain,
 			.vertShaderPath = R"(..\shaders\compiled\particle.vert.spv)",
 			.fragShaderPath = R"(..\shaders\compiled\particle.frag.spv)",
 			.vertexBindingDescription = Particle::getVertexBindingDescription(),
 			.vertexAttributeDescriptions = Particle::getVertexAttributeDescriptions(),
 			.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
-			.rasterizationSamples = _swapChain->getSamples(),
 			.setLayoutCount = particlesSetLayouts.size(),
 			.pSetLayouts = particlesSetLayouts.data(),
-			.renderPass = _swapChain->getRenderPass(),
 		};
     	_graphicsPipelines.emplace(PipelineType::Particles, PipelineFactory::createGraphicsPipeline(_device, particlesPipelineInfo));
 
