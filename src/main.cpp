@@ -157,8 +157,10 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	));
 
 	// container texture
-	auto material = std::make_unique<m1::Material>("container");
+	glm::vec3 white(1.0f, 1.0f, 1.0f);
+	auto material = std::make_unique<m1::Material>("container", white,white,white);
 	material->diffuseTexturePath = "../resources/container.png";
+	material->specularTexturePath = "../resources/container_specular.png";
 	engine.addMaterial(std::move(material));
 
     auto sceneObj = m1::SceneObject::createSceneObject();

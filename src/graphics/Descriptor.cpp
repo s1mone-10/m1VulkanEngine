@@ -127,8 +127,8 @@ namespace m1
 			.pImmutableSamplers = nullptr
 		};
 
-	    // Sampler
-	    VkDescriptorSetLayoutBinding samplerLayoutBinding
+	    // Diffuse Map Sampler
+	    VkDescriptorSetLayoutBinding diffuseSamplerLayoutBinding
 		{
 		    .binding = 1,
 		    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -137,10 +137,20 @@ namespace m1
 		    .pImmutableSamplers = nullptr
 	    };
 
+		// Specular Map Sampler
+		VkDescriptorSetLayoutBinding specularSamplerLayoutBinding
+		{
+			.binding = 2,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
 	    // DescriptorSet Info
 	    std::array bindings =
 	    {
-		    samplerLayoutBinding, materialsDynUboLayoutBinding
+		    materialsDynUboLayoutBinding, diffuseSamplerLayoutBinding, specularSamplerLayoutBinding
 	    };
 
 	    VkDescriptorSetLayoutCreateInfo layoutInfo

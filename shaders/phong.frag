@@ -12,7 +12,7 @@ struct LightComponents {
 
 // Input
 layout (location = 0) in vec3 fragColor;
-layout (location = 1) in vec2 fragTexCoord;
+layout (location = 1) in vec2 fragTextCoord;
 layout (location = 2) in vec3 fragPosWorld;
 layout (location = 3) in vec3 fragNormalWorld;
 
@@ -42,8 +42,11 @@ layout (set = 1, binding = 0) uniform MaterialUbo {
     vec3 ambientColor;
 } material;
 
-// Texture sampler
+// diffuse map sampler
 layout (set = 1, binding = 1) uniform sampler2D diffuseMap;
+
+// specular map sampler
+layout (set = 1, binding = 2) uniform sampler2D specularMap;
 
 // Push constant
 layout(push_constant) uniform Push {
@@ -52,7 +55,7 @@ layout(push_constant) uniform Push {
 } push;
 
 // Functions
-LightComponents calculateLight(Light light, vec3 fragNormal, vec3 diffuseColor);
+LightComponents calculateLight(Light light, vec3 fragNormal, vec3 diffuseColor, vec3 specularColor);
 
 void main(){
     //outColor = vec4(fragColor, 1.0); // rgba color, range [0, 1]
@@ -62,9 +65,11 @@ void main(){
     //outColor = texture(texSampler, fragTexCoord);
     //return;
 
-    // get the diffuse color by multiply texture, vertex and material colors
+    // get the color by multiply texture, vertex and material colors
     // Use white (1,1,1) as default so missing texture / vertex / material color does not affect the result
-    vec3 diffuseColor = texture(diffuseMap, fragTexCoord).rgb * fragColor * material.diffuseColor;
+    vec3 diffuseColor = texture(diffuseMap, fragTextCoord).rgb * fragColor * material.diffuseColor;
+    vec3 ambientColor = texture(diffuseMap, fragTextCoord).rgb * fragColor * material.ambientColor;
+    vec3 specularColor = texture(specularMap, fragTextCoord).rgb * material.specularColor;
 
     // normalize the frag normal
     vec3 fragNormal = normalize(fragNormalWorld);
@@ -73,19 +78,19 @@ void main(){
     vec3 diffuseComponent = vec3(0.0);
     vec3 specularComponent = vec3(0.0);
     for (int i = 0; i < lightsUbo.numLights; i++) {
-        LightComponents lc = calculateLight(lightsUbo.lights[i], fragNormal, diffuseColor);
+        LightComponents lc = calculateLight(lightsUbo.lights[i], fragNormal, diffuseColor, specularColor);
         diffuseComponent += lc.diffuse;
         specularComponent += lc.specular;
     }
 
     // comput the ambient component
-    vec3 ambientComponent = material.ambientColor * lightsUbo.ambient.rgb * lightsUbo.ambient.a;
+    vec3 ambientComponent = ambientColor * lightsUbo.ambient.rgb * lightsUbo.ambient.a;
 
     // sum lights components
     outColor = vec4((ambientComponent + diffuseComponent + specularComponent), 1.0);
 }
 
-LightComponents calculateLight(Light light, vec3 fragNormal, vec3 diffuseColor) {
+LightComponents calculateLight(Light light, vec3 fragNormal, vec3 diffuseColor, vec3 specularColor) {
     vec3 lightDir = (light.posDir.w == 0.0)
                     ? normalize(-light.posDir.xyz)  // directional
                     : normalize(light.posDir.xyz - fragPosWorld); // point
@@ -109,7 +114,7 @@ LightComponents calculateLight(Light light, vec3 fragNormal, vec3 diffuseColor) 
     float specStrength = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
 
     // final specular color component
-    vec3 specularComponent = material.specularColor * lightColor * specStrength;
+    vec3 specularComponent = specularColor * lightColor * specStrength;
 
     return LightComponents(diffuseComponent, specularComponent);
 }

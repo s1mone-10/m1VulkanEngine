@@ -662,7 +662,7 @@ namespace m1
 		LightsUbo lightsUbo{};
 
 		// Ambient light
-		lightsUbo.ambient = glm::vec4(1.0f, 1.0f, 1.0f, 0.1f); // soft gray ambient
+		lightsUbo.ambient = glm::vec4(1.0f, 1.0f, 1.0f, 0.08f); // soft gray ambient
 
 		lightsUbo.numLights = 2;
 
@@ -820,16 +820,16 @@ namespace m1
 				.pBufferInfo = &materialDynUboInfo
 			};
 
-			// Texture Image Info
-			VkDescriptorImageInfo imageInfo
+			// diffuse Texture Image Info
+			VkDescriptorImageInfo diffuseImageInfo
 			{
 				.sampler = material.diffuseMap->getSampler(),
 				.imageView = material.diffuseMap->getImage().getVkImageView(),
 				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 			};
 
-			// Texture Descriptor Write
-			VkWriteDescriptorSet textureDescriptorWrite
+			// diffuse Texture Descriptor Write
+			VkWriteDescriptorSet diffuseTextDescriptorWrite
 			{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 				.dstSet = material.descriptorSet,
@@ -837,12 +837,32 @@ namespace m1
 				.dstArrayElement = 0,
 				.descriptorCount = 1,
 				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.pImageInfo = &imageInfo
+				.pImageInfo = &diffuseImageInfo
+			};
+
+			// specular Texture Image Info
+			VkDescriptorImageInfo specularImageInfo
+			{
+				.sampler = material.specularMap->getSampler(),
+				.imageView = material.specularMap->getImage().getVkImageView(),
+				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+			};
+
+			// specular Texture Descriptor Write
+			VkWriteDescriptorSet specularDescriptorWrite
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = material.descriptorSet,
+				.dstBinding = 2,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &specularImageInfo
 			};
 
 			std::array descriptorWrites =
 			{
-				materialDynUboWrite, textureDescriptorWrite
+				materialDynUboWrite, diffuseTextDescriptorWrite, specularDescriptorWrite
 			};
 
 			vkUpdateDescriptorSets(_device.getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()),
@@ -901,6 +921,7 @@ namespace m1
 		// set materials properties and update descriptorSet
 		_defaultMaterial->uboIndex = 0;
 		_defaultMaterial->diffuseMap = _whiteTexture;
+		_defaultMaterial->specularMap = _whiteTexture;
 		_defaultMaterial->descriptorSet = descriptorSets[0];
 		updateMaterialDescriptorSets(*_defaultMaterial);
 
