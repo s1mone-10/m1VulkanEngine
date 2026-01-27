@@ -33,13 +33,14 @@ namespace m1
         static constexpr int FRAMES_IN_FLIGHT = 2;
     	static constexpr auto DEFAULT_PIPELINE = PipelineType::PhongLighting;
         static constexpr int PARTICLES_COUNT = 8192;
+        static constexpr auto DEFAULT_MATERIAL_NAME = "Default";
 
         Engine(EngineConfig config);
         ~Engine();
 
         void run();
         void addSceneObject(std::unique_ptr<SceneObject> obj);
-    	void addMaterial(Material material);
+    	void addMaterial(std::unique_ptr<Material> material);
     	void compile();
     	const EngineConfig& getConfig() const { return _engineConfig; }
 
@@ -101,10 +102,10 @@ namespace m1
     	std::vector<std::unique_ptr<Buffer>> _particleSSboBuffers;
 		
         std::vector<std::unique_ptr<SceneObject>> _sceneObjects{};
-    	std::unordered_map<std::string, Material> _materials{};
-    	Material _defaultMaterial = Material("Default");
+    	std::unordered_map<std::string, std::unique_ptr<Material>> _materials{};
+    	std::unique_ptr<Material> _defaultMaterial = std::make_unique<Material>(DEFAULT_MATERIAL_NAME);
     	std::shared_ptr<Texture> _whiteTexture;
-    	uint32_t _currentMaterialUboIndex = -1;
+    	std::string _currentMaterialName;
         uint32_t _currentFrame = 0;
 
 		// Synchronization objects (semaphores for GPU-GPU sync, fences for CPU-GPU sync)

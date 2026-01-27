@@ -14,7 +14,7 @@ namespace m1
         	const std::string& name,
             const glm::vec3& diffuseColor = glm::vec3(1.0f, 1.0f, 1.0f),
             const glm::vec3& specularColor = glm::vec3(.5f, .5f, .5f),
-            const glm::vec3& ambientColor = glm::vec3(.0f, .0f, .0f),
+            const glm::vec3& ambientColor = glm::vec3(.1f, .1f, .1f),
             float shininess = 32.0f,
             float opacity = 1.0f,
             const std::string& diffuseTexturePath = "",

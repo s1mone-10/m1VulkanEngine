@@ -52,7 +52,7 @@ void loadScene(m1::Engine& engine)
     const std::string TEXTURE_PATH = "../resources/viking_room.png";
 
 
-    loadCubes(engine, 1);
+    loadCubes(engine, 3);
     //loadObj(engine, MODEL_PATH);
 }
 
@@ -127,7 +127,7 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	// Initialize materials array with different material types
 
 	// Shiny material (high specular, moderate diffuse)
-	engine.addMaterial(m1::Material(
+	engine.addMaterial(std::make_unique<m1::Material>(
 		"shiny",
 		glm::vec3(0.7f, 0.0f, 0.0f),
 		glm::vec3(0.5f, 0.5f, 0.5f),
@@ -137,7 +137,7 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	));
 
 	// Matte material (low specular, high diffuse)
-	engine.addMaterial(m1::Material(
+	engine.addMaterial(std::make_unique<m1::Material>(
 		"matte",
 		glm::vec3(0.8f, 0.8f, 0.8f),
 		glm::vec3(0.1f, 0.1f, 0.1f),
@@ -147,7 +147,7 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	));
 
 	// Emissive material (very high specular and diffuse for glow effect)
-	engine.addMaterial(m1::Material(
+	engine.addMaterial(std::make_unique<m1::Material>(
 		"emissive",
 		glm::vec3(5.0f, 5.0f, 5.0f),
 		glm::vec3(5.0f, 5.0f, 5.0f),
@@ -157,9 +157,9 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	));
 
 	// container texture
-	m1::Material material{"container"};
-	material.diffuseTexturePath = "../resources/container.png";
-	engine.addMaterial(material);
+	auto material = std::make_unique<m1::Material>("container");
+	material->diffuseTexturePath = "../resources/container.png";
+	engine.addMaterial(std::move(material));
 
     auto sceneObj = m1::SceneObject::createSceneObject();
 	auto mesh = m1::Mesh::createCube();
@@ -185,7 +185,7 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 			{
 				sceneObj = m1::SceneObject::createSceneObject();
 				mesh = m1::Mesh::createCube();
-				mesh->setMaterialName("container");
+				//mesh->setMaterialName("container");
 				sceneObj->setMesh(std::move(mesh));
 				transform = glm::translate(glm::mat4(1.0f), glm::vec3(i* 2, j * 2, k * 2));
 				sceneObj->setTransform(transform);

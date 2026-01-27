@@ -76,9 +76,9 @@ namespace m1
 		_sceneObjects.push_back(std::move(obj));
 	}
 
-	void Engine::addMaterial(Material material)
+	void Engine::addMaterial(std::unique_ptr<Material> material)
 	{
-		_materials.try_emplace(material.name, material);
+		_materials.try_emplace(material->name, std::move(material));
 	}
 
 	void Engine::compile()
@@ -331,10 +331,10 @@ namespace m1
     	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 0, 1, &descriptorSet0, 0, nullptr);
 
 		// bind default material descriptor set
-		VkDescriptorSet descriptorSetMat = _defaultMaterial.descriptorSet;
+		VkDescriptorSet descriptorSetMat = _defaultMaterial->descriptorSet;
 		uint32_t dynOff = 0;
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 1, 1, &descriptorSetMat, 1, &dynOff);
-		_currentMaterialUboIndex = 0;
+		_currentMaterialName = DEFAULT_MATERIAL_NAME;
 
 		for (auto &obj: _sceneObjects)
 		{
@@ -346,7 +346,7 @@ namespace m1
 			if (objPipeLineType != currentPipelineType)
 			{
 				currentPipelineType = objPipeLineType;
-				_currentMaterialUboIndex = -1;
+				_currentMaterialName = "";
 
 				// bind pipeline
 				currentPipeline = _graphicsPipelines.at(currentPipelineType).get();
@@ -357,22 +357,20 @@ namespace m1
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(),
 				                        0, 1, &descriptorSet0, 0, nullptr);
 
-				_currentMaterialUboIndex = -1;
+				_currentMaterialName = "";
 			}
 
 			if (currentPipelineType != PipelineType::NoLight)
 			{
 				// gets the object material and bind the descriptor set if different from the current material
 				auto matName = obj->Mesh->getMaterialName();
-				uint32_t matUboIndex = -1;
-				if (!matName.empty())
-					matUboIndex = _materials.at(matName).uboIndex;
+				const Material& material = matName.empty() ? *_defaultMaterial : *_materials.at(matName);
 
-				if (matUboIndex != _currentMaterialUboIndex)
+				if (material.name != _currentMaterialName)
 				{
-					_currentMaterialUboIndex = matUboIndex;
-					uint32_t dynamicOffset = _currentMaterialUboIndex * _materialUboAlignment;
-					VkDescriptorSet descriptorSet = _materials.at(matName).descriptorSet;
+					_currentMaterialName = matName;
+					uint32_t dynamicOffset = material.uboIndex * _materialUboAlignment;
+					VkDescriptorSet descriptorSet = material.descriptorSet;
 					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 1, 1, &descriptorSet, 1, &dynamicOffset);
 				}
 			}
@@ -874,11 +872,11 @@ namespace m1
 
 		// Init a material ubo array
 		std::vector<MaterialUbo> materialUbos;
-		materialUbos.emplace_back(_defaultMaterial);
+		materialUbos.emplace_back(*_defaultMaterial);
 
 		for (const auto& material: _materials | std::views::values)
 		{
-			materialUbos.emplace_back(material);
+			materialUbos.emplace_back(*material);
 		}
 
 		// Create the material dynamic ubo buffers, one for each frame in flight
@@ -901,31 +899,31 @@ namespace m1
 		auto descriptorSets = _descriptor->allocateMaterialDescriptorSets(materialCount);
 
 		// set materials properties and update descriptorSet
-		_defaultMaterial.uboIndex = 0;
-		_defaultMaterial.diffuseMap = _whiteTexture;
-		_defaultMaterial.descriptorSet = descriptorSets[0];
-		updateMaterialDescriptorSets(_defaultMaterial);
+		_defaultMaterial->uboIndex = 0;
+		_defaultMaterial->diffuseMap = _whiteTexture;
+		_defaultMaterial->descriptorSet = descriptorSets[0];
+		updateMaterialDescriptorSets(*_defaultMaterial);
 
 		uint32_t index = 1; // index 0 is for the default material
 		for (auto& material: _materials | std::views::values)
 		{
 			// set ubo index
-			material.uboIndex = index;
+			material->uboIndex = index;
 
 			// load texture
-			if (!material.diffuseTexturePath.empty())
-				material.diffuseMap = loadTexture(material.diffuseTexturePath);
+			if (!material->diffuseTexturePath.empty())
+				material->diffuseMap = loadTexture(material->diffuseTexturePath);
 			else
-				material.diffuseMap = _whiteTexture;
+				material->diffuseMap = _whiteTexture;
 
-			if (!material.specularTexturePath.empty())
-				material.specularMap = loadTexture(material.specularTexturePath);
+			if (!material->specularTexturePath.empty())
+				material->specularMap = loadTexture(material->specularTexturePath);
 			else
-				material.specularMap = _whiteTexture;
+				material->specularMap = _whiteTexture;
 
 			// update the material descriptor set
-			material.descriptorSet = descriptorSets[index++];
-			updateMaterialDescriptorSets(material);
+			material->descriptorSet = descriptorSets[index++];
+			updateMaterialDescriptorSets(*material);
 		}
 	}
 
