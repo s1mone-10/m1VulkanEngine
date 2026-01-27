@@ -13,9 +13,8 @@ namespace m1
 {
 	Descriptor::Descriptor(const Device& device) : _device(device)
     {
-		createDescriptorSetLayout();
+		createFrameDescriptorSetLayout();
         createDescriptorPool();
-        createDescriptorSets();
     }
 
     Descriptor::~Descriptor()
@@ -28,7 +27,7 @@ namespace m1
         Log::Get().Info("Descriptor destroyed");
     }
 
-    void Descriptor::createDescriptorSetLayout()
+    void Descriptor::createFrameDescriptorSetLayout()
     {
 	    // Blueprint for the pipeline to know which resources are going to be accessed by the shaders
 
@@ -163,9 +162,9 @@ namespace m1
 	    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         poolSizes[0].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT * 3); // *3 => frame, object and lights UBO
 		poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-		poolSizes[1].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT); // materials ubo
+		poolSizes[1].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT); // materials dyn ubo (each buffer contains all materials data)
         poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[2].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT);
+        poolSizes[2].descriptorCount = static_cast<uint32_t>(1000); // sampler, one for each material
 		poolSizes[3].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 		poolSizes[3].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT) * 2; // *2 => prev and current frame SSBO
 
@@ -174,208 +173,50 @@ namespace m1
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT * 2);
+        poolInfo.maxSets = static_cast<uint32_t>(1000);
 
         if (vkCreateDescriptorPool(_device.getVkDevice(), &poolInfo, nullptr, &_descriptorPool) != VK_SUCCESS)
             throw std::runtime_error("failed to create descriptor pool!");
     }
 
-    void Descriptor::createDescriptorSets()
-    {
-        // DescriptorSet Info
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = _descriptorPool;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT);
-        std::vector<VkDescriptorSetLayout> layouts(Engine::FRAMES_IN_FLIGHT, _descriptorSetLayout);
-        allocInfo.pSetLayouts = layouts.data();
+	std::vector<VkDescriptorSet> Descriptor::allocateFrameDescriptorSets(uint32_t count) const
+	{
+		// DescriptorSet Info
+		VkDescriptorSetAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = _descriptorPool;
+		allocInfo.descriptorSetCount = count;
+		std::vector<VkDescriptorSetLayout> layouts(count, _descriptorSetLayout);
+		allocInfo.pSetLayouts = layouts.data();
 
-        // create DescriptorSets
-		_descriptorSets.assign(Engine::FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
-        if (vkAllocateDescriptorSets(_device.getVkDevice(), &allocInfo, _descriptorSets.data()) != VK_SUCCESS)
-            throw std::runtime_error("failed to allocate descriptor sets!");
+		// create DescriptorSets
+		auto descriptorSets = std::vector<VkDescriptorSet>(count);
+		if (vkAllocateDescriptorSets(_device.getVkDevice(), &allocInfo, descriptorSets.data()) != VK_SUCCESS)
+			throw std::runtime_error("failed to allocate descriptor sets!");
+
+		return descriptorSets;
+	}
+
+	std::vector<VkDescriptorSet> Descriptor::allocateMaterialDescriptorSets(uint32_t count) const
+	{
+		// TODO I should probably use a pool with VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT for materials
 
 		// Material Allocate Info
-		std::vector<VkDescriptorSetLayout> materialLayouts(Engine::FRAMES_IN_FLIGHT, _materialDescriptorSetLayout);
+		std::vector<VkDescriptorSetLayout> materialLayouts(count, _materialDescriptorSetLayout);
 		VkDescriptorSetAllocateInfo materialAllocInfo
 		{
 			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
 			.descriptorPool = _descriptorPool,
-			.descriptorSetCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT),
+			.descriptorSetCount = (count),
 			.pSetLayouts = materialLayouts.data()
 		};
 
 		// create material descriptor sets
-		_materialDescriptorSets.assign(Engine::FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
-		if (vkAllocateDescriptorSets(_device.getVkDevice(), &materialAllocInfo, _materialDescriptorSets.data()) != VK_SUCCESS)
-			throw std::runtime_error("failed to allocate descriptor sets!");
-    }
+		auto descriptorSets = std::vector<VkDescriptorSet>(count);
+		auto vk_allocate_descriptor_sets = vkAllocateDescriptorSets(_device.getVkDevice(), &materialAllocInfo, descriptorSets.data());
+		if (vk_allocate_descriptor_sets != VK_SUCCESS)
+			throw std::runtime_error("failed to allocate material descriptor sets!");
 
-    void Descriptor::updateDescriptorSets(const std::vector<std::unique_ptr<Buffer>> &objectUboBuffers,
-                                          const std::vector<std::unique_ptr<Buffer>> &frameUboBuffers,
-                                          const Buffer &lightsUbo,
-                                          const std::vector<std::unique_ptr<Buffer>> &particlesSsboBuffers)
-    {
-	    // LightUbo Info
-	    VkDescriptorBufferInfo lightUboInfo
-		{
-		    .buffer = lightsUbo.getVkBuffer(),
-		    .offset = 0,
-		    .range = sizeof(LightsUbo)
-	    };
-
-	    // populate each DescriptorSet
-	    for (size_t i = 0; i < Engine::FRAMES_IN_FLIGHT; i++)
-	    {
-		    // ObjectUbo Info
-		    VkDescriptorBufferInfo objectUboInfo
-	    	{
-			    .buffer = objectUboBuffers[i]->getVkBuffer(),
-			    .offset = 0,
-			    .range = sizeof(ObjectUbo)
-		    };
-
-		    // FrameUbo Info
-		    VkDescriptorBufferInfo frameUboInfo
-	    	{
-			    .buffer = frameUboBuffers[i]->getVkBuffer(),
-			    .offset = 0,
-			    .range = sizeof(FrameUbo)
-		    };
-
-		    // ObjectUbo Descriptor Write
-		    VkWriteDescriptorSet objectUboWrite
-	    	{
-			    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			    .dstSet = _descriptorSets[i],
-			    .dstBinding = 0,
-			    .dstArrayElement = 0,
-	    		.descriptorCount = 1,
-			    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			    .pBufferInfo = &objectUboInfo
-		    };
-
-		    // FrameUbo Descriptor Write
-		    VkWriteDescriptorSet frameUboWrite
-	    	{
-			    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			    .dstSet = _descriptorSets[i],
-			    .dstBinding = 1,
-			    .dstArrayElement = 0,
-	    		.descriptorCount = 1,
-			    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			    .pBufferInfo = &frameUboInfo
-		    };
-
-		    // Lights Ubo Descriptor Write
-		    VkWriteDescriptorSet lightsDescriptorWrite
-	    	{
-			    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			    .dstSet = _descriptorSets[i],
-			    .dstBinding = 2,
-			    .dstArrayElement = 0,
-	    		.descriptorCount = 1,
-			    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			    .pBufferInfo = &lightUboInfo
-		    };
-
-	    	// Particles Ssbo previous frame
-	    	VkDescriptorBufferInfo particlesSsboInfoPrevFrame{};
-	    	particlesSsboInfoPrevFrame.buffer = particlesSsboBuffers[(i - 1) % Engine::FRAMES_IN_FLIGHT]->getVkBuffer();
-	    	particlesSsboInfoPrevFrame.offset = 0;
-	    	particlesSsboInfoPrevFrame.range = sizeof(Particle) * Engine::PARTICLES_COUNT;
-
-	    	VkWriteDescriptorSet particlesDescriptorWritePrevFrame
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = _descriptorSets[i],
-				.dstBinding = 3,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				.pBufferInfo = &particlesSsboInfoPrevFrame
-			};
-
-	    	// Particles Ssbo current frame
-	    	VkDescriptorBufferInfo particlesSsboInfoCurrentFrame{};
-	    	particlesSsboInfoCurrentFrame.buffer = particlesSsboBuffers[i]->getVkBuffer();
-	    	particlesSsboInfoCurrentFrame.offset = 0;
-	    	particlesSsboInfoCurrentFrame.range = sizeof(Particle) * Engine::PARTICLES_COUNT;
-
-	    	VkWriteDescriptorSet particlesDescriptorWriteCurrentFrame
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = _descriptorSets[i],
-				.dstBinding = 4,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				.pBufferInfo = &particlesSsboInfoCurrentFrame
-			};
-
-		    std::array descriptorWrites =
-		    {
-			    objectUboWrite, frameUboWrite, lightsDescriptorWrite, particlesDescriptorWritePrevFrame, particlesDescriptorWriteCurrentFrame
-		    };
-
-		    vkUpdateDescriptorSets(_device.getVkDevice(), descriptorWrites.size(),
-		                           descriptorWrites.data(), 0, nullptr);
-	    }
-    }
-
-	void Descriptor::updateMaterialDescriptorSets(const std::vector<std::unique_ptr<Buffer> > &materialDynUboBuffers,
-													const Texture &texture,	VkDeviceSize materialUboAlignment)
-    {
-	    // populate each DescriptorSet
-	    for (size_t i = 0; i < Engine::FRAMES_IN_FLIGHT; i++)
-	    {
-		    // MaterialUbo Info
-	    	VkDescriptorBufferInfo materialDynUboInfo
-			{
-				.buffer = materialDynUboBuffers[i]->getVkBuffer(),
-				.offset = 0,
-				.range = materialUboAlignment
-			};
-
-	    	// Material Descriptor Write
-	    	VkWriteDescriptorSet materialDynUboWrite
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = _materialDescriptorSets[i],
-				.dstBinding = 0,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-				.pBufferInfo = &materialDynUboInfo
-			};
-
-		    // Texture Image Info
-		    VkDescriptorImageInfo imageInfo
-	    	{
-		    	.sampler = texture.getSampler(),
-		    	.imageView = texture.getImage().getVkImageView(),
-			    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-		    };
-
-		    // Texture Descriptor Write
-		    VkWriteDescriptorSet textureDescriptorWrite
-	    	{
-			    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			    .dstSet = _materialDescriptorSets[i],
-			    .dstBinding = 1,
-			    .dstArrayElement = 0,
-	    		.descriptorCount = 1,
-			    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			    .pImageInfo = &imageInfo
-		    };
-
-		    std::array descriptorWrites =
-		    {
-			    materialDynUboWrite, textureDescriptorWrite
-		    };
-
-		    vkUpdateDescriptorSets(_device.getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()),
-		                           descriptorWrites.data(), 0, nullptr);
-	    }
+		return descriptorSets;
     }
 }

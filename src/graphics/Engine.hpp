@@ -10,7 +10,9 @@
 #include "Texture.hpp"
 #include "geometry/Material.hpp"
 #include "Camera.hpp"
+#include "FrameResources.hpp"
 
+// std
 #include <memory>
 #include <vector>
 #include <string>
@@ -37,7 +39,7 @@ namespace m1
 
         void run();
         void addSceneObject(std::unique_ptr<SceneObject> obj);
-    	void addMaterial(std::unique_ptr<Material> material);
+    	void addMaterial(Material material);
     	void compile();
     	const EngineConfig& getConfig() const { return _engineConfig; }
 
@@ -53,14 +55,19 @@ namespace m1
         void recordComputeCommands(VkCommandBuffer commandBuffer);
         void recreateSwapChain();
     	void createPipelines();
-		void createUniformBuffers();
+		void createFrameResources();
         void initParticles();
         void initLights();
+        void updateFrameDescriptorSet();
+        void updateMaterialDescriptorSets(const Material &material);
     	void compileSceneObjects();
     	void compileMaterials();
         
         void copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height);
-        void createTextureImage();
+
+    	void createDefaultTexture();
+        std::unique_ptr<Texture> loadTexture(const std::string &filePath);
+        std::unique_ptr<Texture> createTexture(uint32_t width, uint32_t height, void *data);
 
         void processInput(float delta);
 
@@ -70,8 +77,6 @@ namespace m1
 
         const uint32_t  WIDTH = 800;
         const uint32_t  HEIGHT = 600;
-
-        const std::string TEXTURE_PATH = "../resources/viking_room.png";
 
     	EngineConfig _engineConfig{};
 
@@ -85,23 +90,21 @@ namespace m1
         std::vector<VkCommandBuffer> _drawSceneCmdBuffers;
         std::vector<VkCommandBuffer> _computeCmdBuffers;
 
-        std::unique_ptr<Texture> _texture;
+    	std::vector<std::unique_ptr<FrameResources>> _framesResources;
 
-		std::vector<std::unique_ptr<Buffer>> _frameUboBuffers;
-    	std::vector<FrameUbo> _frameUbos;
-    	std::vector<std::unique_ptr<Buffer>> _objectUboBuffers;
-    	std::vector<ObjectUbo> _objectUbos;
+    	// static lights -> just one buffer. If lights change at each frame, move them in the FrameResources
     	std::unique_ptr<Buffer> _lightsUboBuffer;
+
 		std::unique_ptr<Descriptor> _descriptor;
-    	std::vector<std::unique_ptr<Buffer>> _materialDynUboBuffers;
-    	std::vector<MaterialUbo> _materialUbos;
     	VkDeviceSize _materialUboAlignment = -1;
 
     	std::vector<std::unique_ptr<Buffer>> _particleSSboBuffers;
 		
         std::vector<std::unique_ptr<SceneObject>> _sceneObjects{};
-        std::unordered_map<std::string, std::unique_ptr<Material>> _materials{};
-    	uint64_t _currentMaterialUboIndex = -1;
+    	std::unordered_map<std::string, Material> _materials{};
+    	Material _defaultMaterial = Material("Default");
+    	std::shared_ptr<Texture> _whiteTexture;
+    	uint32_t _currentMaterialUboIndex = -1;
         uint32_t _currentFrame = 0;
 
 		// Synchronization objects (semaphores for GPU-GPU sync, fences for CPU-GPU sync)

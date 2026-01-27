@@ -18,6 +18,7 @@
 #include <vector>
 #include <chrono>
 #include <random>
+#include <ranges>
 
 namespace m1
 {
@@ -30,11 +31,13 @@ namespace m1
 		createPipelines();
         _drawSceneCmdBuffers = _device.getGraphicsQueue().getPersistentCommandPool().createCommandBuffers(FRAMES_IN_FLIGHT);
         _computeCmdBuffers = _device.getComputeQueue().getPersistentCommandPool().createCommandBuffers(FRAMES_IN_FLIGHT);
-		createTextureImage();
-		createUniformBuffers();
+
+		_materialUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialUbo));
+		createFrameResources();
+		createDefaultTexture();
 		initLights();
 		initParticles();
-		_descriptor->updateDescriptorSets(_objectUboBuffers, _frameUboBuffers, *_lightsUboBuffer, _particleSSboBuffers);
+		updateFrameDescriptorSet();
 
 		createSyncObjects();
 	}
@@ -73,9 +76,9 @@ namespace m1
 		_sceneObjects.push_back(std::move(obj));
 	}
 
-	void Engine::addMaterial(std::unique_ptr<Material> material)
+	void Engine::addMaterial(Material material)
 	{
-		_materials.try_emplace(material->getName(), std::move(material));
+		_materials.try_emplace(material.name, material);
 	}
 
 	void Engine::compile()
@@ -256,20 +259,21 @@ namespace m1
 
 	void Engine::updateFrameUbo()
 	{
-		auto &framUbo = _frameUbos[_currentFrame];
-		framUbo.view = camera.getViewMatrix();
-		framUbo.proj = camera.getProjectionMatrix();
-		framUbo.camPos = camera.getPosition();
+		auto frameUbo = _framesResources[_currentFrame]->frameUbo;
+		frameUbo.view = camera.getViewMatrix();
+		frameUbo.proj = camera.getProjectionMatrix();
+		frameUbo.camPos = camera.getPosition();
 
-		_frameUboBuffers[_currentFrame]->copyDataToBuffer(&framUbo);
+		_framesResources[_currentFrame]->frameUboBuffer->copyDataToBuffer(&frameUbo);
 	}
 
 	void Engine::updateObjectUbo(const SceneObject &sceneObject)
 	{
-		_objectUbos[_currentFrame].model = sceneObject.Transform;
-		_objectUbos[_currentFrame].normalMatrix = glm::transpose(glm::inverse(sceneObject.Transform));
+		auto objectUbo = _framesResources[_currentFrame]->objectUbo;
+		objectUbo.model = sceneObject.Transform;
+		objectUbo.normalMatrix = glm::transpose(glm::inverse(sceneObject.Transform));
 
-		_objectUboBuffers[_currentFrame]->copyDataToBuffer(&_objectUbos[_currentFrame]);
+		_framesResources[_currentFrame]->objectUboBuffer->copyDataToBuffer(&objectUbo);
 	}
 
 	void Engine::createSyncObjects()
@@ -317,13 +321,20 @@ namespace m1
 	void Engine::drawObjectsLoop(VkCommandBuffer commandBuffer)
 	{
 		auto currentPipelineType = DEFAULT_PIPELINE;
-		// bind pipeline
+
+		// bind default pipeline
 		Pipeline* currentPipeline = _graphicsPipelines.at(currentPipelineType).get();
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getVkPipeline());
 
-		// bind descriptor set
-		VkDescriptorSet descriptorSet0 = _descriptor->getDescriptorSet(_currentFrame);
+		// bind frame descriptor set
+		VkDescriptorSet descriptorSet0 = _framesResources[_currentFrame]->descriptorSet;
     	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 0, 1, &descriptorSet0, 0, nullptr);
+
+		// bind default material descriptor set
+		VkDescriptorSet descriptorSetMat = _defaultMaterial.descriptorSet;
+		uint32_t dynOff = 0;
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 1, 1, &descriptorSetMat, 1, &dynOff);
+		_currentMaterialUboIndex = 0;
 
 		for (auto &obj: _sceneObjects)
 		{
@@ -342,9 +353,28 @@ namespace m1
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getVkPipeline());
 
 				// bind descriptor set
-				descriptorSet0 = _descriptor->getDescriptorSet(_currentFrame);
+				descriptorSet0 = _framesResources[_currentFrame]->descriptorSet;
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(),
 				                        0, 1, &descriptorSet0, 0, nullptr);
+
+				_currentMaterialUboIndex = -1;
+			}
+
+			if (currentPipelineType != PipelineType::NoLight)
+			{
+				// gets the object material and bind the descriptor set if different from the current material
+				auto matName = obj->Mesh->getMaterialName();
+				uint32_t matUboIndex = -1;
+				if (!matName.empty())
+					matUboIndex = _materials.at(matName).uboIndex;
+
+				if (matUboIndex != _currentMaterialUboIndex)
+				{
+					_currentMaterialUboIndex = matUboIndex;
+					uint32_t dynamicOffset = _currentMaterialUboIndex * _materialUboAlignment;
+					VkDescriptorSet descriptorSet = _materials.at(matName).descriptorSet;
+					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 1, 1, &descriptorSet, 1, &dynamicOffset);
+				}
 			}
 
 			// push constants
@@ -353,15 +383,7 @@ namespace m1
 				.model = obj->Transform,
 				.normalMatrix = glm::transpose(glm::inverse(obj->Transform))
 			};
-    		vkCmdPushConstants(commandBuffer, currentPipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantData), &push);
-
-			if (currentPipelineType != PipelineType::NoLight && obj->MaterialUboIndex >= 0 && obj->MaterialUboIndex != _currentMaterialUboIndex)
-			{
-				_currentMaterialUboIndex = obj->MaterialUboIndex;
-				uint32_t dynamicOffset = _currentMaterialUboIndex * _materialUboAlignment;
-				VkDescriptorSet descriptorSet = _descriptor->getMaterialDescriptorSet(_currentFrame);
-    			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 1, 1, &descriptorSet, 1, &dynamicOffset);
-			}
+			vkCmdPushConstants(commandBuffer, currentPipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantData), &push);
 
 			obj->Mesh->draw(commandBuffer);
 		}
@@ -372,7 +394,7 @@ namespace m1
 		Pipeline *particlePipeline = _graphicsPipelines.at(PipelineType::Particles).get();
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, particlePipeline->getVkPipeline());
 
-		VkDescriptorSet descriptorSet = _descriptor->getDescriptorSet(_currentFrame);
+		VkDescriptorSet descriptorSet = _framesResources[_currentFrame]->descriptorSet;
 	    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, particlePipeline->getLayout(), 0, 1, &descriptorSet, 0, nullptr);
 
 		VkBuffer vertexBuffers[] = {_particleSSboBuffers[_currentFrame]->getVkBuffer()};
@@ -454,7 +476,7 @@ namespace m1
 			throw std::runtime_error("failed to begin recording command buffer!");
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline->getVkPipeline());
-		VkDescriptorSet descriptorSet = _descriptor->getDescriptorSet(_currentFrame);
+		VkDescriptorSet descriptorSet = _framesResources[_currentFrame]->descriptorSet;
     	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline->getLayout(), 0, 1, &descriptorSet, 0, 0);
 
 		// groupsCount = PARTICLE_COUNT / 256 because we defined in the particle shader 256 invocations for each group
@@ -505,7 +527,7 @@ namespace m1
 		// NoLight
 		std::array noLightSetLayouts =
 		{
-			_descriptor->getDescriptorSetLayout(), // set 0
+			_descriptor->getFrameDescriptorSetLayout(), // set 0
 		};
 
 		GraphicsPipelineConfig noLightPipelineInfo
@@ -524,7 +546,7 @@ namespace m1
 		// PhongLighting
 		std::array phongSetLayouts =
 		{
-			_descriptor->getDescriptorSetLayout(), // set 0
+			_descriptor->getFrameDescriptorSetLayout(), // set 0
 			_descriptor->getMaterialDescriptorSetLayout(), // set 1
 		};
 
@@ -542,7 +564,7 @@ namespace m1
     	_graphicsPipelines.emplace(PipelineType::PhongLighting, PipelineFactory::createGraphicsPipeline(_device, phongPipelineInfo));
 
 		// Particles
-		std::array particlesSetLayouts = {_descriptor->getDescriptorSetLayout()};
+		std::array particlesSetLayouts = {_descriptor->getFrameDescriptorSetLayout()};
 		GraphicsPipelineConfig particlesPipelineInfo
 		{
 			.swapChain = *_swapChain,
@@ -560,18 +582,16 @@ namespace m1
 		_computePipeline = PipelineFactory::createComputePipeline(_device, *_descriptor);
 	}
 
-	void Engine::createUniformBuffers()
+	void Engine::createFrameResources()
 	{
-		Log::Get().Info("Creating uniform buffers");
+		Log::Get().Info("Creating frame resources");
 
-		// init arrays
+		// one FrameResource for each FRAMES_IN_FLIGHT to don't share resources between frames
+		_framesResources.resize(FRAMES_IN_FLIGHT);
 		VkDeviceSize frameUboSize = sizeof(FrameUbo);
-		_frameUboBuffers.resize(FRAMES_IN_FLIGHT);
-		_frameUbos.resize(FRAMES_IN_FLIGHT);
-
 		VkDeviceSize objectUboSize = sizeof(ObjectUbo);
-		_objectUboBuffers.resize(FRAMES_IN_FLIGHT);
-		_objectUbos.resize(FRAMES_IN_FLIGHT);
+
+		auto descriptorSets = _descriptor->allocateFrameDescriptorSets(FRAMES_IN_FLIGHT);
 
 		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 		{
@@ -579,14 +599,18 @@ namespace m1
 			// persistent mapping because we need to update it every frame
 
 			// create frame ubo
-            _frameUboBuffers[i] = std::make_unique<Buffer>(_device, frameUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-			_frameUboBuffers[i]->mapMemory(); // persistent mapping
-			_frameUbos[i] = {};
+            auto frameUboBuffer = std::make_unique<Buffer>(_device, frameUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			frameUboBuffer->mapMemory(); // persistent mapping
+			FrameUbo frameUbo = {};
 
 			// create object ubo
-        	_objectUboBuffers[i] = std::make_unique<Buffer>(_device, objectUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-			_objectUboBuffers[i]->mapMemory(); // persistent mapping
-			_objectUbos[i] = {};
+        	auto objectUboBuffer = std::make_unique<Buffer>(_device, objectUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			objectUboBuffer->mapMemory(); // persistent mapping
+			ObjectUbo objectUbo = {};
+
+			// create the frame resources
+			_framesResources[i] = std::make_unique<FrameResources> (frameUbo, std::move(frameUboBuffer), objectUbo,
+				std::move(objectUboBuffer), descriptorSets[i]);
 		}
 	}
 
@@ -660,51 +684,249 @@ namespace m1
 		Utils::uploadToDeviceBuffer(_device, *_lightsUboBuffer, lightsUboSize, &lightsUbo);
 	}
 
+	void Engine::updateFrameDescriptorSet()
+    {
+	    // LightUbo Info
+	    VkDescriptorBufferInfo lightUboInfo
+		{
+		    .buffer = _lightsUboBuffer->getVkBuffer(),
+		    .offset = 0,
+		    .range = sizeof(LightsUbo)
+	    };
+
+	    // populate each DescriptorSet
+	    for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
+	    {
+	    	auto& frameResources = _framesResources[i];
+	    	auto frameDescriptorSet = frameResources->descriptorSet;
+
+		    // ObjectUbo Info
+		    VkDescriptorBufferInfo objectUboInfo
+	    	{
+			    .buffer = frameResources->objectUboBuffer->getVkBuffer(),
+			    .offset = 0,
+			    .range = sizeof(ObjectUbo)
+		    };
+
+		    // FrameUbo Info
+		    VkDescriptorBufferInfo frameUboInfo
+	    	{
+			    .buffer = frameResources->frameUboBuffer->getVkBuffer(),
+			    .offset = 0,
+			    .range = sizeof(FrameUbo)
+		    };
+
+		    // ObjectUbo Descriptor Write
+		    VkWriteDescriptorSet objectUboWrite
+	    	{
+			    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			    .dstSet = frameDescriptorSet,
+			    .dstBinding = 0,
+			    .dstArrayElement = 0,
+	    		.descriptorCount = 1,
+			    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			    .pBufferInfo = &objectUboInfo
+		    };
+
+		    // FrameUbo Descriptor Write
+		    VkWriteDescriptorSet frameUboWrite
+	    	{
+			    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			    .dstSet = frameDescriptorSet,
+			    .dstBinding = 1,
+			    .dstArrayElement = 0,
+	    		.descriptorCount = 1,
+			    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			    .pBufferInfo = &frameUboInfo
+		    };
+
+		    // Lights Ubo Descriptor Write
+		    VkWriteDescriptorSet lightsDescriptorWrite
+	    	{
+			    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			    .dstSet = frameDescriptorSet,
+			    .dstBinding = 2,
+			    .dstArrayElement = 0,
+	    		.descriptorCount = 1,
+			    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			    .pBufferInfo = &lightUboInfo
+		    };
+
+	    	// Particles Ssbo previous frame
+	    	VkDescriptorBufferInfo particlesSsboInfoPrevFrame{};
+	    	particlesSsboInfoPrevFrame.buffer = _particleSSboBuffers[(i - 1) % FRAMES_IN_FLIGHT]->getVkBuffer();
+	    	particlesSsboInfoPrevFrame.offset = 0;
+	    	particlesSsboInfoPrevFrame.range = sizeof(Particle) * PARTICLES_COUNT;
+
+	    	VkWriteDescriptorSet particlesDescriptorWritePrevFrame
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = frameDescriptorSet,
+				.dstBinding = 3,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				.pBufferInfo = &particlesSsboInfoPrevFrame
+			};
+
+	    	// Particles Ssbo current frame
+	    	VkDescriptorBufferInfo particlesSsboInfoCurrentFrame{};
+	    	particlesSsboInfoCurrentFrame.buffer = _particleSSboBuffers[i]->getVkBuffer();
+	    	particlesSsboInfoCurrentFrame.offset = 0;
+	    	particlesSsboInfoCurrentFrame.range = sizeof(Particle) * Engine::PARTICLES_COUNT;
+
+	    	VkWriteDescriptorSet particlesDescriptorWriteCurrentFrame
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = frameDescriptorSet,
+				.dstBinding = 4,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				.pBufferInfo = &particlesSsboInfoCurrentFrame
+			};
+
+		    std::array descriptorWrites =
+		    {
+			    objectUboWrite, frameUboWrite, lightsDescriptorWrite, particlesDescriptorWritePrevFrame, particlesDescriptorWriteCurrentFrame
+		    };
+
+		    vkUpdateDescriptorSets(_device.getVkDevice(), descriptorWrites.size(),
+		                           descriptorWrites.data(), 0, nullptr);
+	    }
+    }
+
+	void Engine::updateMaterialDescriptorSets(const Material& material)
+	{
+		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
+		{
+			auto& frameResources = _framesResources[i];
+
+			// MaterialUbo Info
+			VkDescriptorBufferInfo materialDynUboInfo
+			{
+				.buffer = frameResources->materialDynUboBuffer->getVkBuffer(),
+				.offset = 0,
+				.range = _materialUboAlignment
+			};
+
+			// Material Descriptor Write
+			VkWriteDescriptorSet materialDynUboWrite
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = material.descriptorSet,
+				.dstBinding = 0,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+				.pBufferInfo = &materialDynUboInfo
+			};
+
+			// Texture Image Info
+			VkDescriptorImageInfo imageInfo
+			{
+				.sampler = material.diffuseMap->getSampler(),
+				.imageView = material.diffuseMap->getImage().getVkImageView(),
+				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+			};
+
+			// Texture Descriptor Write
+			VkWriteDescriptorSet textureDescriptorWrite
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = material.descriptorSet,
+				.dstBinding = 1,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &imageInfo
+			};
+
+			std::array descriptorWrites =
+			{
+				materialDynUboWrite, textureDescriptorWrite
+			};
+
+			vkUpdateDescriptorSets(_device.getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()),
+								   descriptorWrites.data(), 0, nullptr);
+		}
+	}
+
 	void Engine::compileSceneObjects()
 	{
 		for (auto &obj: _sceneObjects)
 		{
-			auto matName = obj->Mesh->getMaterialName();
-			if (!matName.empty())
-			{
-				auto materialIt = _materials.find(matName);
-				if (materialIt == _materials.end())
-					throw std::runtime_error("Material '" + matName + "' not found");
-
-				obj->MaterialUboIndex = materialIt->second->getUboIndex();
-			}
-
 			obj->Mesh->compile(_device);
 		}
 	}
 
 	void Engine::compileMaterials()
 	{
-		if (_materials.empty())
-			return;
+		/*
+			- create a MaterialUbo for each Material, write them to a dynamic ubo buffer and store the UboIndex in the material
+				(one dynUboBuffer for each frame in flight)
+			- allocate and update a descriptorSet for each Material
+				(they use the same dynamic ubo buffer but textures are different for each material)
+				(descriptorSet are shared between frame in flight because only read operations)
+		*/
 
-		_materialUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialUbo));
-		size_t bufferSize = _materials.size() * _materialUboAlignment;
+		size_t materialCount = _materials.size() + 1; // +1 is default material
 
-		for (const auto &kv: _materials)
+		// Init a material ubo array
+		std::vector<MaterialUbo> materialUbos;
+		materialUbos.emplace_back(_defaultMaterial);
+
+		for (const auto& material: _materials | std::views::values)
 		{
-			_materialUbos.emplace_back(*kv.second);
-			kv.second->setUboIndex(_materialUbos.size() - 1);
+			materialUbos.emplace_back(material);
 		}
 
-		_materialDynUboBuffers.resize(FRAMES_IN_FLIGHT);
+		// Create the material dynamic ubo buffers, one for each frame in flight
+		size_t materialUboSize = materialCount * _materialUboAlignment;
 		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 		{
-			// create buffer
-		    _materialDynUboBuffers[i] = std::make_unique<Buffer>(_device, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			// create material dyn buffer
+			auto materialDynUboBuffer = std::make_unique<Buffer>(_device, materialUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-			// copy materialUbos data to buffer
-			_materialDynUboBuffers[i]->mapMemory();
-			_materialDynUboBuffers[i]->copyDataToBuffer(_materialUbos.data());
-			_materialDynUboBuffers[i]->unmapMemory();
+			// copy material ubos array to the dynamic buffer
+			materialDynUboBuffer->mapMemory();
+			materialDynUboBuffer->copyDataToBuffer(materialUbos.data());
+			materialDynUboBuffer->unmapMemory();
+
+			// assign the buffer to the frame resource
+			_framesResources[i]->materialDynUboBuffer = std::move(materialDynUboBuffer);
 		}
 
-		_descriptor->updateMaterialDescriptorSets(_materialDynUboBuffers, *_texture, _materialUboAlignment);
+		// allocate one descriptor set for each material
+		auto descriptorSets = _descriptor->allocateMaterialDescriptorSets(materialCount);
+
+		// set materials properties and update descriptorSet
+		_defaultMaterial.uboIndex = 0;
+		_defaultMaterial.diffuseMap = _whiteTexture;
+		_defaultMaterial.descriptorSet = descriptorSets[0];
+		updateMaterialDescriptorSets(_defaultMaterial);
+
+		uint32_t index = 1; // index 0 is for the default material
+		for (auto& material: _materials | std::views::values)
+		{
+			// set ubo index
+			material.uboIndex = index;
+
+			// load texture
+			if (!material.diffuseTexturePath.empty())
+				material.diffuseMap = loadTexture(material.diffuseTexturePath);
+			else
+				material.diffuseMap = _whiteTexture;
+
+			if (!material.specularTexturePath.empty())
+				material.specularMap = loadTexture(material.specularTexturePath);
+			else
+				material.specularMap = _whiteTexture;
+
+			// update the material descriptor set
+			material.descriptorSet = descriptorSets[index++];
+			updateMaterialDescriptorSets(material);
+		}
 	}
 
 	void Engine::copyBufferToImage(const Buffer &srcBuffer, VkImage image, uint32_t width, uint32_t height)
@@ -736,43 +958,58 @@ namespace m1
 		_device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
 	}
 
-	void Engine::createTextureImage()
+	void Engine::createDefaultTexture()
 	{
-		/*
-		- Load image from file
-		- Create a staging buffer and copy the image data to it
-		- Create the VkImage object
-		- Copy data from the staging buffer to the VkImage
-		*/
+		uint8_t whitePixel[4] = { 255, 255, 255, 255 };
 
+		_whiteTexture = createTexture(1, 1, &whitePixel);
+	}
+
+	std::unique_ptr<Texture> Engine::loadTexture(const std::string& filePath)
+	{
 		// load texture data. Return a pointer to the array of RGBA values
 		int texWidth, texHeight, texChannels;
-		stbi_uc *pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-		VkDeviceSize imageSize = texWidth * texHeight * 4; // 4 bytes per pixel (RGBA)
+		stbi_uc *pixels = stbi_load(filePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
 		if (!pixels)
 		{
 			throw std::runtime_error("failed to load texture image!");
 		}
 
-		// Create a staging buffer to upload the texture data to GPU
-        Buffer stagingBuffer{ _device, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
-
-		// Copy texture data to the staging buffer
-		stagingBuffer.copyDataToBuffer(pixels);
+		// create the texture
+		auto texture = createTexture(static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), pixels);
 
 		// Free texture data
 		stbi_image_free(pixels);
 
-		_texture = std::make_unique<Texture>(_device, texWidth, texHeight);
+		return texture;
+	}
 
-		Image &textImage = _texture->getImage();
+	std::unique_ptr<Texture> Engine::createTexture(uint32_t width, uint32_t height, void* data)
+	{
+		/*
+		- Create a staging buffer and copy the image data to it
+		- Create the VkImage object
+		- Copy data from the staging buffer to the VkImage
+		*/
+
+		VkDeviceSize imageSize = width * height * 4; // 4 bytes per pixel (RGBA)
+
+		// Create a staging buffer to upload the texture data to GPU
+        Buffer stagingBuffer{ _device, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
+
+		// Copy texture data to the staging buffer
+		stagingBuffer.copyDataToBuffer(data);
+
+		auto texture = std::make_unique<Texture>(_device, width, height);
+
+		Image& textImage = texture->getImage();
 
 		// Transition image layout to be optimal for receiving data
         transitionImageLayout(textImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
 		// Copy the texture data from the staging buffer to the image
-        copyBufferToImage(stagingBuffer, textImage.getVkImage(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+        copyBufferToImage(stagingBuffer, textImage.getVkImage(), width, height);
 
 		//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
 		// Transition image layout to be optimal for shader access
@@ -780,6 +1017,8 @@ namespace m1
 
 		// Generate mipmaps (also transitions the image to be optimal for shader access)
 		generateMipmaps(textImage);
+
+		return texture;
 	}
 
 	void Engine::processInput(float delta)

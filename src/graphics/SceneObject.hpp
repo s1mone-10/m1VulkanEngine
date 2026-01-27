@@ -26,7 +26,6 @@ namespace m1
 		uint64_t Id;
 		glm::mat4 Transform{ 1.0f };
 		std::unique_ptr<Mesh> Mesh = nullptr;
-		int32_t MaterialUboIndex = -1;
 		// Optional: which pipeline to use when drawing this object
 		std::optional<PipelineType> PipelineKey = std::nullopt;
 

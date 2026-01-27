@@ -16,11 +16,9 @@ namespace m1
         Texture(const Device& device, uint32_t width, uint32_t height);
         ~Texture();
 
-        // Non-copyable, non-movable
+        // Non-copyable
         Texture(const Texture&) = delete;
         Texture& operator=(const Texture&) = delete;
-        Texture(Texture&&) = delete;
-        Texture& operator=(Texture&&) = delete;
 
         Image& getImage() const { return *_image; }
         VkSampler getSampler() const { return _sampler; }

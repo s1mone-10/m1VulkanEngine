@@ -1,6 +1,5 @@
 #pragma once
 
-#include <geometry/Vertex.hpp>
 #include <geometry/Material.hpp>
 
 // libs
@@ -40,14 +39,13 @@ namespace m1
 
 	struct MaterialUbo
 	{
-	public:
 		MaterialUbo(const Material& material)
 		{
-			diffuseColor = material.getDiffuseColor();
-			specularColor = material.getSpecularColor();
-			ambientColor = material.getAmbientColor();
-			shininess = material.getShininess();
-			opacity = material.getOpacity();
+			diffuseColor = material.diffuseColor;
+			specularColor = material.specularColor;
+			ambientColor = material.ambientColor;
+			shininess = material.shininess;
+			opacity = material.opacity;
 		}
 
 		float shininess;
@@ -63,11 +61,9 @@ namespace m1
 		Buffer(const Device& device, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
 		~Buffer();
 
-		// Non-copyable, non-movable
+		// Non-copyable
 		Buffer(const Buffer&) = delete;
 		Buffer& operator=(const Buffer&) = delete;
-		Buffer(Buffer&&) = delete;
-		Buffer& operator=(Buffer&&) = delete;
 
 		VkBuffer getVkBuffer() const { return _vkBuffer; }
 		void mapMemory();

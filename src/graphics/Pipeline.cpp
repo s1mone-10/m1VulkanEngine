@@ -263,7 +263,7 @@ namespace m1
     	shaderStageInfo.module = compShaderModule;
     	shaderStageInfo.pName = "main";
 
-    	VkDescriptorSetLayout computeDescriptorSetLayout = descriptor.getDescriptorSetLayout();
+    	VkDescriptorSetLayout computeDescriptorSetLayout = descriptor.getFrameDescriptorSetLayout();
     	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     	pipelineLayoutInfo.setLayoutCount = 1;
