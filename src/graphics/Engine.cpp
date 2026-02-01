@@ -244,7 +244,7 @@ namespace m1
 		// recreate the swap chain if needed
 		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || _window.FramebufferResized)
 		{
-			Log::Get().Warning("Swap chain suboptimal, out of date, or window resized. Recreating.");
+			Log::Get().Trace("Swap chain suboptimal, out of date, or window resized. Recreating.");
 			recreateSwapChain();
         }
         else if (result != VK_SUCCESS)
@@ -503,8 +503,7 @@ namespace m1
 
 		if (_swapChain != nullptr)
 		{
-			std::unique_ptr<SwapChain> oldSwapChain = std::move(_swapChain);
-			config.oldSwapChain = oldSwapChain->getVkSwapChain();
+			config.oldSwapChain = _swapChain->getVkSwapChain();
 
 			/*if (!oldSwapChain->compareSwapFormats(*lveSwapChain.getVkSwapChain()))
 			{
