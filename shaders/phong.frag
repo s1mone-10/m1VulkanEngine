@@ -1,8 +1,9 @@
 #version 450
 
 struct Light {
-    vec4 posDir; // w=0 directional, w=1 point
-    vec4 color;    // rgb = color, a = intensity
+    vec4 posDir;        // w=0 directional, w=1 point
+    vec4 color;         // rgb = color, a = intensity
+    vec4 attenuation;   // x = constant, y = linear, z = quadratic
 };
 
 struct LightComponents {
@@ -97,6 +98,13 @@ LightComponents calculateLight(Light light, vec3 fragNormal, vec3 diffuseColor, 
 
     // multiply color for intensity
     vec3 lightColor = light.color.rgb * light.color.a;
+
+    // compute attenuation for point lights (1 / (constant + linear*distance + quadratic*distance^2))
+    if (light.posDir.w == 1.0) {
+        float dist = length(light.posDir.xyz - fragPosWorld);
+        float attenuation = 1.0 / (light.attenuation.x + light.attenuation.y * dist + light.attenuation.z * dist * dist);
+        lightColor *= attenuation;
+    }
 
     // diffuse strength of the light by taking dot product between frag normal and light direction
     // (max function because if the angle > 90 degrees the value will be negative)

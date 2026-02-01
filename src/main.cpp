@@ -166,6 +166,7 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
     auto sceneObj = m1::SceneObject::createSceneObject();
 	auto mesh = m1::Mesh::createCube();
 	mesh->setMaterialName("container");
+	//mesh->setMaterialName("shiny");
     sceneObj->setMesh(std::move(mesh));
     engine.addSceneObject(std::move(sceneObj));
 
@@ -173,25 +174,58 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
     sceneObj = m1::SceneObject::createSceneObject();
 	mesh = m1::Mesh::createCube(glm::vec3(1.0f, 1.0f, 1.0f));
     sceneObj->setMesh(std::move(mesh));
-    auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(1.2f, 1.2f, 2.2f));
+    auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(5.2f, 5.2f, 6.2f));
     transform = glm::scale(transform, glm::vec3(.1f));
     sceneObj->setTransform(transform);
 	sceneObj->PipelineKey = m1::PipelineType::NoLight;
     engine.addSceneObject(std::move(sceneObj));
 
-	for (uint32_t i = 0; i < numCubes; i++)
+	bool random = false;
+	if (random)
 	{
-		for (uint32_t j = 0; j < numCubes; j++)
+		glm::vec3 cubePositions[] = {
+			glm::vec3( 0.0f,  0.0f,  0.0f),
+			glm::vec3( 2.0f,  5.0f, -15.0f),
+			glm::vec3(-1.5f, -2.2f, -2.5f),
+			glm::vec3(-3.8f, -2.0f, -12.3f),
+			glm::vec3( 2.4f, -0.4f, -3.5f),
+			glm::vec3(-1.7f,  3.0f, -7.5f),
+			glm::vec3( 1.3f, -2.0f, -2.5f),
+			glm::vec3( 1.5f,  2.0f, -2.5f),
+			glm::vec3( 1.5f,  0.2f, -1.5f),
+			glm::vec3(-1.3f,  1.0f, -1.5f)
+		};
+
+		for(unsigned int i = 0; i < 10; i++)
 		{
-			for (uint32_t k = 0; k < numCubes; k++)
+			sceneObj = m1::SceneObject::createSceneObject();
+			mesh = m1::Mesh::createCube();
+			mesh->setMaterialName("container");
+			sceneObj->setMesh(std::move(mesh));
+
+			transform = glm::translate(glm::mat4(1.0f), cubePositions[i]);
+			float angle = 20.0f * i;
+			transform = glm::rotate(transform, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
+			sceneObj->setTransform(transform);
+			engine.addSceneObject(std::move(sceneObj));
+		}
+	}
+	else
+	{
+		for (uint32_t i = 0; i < numCubes; i++)
+		{
+			for (uint32_t j = 0; j < numCubes; j++)
 			{
-				sceneObj = m1::SceneObject::createSceneObject();
-				mesh = m1::Mesh::createCube();
-				//mesh->setMaterialName("container");
-				sceneObj->setMesh(std::move(mesh));
-				transform = glm::translate(glm::mat4(1.0f), glm::vec3(i* 2, j * 2, k * 2));
-				sceneObj->setTransform(transform);
-				engine.addSceneObject(std::move(sceneObj));
+				for (uint32_t k = 0; k < numCubes; k++)
+				{
+					sceneObj = m1::SceneObject::createSceneObject();
+					mesh = m1::Mesh::createCube();
+					mesh->setMaterialName("container");
+					sceneObj->setMesh(std::move(mesh));
+					transform = glm::translate(glm::mat4(1.0f), glm::vec3(i* 2, j * 2, k * 2));
+					sceneObj->setTransform(transform);
+					engine.addSceneObject(std::move(sceneObj));
+				}
 			}
 		}
 	}

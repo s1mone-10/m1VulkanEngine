@@ -13,8 +13,9 @@ namespace m1
 
 	struct Light
 	{
-		glm::vec4 posDir;  // w=0 directional, w=1 point
-		glm::vec4 color;   // rgb = color, a = intensity
+		glm::vec4 posDir;		// w=0 directional, w=1 point
+		glm::vec4 color;		// rgb = color, a = intensity
+		glm::vec4 attenuation;	// x = constant, y = linear, z = quadratic
 	};
 
 	struct LightsUbo

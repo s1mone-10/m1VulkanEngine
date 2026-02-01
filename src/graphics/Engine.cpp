@@ -667,11 +667,12 @@ namespace m1
 
 		// Directional light (like sunlight)
 		lightsUbo.lights[1].posDir = glm::vec4(-0.5f, 1.0f, -0.3f, 0.0f); // w=0 => dir light
-		lightsUbo.lights[1].color = glm::vec4(1.0f, 1.0f, 1.0f, 0.5f);
+		lightsUbo.lights[1].color = glm::vec4(1.0f, 1.0f, 1.0f, 0.2f);
 
 		// Point light
-		lightsUbo.lights[0].posDir = glm::vec4(1.2f, 1.2f, 2.2f, 1.0f); // w=1 => point light
+		lightsUbo.lights[0].posDir = glm::vec4(5.2f, 5.2f, 6.2f, 1.0f); // w=1 => point light
 		lightsUbo.lights[0].color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+		lightsUbo.lights[0].attenuation = glm::vec4(1.0f, 0.09f, 0.032f, 0.0f);
 
 		// Create the lights ubo with device local memory for better performance
 		VkDeviceSize lightsUboSize = sizeof(LightsUbo);
