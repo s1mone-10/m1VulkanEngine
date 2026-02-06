@@ -8,7 +8,7 @@
 #include "Pipeline.hpp"
 #include "Buffer.hpp"
 #include "Texture.hpp"
-#include "geometry/Material.hpp"
+#include "Material.hpp"
 #include "Camera.hpp"
 #include "FrameResources.hpp"
 

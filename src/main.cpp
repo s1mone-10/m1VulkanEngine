@@ -3,7 +3,7 @@
 #include "graphics/SceneObject.hpp"
 #include "geometry/Vertex.hpp"
 #include "geometry/Mesh.hpp"
-#include "geometry/Material.hpp"
+#include "graphics/Material.hpp"
 
 //libs
 #define GLFW_INCLUDE_VULKAN

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <geometry/Material.hpp>
+#include <graphics/Material.hpp>
 
 // libs
 #include <vulkan/vulkan.h>
