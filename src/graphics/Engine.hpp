@@ -4,7 +4,7 @@
 #include "Instance.hpp"
 #include "Device.hpp"
 #include "SwapChain.hpp"
-#include "Descriptor.hpp"
+#include "DescriptorSetManager.hpp"
 #include "Pipeline.hpp"
 #include "Buffer.hpp"
 #include "Texture.hpp"
@@ -94,7 +94,7 @@ namespace m1
     	// static lights -> just one buffer. If lights change at each frame, move them in the FrameResources
     	std::unique_ptr<Buffer> _lightsUboBuffer;
 
-		std::unique_ptr<Descriptor> _descriptor;
+		std::unique_ptr<DescriptorSetManager> _descriptorSetManager;
     	VkDeviceSize _materialUboAlignment = -1;
     	
         std::vector<std::unique_ptr<SceneObject>> _sceneObjects{};

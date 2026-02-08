@@ -27,7 +27,7 @@ namespace m1
 		Log::Get().Info("Engine constructor");
 
 		recreateSwapChain();
-		_descriptor = std::make_unique<Descriptor>(_device);
+		_descriptorSetManager = std::make_unique<DescriptorSetManager>(_device);
 		createPipelines();
 
 		_materialUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialUbo));
@@ -505,7 +505,7 @@ namespace m1
 		// NoLight
 		std::array noLightSetLayouts =
 		{
-			_descriptor->getFrameDescriptorSetLayout(), // set 0
+			_descriptorSetManager->getFrameDescriptorSetLayout(), // set 0
 		};
 
 		GraphicsPipelineConfig noLightPipelineInfo
@@ -524,8 +524,8 @@ namespace m1
 		// PhongLighting
 		std::array phongSetLayouts =
 		{
-			_descriptor->getFrameDescriptorSetLayout(), // set 0
-			_descriptor->getMaterialDescriptorSetLayout(), // set 1
+			_descriptorSetManager->getFrameDescriptorSetLayout(), // set 0
+			_descriptorSetManager->getMaterialDescriptorSetLayout(), // set 1
 		};
 
 		GraphicsPipelineConfig phongPipelineInfo
@@ -542,7 +542,7 @@ namespace m1
     	_graphicsPipelines.emplace(PipelineType::PhongLighting, PipelineFactory::createGraphicsPipeline(_device, phongPipelineInfo));
 
 		// Particles
-		std::array particlesSetLayouts = {_descriptor->getFrameDescriptorSetLayout()};
+		std::array particlesSetLayouts = {_descriptorSetManager->getFrameDescriptorSetLayout()};
 		GraphicsPipelineConfig particlesPipelineInfo
 		{
 			.swapChain = *_swapChain,
@@ -557,7 +557,7 @@ namespace m1
     	_graphicsPipelines.emplace(PipelineType::Particles, PipelineFactory::createGraphicsPipeline(_device, particlesPipelineInfo));
 
 		// Compute
-		_computePipeline = PipelineFactory::createComputePipeline(_device, *_descriptor);
+		_computePipeline = PipelineFactory::createComputePipeline(_device, _descriptorSetManager->getFrameDescriptorSetLayout());
 	}
 
 	void Engine::createFramesResources()
@@ -579,7 +579,7 @@ namespace m1
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
 		// allocate descriptor sets and command buffers
-		auto descriptorSets = _descriptor->allocateFrameDescriptorSets(FRAMES_IN_FLIGHT);
+		auto descriptorSets = _descriptorSetManager->allocateFrameDescriptorSets(FRAMES_IN_FLIGHT);
 		auto drawSceneCmdBuffers = _device.getGraphicsQueue().getPersistentCommandPool().allocateCommandBuffers(FRAMES_IN_FLIGHT);
 		auto computeCmdBuffers = _device.getComputeQueue().getPersistentCommandPool().allocateCommandBuffers(FRAMES_IN_FLIGHT);
 
@@ -920,7 +920,7 @@ namespace m1
 		}
 
 		// allocate one descriptor set for each material
-		auto descriptorSets = _descriptor->allocateMaterialDescriptorSets(materialCount);
+		auto descriptorSets = _descriptorSetManager->allocateMaterialDescriptorSets(materialCount);
 
 		// set materials properties and update descriptorSet
 		_defaultMaterial->uboIndex = 0;

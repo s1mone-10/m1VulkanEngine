@@ -10,17 +10,17 @@ namespace m1
 	class Buffer;
 	class Texture;
 
-	class Descriptor
+	class DescriptorSetManager
 	{
 	public:
-		Descriptor(const Device& device);
-		~Descriptor();
+		DescriptorSetManager(const Device& device);
+		~DescriptorSetManager();
 
 		// Non-copyable, non-movable
-		Descriptor(const Descriptor&) = delete;
-		Descriptor& operator=(const Descriptor&) = delete;
-		Descriptor(Descriptor&&) = delete;
-		Descriptor& operator=(Descriptor&&) = delete;
+		DescriptorSetManager(const DescriptorSetManager&) = delete;
+		DescriptorSetManager& operator=(const DescriptorSetManager&) = delete;
+		DescriptorSetManager(DescriptorSetManager&&) = delete;
+		DescriptorSetManager& operator=(DescriptorSetManager&&) = delete;
 
 		std::vector<VkDescriptorSet> allocateFrameDescriptorSets(uint32_t count) const;
 		std::vector<VkDescriptorSet> allocateMaterialDescriptorSets(uint32_t count) const;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Descriptor.hpp"
+#include "DescriptorSetManager.hpp"
 
 //libs
 #include <vulkan/vulkan.h>
@@ -85,7 +85,7 @@ namespace m1
 	{
 	public:
 		static std::unique_ptr<Pipeline> createGraphicsPipeline(const Device& device, const GraphicsPipelineConfig& config);
-		static std::unique_ptr<Pipeline> createComputePipeline(const Device& device, const Descriptor& descriptor);
+		static std::unique_ptr<Pipeline> createComputePipeline(const Device &device, const VkDescriptorSetLayout &descriptorSetLayout);
 
 	private:
 		static std::vector<char> readFile(const std::string& filename);

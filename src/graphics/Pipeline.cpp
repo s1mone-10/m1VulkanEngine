@@ -1,7 +1,7 @@
 #include "Pipeline.hpp"
 #include "Device.hpp"
 #include "SwapChain.hpp"
-#include "Descriptor.hpp"
+#include "DescriptorSetManager.hpp"
 #include "geometry/Vertex.hpp"
 #include "log/Log.hpp"
 #include <stdexcept>
@@ -252,7 +252,7 @@ namespace m1
     	return std::make_unique<Pipeline>(device, graphicsPipeline, pipelineLayout);
     }
 
-	std::unique_ptr<Pipeline> PipelineFactory::createComputePipeline(const Device& device, const Descriptor &descriptor)
+	std::unique_ptr<Pipeline> PipelineFactory::createComputePipeline(const Device& device, const VkDescriptorSetLayout& descriptorSetLayout)
 	{
     	std::vector<char> compShaderCode = readFile(R"(..\shaders\compiled\particle.comp.spv)");
     	VkShaderModule compShaderModule = createShaderModule(device, compShaderCode);
@@ -263,11 +263,10 @@ namespace m1
     	shaderStageInfo.module = compShaderModule;
     	shaderStageInfo.pName = "main";
 
-    	VkDescriptorSetLayout computeDescriptorSetLayout = descriptor.getFrameDescriptorSetLayout();
     	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     	pipelineLayoutInfo.setLayoutCount = 1;
-    	pipelineLayoutInfo.pSetLayouts = &computeDescriptorSetLayout;
+    	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
 
     	VkPipelineLayout pipelineLayout;
     	if (vkCreatePipelineLayout(device.getVkDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {

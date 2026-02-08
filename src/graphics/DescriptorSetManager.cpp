@@ -1,4 +1,4 @@
-#include "Descriptor.hpp"
+#include "DescriptorSetManager.hpp"
 #include "Device.hpp"
 #include "Engine.hpp"
 #include "Buffer.hpp"
@@ -11,13 +11,13 @@
 
 namespace m1
 {
-	Descriptor::Descriptor(const Device& device) : _device(device)
+	DescriptorSetManager::DescriptorSetManager(const Device& device) : _device(device)
     {
 		createFrameDescriptorSetLayout();
         createDescriptorPool();
     }
 
-    Descriptor::~Descriptor()
+    DescriptorSetManager::~DescriptorSetManager()
     {
         // descriptor set are automatically freed when the pool is destroyed
         vkDestroyDescriptorPool(_device.getVkDevice(), _descriptorPool, nullptr);
@@ -27,7 +27,7 @@ namespace m1
         Log::Get().Info("Descriptor destroyed");
     }
 
-    void Descriptor::createFrameDescriptorSetLayout()
+    void DescriptorSetManager::createFrameDescriptorSetLayout()
     {
 	    // Blueprint for the pipeline to know which resources are going to be accessed by the shaders
 
@@ -111,7 +111,7 @@ namespace m1
 		createMaterialDescriptorSetLayout();
     }
 
-	void Descriptor::createMaterialDescriptorSetLayout()
+	void DescriptorSetManager::createMaterialDescriptorSetLayout()
     {
 	    // Blueprint for the pipeline to know which resources are going to be accessed by the shaders
 
@@ -165,7 +165,7 @@ namespace m1
 		    throw std::runtime_error("failed to create descriptor set layout!");
     }
 
-    void Descriptor::createDescriptorPool()
+    void DescriptorSetManager::createDescriptorPool()
     {
 	    // Pool sizes
 	    std::array<VkDescriptorPoolSize, 4> poolSizes{};
@@ -189,7 +189,7 @@ namespace m1
             throw std::runtime_error("failed to create descriptor pool!");
     }
 
-	std::vector<VkDescriptorSet> Descriptor::allocateFrameDescriptorSets(uint32_t count) const
+	std::vector<VkDescriptorSet> DescriptorSetManager::allocateFrameDescriptorSets(uint32_t count) const
 	{
 		// DescriptorSet Info
 		VkDescriptorSetAllocateInfo allocInfo{};
@@ -207,7 +207,7 @@ namespace m1
 		return descriptorSets;
 	}
 
-	std::vector<VkDescriptorSet> Descriptor::allocateMaterialDescriptorSets(uint32_t count) const
+	std::vector<VkDescriptorSet> DescriptorSetManager::allocateMaterialDescriptorSets(uint32_t count) const
 	{
 		// TODO I should probably use a pool with VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT for materials
 
