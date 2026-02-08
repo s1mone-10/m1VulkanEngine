@@ -10,7 +10,7 @@
 #include "Texture.hpp"
 #include "Material.hpp"
 #include "Camera.hpp"
-#include "FrameResources.hpp"
+#include "FrameData.hpp"
 
 // std
 #include <memory>
@@ -56,7 +56,7 @@ namespace m1
         void recordComputeCommands(VkCommandBuffer commandBuffer);
         void recreateSwapChain();
     	void createPipelines();
-		void createFrameResources();
+		void createFramesResources();
         void initParticles();
         void initLights();
         void updateFrameDescriptorSet();
@@ -88,19 +88,15 @@ namespace m1
         std::unique_ptr<SwapChain> _swapChain;
     	std::unordered_map<PipelineType, std::unique_ptr<Pipeline>> _graphicsPipelines;
         std::unique_ptr<Pipeline> _computePipeline;
-        std::vector<VkCommandBuffer> _drawSceneCmdBuffers;
-        std::vector<VkCommandBuffer> _computeCmdBuffers;
 
-    	std::vector<std::unique_ptr<FrameResources>> _framesResources;
+    	std::vector<std::unique_ptr<FrameData>> _framesData;
 
     	// static lights -> just one buffer. If lights change at each frame, move them in the FrameResources
     	std::unique_ptr<Buffer> _lightsUboBuffer;
 
 		std::unique_ptr<Descriptor> _descriptor;
     	VkDeviceSize _materialUboAlignment = -1;
-
-    	std::vector<std::unique_ptr<Buffer>> _particleSSboBuffers;
-		
+    	
         std::vector<std::unique_ptr<SceneObject>> _sceneObjects{};
     	std::unordered_map<std::string, std::unique_ptr<Material>> _materials{};
     	std::unique_ptr<Material> _defaultMaterial = std::make_unique<Material>(DEFAULT_MATERIAL_NAME);
@@ -111,9 +107,6 @@ namespace m1
 		// Synchronization objects (semaphores for GPU-GPU sync, fences for CPU-GPU sync)
         std::vector<VkSemaphore> _imageAvailableSems;
         std::vector<VkSemaphore> _drawCmdExecutedSems;
-        std::vector<VkFence> _frameFences;
         VkSemaphore _acquireSemaphore; // only used during acquiring of an image, then swapped into _imageAvailableSems
-    	std::vector<VkSemaphore> _computeCmdExecutedSems;
-    	std::vector<VkFence> _computeFences;
     };
 }

@@ -29,11 +29,9 @@ namespace m1
 		recreateSwapChain();
 		_descriptor = std::make_unique<Descriptor>(_device);
 		createPipelines();
-        _drawSceneCmdBuffers = _device.getGraphicsQueue().getPersistentCommandPool().createCommandBuffers(FRAMES_IN_FLIGHT);
-        _computeCmdBuffers = _device.getComputeQueue().getPersistentCommandPool().createCommandBuffers(FRAMES_IN_FLIGHT);
 
 		_materialUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialUbo));
-		createFrameResources();
+		createFramesResources();
 		createDefaultTexture();
 		initLights();
 		initParticles();
@@ -58,9 +56,9 @@ namespace m1
 
 		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 		{
-			vkDestroyFence(_device.getVkDevice(), _frameFences[i], nullptr);
-			vkDestroyFence(_device.getVkDevice(), _computeFences[i], nullptr);
-			vkDestroySemaphore(_device.getVkDevice(), _computeCmdExecutedSems[i], nullptr);
+			vkDestroyFence(_device.getVkDevice(), _framesData[i]->drawCmdExecutedFence, nullptr);
+			vkDestroyFence(_device.getVkDevice(), _framesData[i]->computeCmdExecutedFence, nullptr);
+			vkDestroySemaphore(_device.getVkDevice(), _framesData[i]->computeCmdExecutedSem, nullptr);
 		}
 
 		Log::Get().Info("Engine destroyed");
@@ -135,28 +133,30 @@ namespace m1
 			- Present the swap chain image (waiting on the command buffer to finish)
 		*/
 
+		FrameData& frameData = *_framesData[_currentFrame];
+
 		// record and submit compute commands
 		{
 			// wait for the previous computation to finish
-			vkWaitForFences(_device.getVkDevice(), 1, &_computeFences[_currentFrame], VK_TRUE, UINT64_MAX);
-			vkResetFences(_device.getVkDevice(), 1, &_computeFences[_currentFrame]);
+			vkWaitForFences(_device.getVkDevice(), 1, &frameData.computeCmdExecutedFence, VK_TRUE, UINT64_MAX);
+			vkResetFences(_device.getVkDevice(), 1, &frameData.computeCmdExecutedFence);
 
 			// record compute commands
-			vkResetCommandBuffer(_computeCmdBuffers[_currentFrame], 0);
-			recordComputeCommands(_computeCmdBuffers[_currentFrame]);
+			vkResetCommandBuffer(frameData.computeCmdBuffer, 0);
+			recordComputeCommands(frameData.computeCmdBuffer);
 
 			VkSubmitInfo computeSubmitInfo
 			{
 				.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 				// command buffers
 				.commandBufferCount = 1,
-				.pCommandBuffers = &_computeCmdBuffers[_currentFrame],
+				.pCommandBuffers = &frameData.computeCmdBuffer,
 				// signal semaphore
 				.signalSemaphoreCount = 1,
-				.pSignalSemaphores = &_computeCmdExecutedSems[_currentFrame],
+				.pSignalSemaphores = &frameData.computeCmdExecutedSem,
 			};
 
-	    	if (vkQueueSubmit(_device.getComputeQueue().getVkQueue(), 1, &computeSubmitInfo, _computeFences[_currentFrame]) != VK_SUCCESS)
+	    	if (vkQueueSubmit(_device.getComputeQueue().getVkQueue(), 1, &computeSubmitInfo, frameData.computeCmdExecutedFence) != VK_SUCCESS)
 				throw std::runtime_error("failed to submit compute command buffer!");
 		}
 
@@ -164,7 +164,9 @@ namespace m1
 		updateFrameUbo();
 
 		// wait for the previous frame to finish (with Fence wait on the CPU)
-		vkWaitForFences(_device.getVkDevice(), 1, &_frameFences[_currentFrame], VK_TRUE, UINT64_MAX);
+		vkWaitForFences(_device.getVkDevice(), 1, &frameData.drawCmdExecutedFence, VK_TRUE, UINT64_MAX);
+		// reset the fence to unsignaled state
+		vkResetFences(_device.getVkDevice(), 1, &frameData.drawCmdExecutedFence);
 
 		// acquire an image from the swap chain (signal the semaphore when the image is ready)
 		uint32_t swapChainImageIndex;
@@ -189,16 +191,13 @@ namespace m1
 			throw std::runtime_error("failed to acquire swap chain image!");
 		}
 
-		// reset the fence to unsignaled state
-		vkResetFences(_device.getVkDevice(), 1, &_frameFences[_currentFrame]);
-
 		// record the drawing commands
-		vkResetCommandBuffer(_drawSceneCmdBuffers[_currentFrame], 0);
-		recordDrawSceneCommands(_drawSceneCmdBuffers[_currentFrame], swapChainImageIndex);
+		vkResetCommandBuffer(frameData.drawSceneCmdBuffer, 0);
+		recordDrawSceneCommands(frameData.drawSceneCmdBuffer, swapChainImageIndex);
 
 		// specify the semaphores and stages to wait on
 		// Each entry in the waitStages array corresponds to the semaphore with the same index in waitSemaphores
-		VkSemaphore waitSemaphores[] = {_computeCmdExecutedSems[_currentFrame], _imageAvailableSems[swapChainImageIndex]};
+		VkSemaphore waitSemaphores[] = {frameData.computeCmdExecutedSem, _imageAvailableSems[swapChainImageIndex]};
         VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; // in which stage(s) of the pipeline to wait
 
 		// specify which semaphores to signal once the command buffer has finished executing
@@ -214,14 +213,14 @@ namespace m1
 			.pWaitDstStageMask = waitStages,
 			// command buffers
 			.commandBufferCount = 1,
-			.pCommandBuffers = &_drawSceneCmdBuffers[_currentFrame],
+			.pCommandBuffers = &frameData.drawSceneCmdBuffer,
 			// signal semaphore
 			.signalSemaphoreCount = 1,
 			.pSignalSemaphores = cmdExecutedSignalSemaphores,
 		};
 
 		// submit the command buffer (the fence will be signaled when the command buffer finishes executing)
-        if (vkQueueSubmit(_device.getGraphicsQueue().getVkQueue(), 1, &submitInfo, _frameFences[_currentFrame]) != VK_SUCCESS)
+        if (vkQueueSubmit(_device.getGraphicsQueue().getVkQueue(), 1, &submitInfo, frameData.drawCmdExecutedFence) != VK_SUCCESS)
 		{
 			Log::Get().Error("failed to submit draw command buffer!");
 			throw std::runtime_error("failed to submit draw command buffer!");
@@ -259,21 +258,21 @@ namespace m1
 
 	void Engine::updateFrameUbo()
 	{
-		auto frameUbo = _framesResources[_currentFrame]->frameUbo;
+		auto frameUbo = _framesData[_currentFrame]->frameUbo;
 		frameUbo.view = camera.getViewMatrix();
 		frameUbo.proj = camera.getProjectionMatrix();
 		frameUbo.camPos = camera.getPosition();
 
-		_framesResources[_currentFrame]->frameUboBuffer->copyDataToBuffer(&frameUbo);
+		_framesData[_currentFrame]->frameUboBuffer->copyDataToBuffer(&frameUbo);
 	}
 
 	void Engine::updateObjectUbo(const SceneObject &sceneObject)
 	{
-		auto objectUbo = _framesResources[_currentFrame]->objectUbo;
+		auto objectUbo = _framesData[_currentFrame]->objectUbo;
 		objectUbo.model = sceneObject.Transform;
 		objectUbo.normalMatrix = glm::transpose(glm::inverse(sceneObject.Transform));
 
-		_framesResources[_currentFrame]->objectUboBuffer->copyDataToBuffer(&objectUbo);
+		_framesData[_currentFrame]->objectUboBuffer->copyDataToBuffer(&objectUbo);
 	}
 
 	void Engine::createSyncObjects()
@@ -284,16 +283,8 @@ namespace m1
 		_imageAvailableSems.assign(imageCount, VK_NULL_HANDLE);
 		_drawCmdExecutedSems.assign(imageCount, VK_NULL_HANDLE);
 
-		_frameFences.assign(FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
-		_computeCmdExecutedSems.assign(FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
-		_computeFences.assign(FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
-
 		VkSemaphoreCreateInfo semaphoreInfo{};
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-		VkFenceCreateInfo fenceInfo{};
-		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // start in signaled state, to don't block the first frame
 
 		for (size_t i = 0; i < imageCount; i++)
 		{
@@ -306,16 +297,6 @@ namespace m1
 
 		if (vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_acquireSemaphore) != VK_SUCCESS)
 			throw std::runtime_error("failed to create synchronization semaphores");
-
-		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
-		{
-			if (vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &_frameFences[i]) != VK_SUCCESS ||
-			    vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &_computeFences[i]) != VK_SUCCESS ||
-				vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_computeCmdExecutedSems[i]) != VK_SUCCESS)
-			{
-				throw std::runtime_error("failed to create synchronization fence");
-			}
-		}
 	}
 
 	void Engine::drawObjectsLoop(VkCommandBuffer commandBuffer)
@@ -327,7 +308,7 @@ namespace m1
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getVkPipeline());
 
 		// bind frame descriptor set
-		VkDescriptorSet descriptorSet0 = _framesResources[_currentFrame]->descriptorSet;
+		VkDescriptorSet descriptorSet0 = _framesData[_currentFrame]->descriptorSet;
     	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 0, 1, &descriptorSet0, 0, nullptr);
 
 		// bind default material descriptor set
@@ -353,7 +334,7 @@ namespace m1
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getVkPipeline());
 
 				// bind descriptor set
-				descriptorSet0 = _framesResources[_currentFrame]->descriptorSet;
+				descriptorSet0 = _framesData[_currentFrame]->descriptorSet;
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(),
 				                        0, 1, &descriptorSet0, 0, nullptr);
 
@@ -392,10 +373,10 @@ namespace m1
 		Pipeline *particlePipeline = _graphicsPipelines.at(PipelineType::Particles).get();
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, particlePipeline->getVkPipeline());
 
-		VkDescriptorSet descriptorSet = _framesResources[_currentFrame]->descriptorSet;
+		VkDescriptorSet descriptorSet = _framesData[_currentFrame]->descriptorSet;
 	    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, particlePipeline->getLayout(), 0, 1, &descriptorSet, 0, nullptr);
 
-		VkBuffer vertexBuffers[] = {_particleSSboBuffers[_currentFrame]->getVkBuffer()};
+		VkBuffer vertexBuffers[] = {_framesData[_currentFrame]->particleSSboBuffer->getVkBuffer()};
 		VkDeviceSize offsets[] = {0};
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 		vkCmdDraw(commandBuffer, PARTICLES_COUNT, 1, 0, 0);
@@ -474,7 +455,7 @@ namespace m1
 			throw std::runtime_error("failed to begin recording command buffer!");
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline->getVkPipeline());
-		VkDescriptorSet descriptorSet = _framesResources[_currentFrame]->descriptorSet;
+		VkDescriptorSet descriptorSet = _framesData[_currentFrame]->descriptorSet;
     	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline->getLayout(), 0, 1, &descriptorSet, 0, 0);
 
 		// groupsCount = PARTICLE_COUNT / 256 because we defined in the particle shader 256 invocations for each group
@@ -579,16 +560,28 @@ namespace m1
 		_computePipeline = PipelineFactory::createComputePipeline(_device, *_descriptor);
 	}
 
-	void Engine::createFrameResources()
+	void Engine::createFramesResources()
 	{
 		Log::Get().Info("Creating frame resources");
 
-		// one FrameResource for each FRAMES_IN_FLIGHT to don't share resources between frames
-		_framesResources.resize(FRAMES_IN_FLIGHT);
+		// one FrameData for each FRAMES_IN_FLIGHT to don't share resources between frames
+		_framesData.resize(FRAMES_IN_FLIGHT);
 		VkDeviceSize frameUboSize = sizeof(FrameUbo);
 		VkDeviceSize objectUboSize = sizeof(ObjectUbo);
 
+		// Fence create info
+		VkFenceCreateInfo fenceInfo{};
+		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // start in signaled state, to don't block the first frame
+
+		// Semaphore create info
+		VkSemaphoreCreateInfo semaphoreInfo{};
+		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+		// allocate descriptor sets and command buffers
 		auto descriptorSets = _descriptor->allocateFrameDescriptorSets(FRAMES_IN_FLIGHT);
+		auto drawSceneCmdBuffers = _device.getGraphicsQueue().getPersistentCommandPool().allocateCommandBuffers(FRAMES_IN_FLIGHT);
+		auto computeCmdBuffers = _device.getComputeQueue().getPersistentCommandPool().allocateCommandBuffers(FRAMES_IN_FLIGHT);
 
 		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 		{
@@ -596,18 +589,32 @@ namespace m1
 			// persistent mapping because we need to update it every frame
 
 			// create frame ubo
-            auto frameUboBuffer = std::make_unique<Buffer>(_device, frameUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			auto frameUboBuffer = std::make_unique<Buffer>(_device, frameUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 			frameUboBuffer->mapMemory(); // persistent mapping
 			FrameUbo frameUbo = {};
 
 			// create object ubo
-        	auto objectUboBuffer = std::make_unique<Buffer>(_device, objectUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			auto objectUboBuffer = std::make_unique<Buffer>(_device, objectUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 			objectUboBuffer->mapMemory(); // persistent mapping
 			ObjectUbo objectUbo = {};
 
-			// create the frame resources
-			_framesResources[i] = std::make_unique<FrameResources> (frameUbo, std::move(frameUboBuffer), objectUbo,
-				std::move(objectUboBuffer), descriptorSets[i]);
+			// create synchronization objects
+			VkFence drawFence, computeFence, computeCmdExecutedFence;
+			VkSemaphore computeSem;
+			if (vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &drawFence) != VK_SUCCESS ||
+				vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &computeFence) != VK_SUCCESS ||
+				vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &computeSem) != VK_SUCCESS)
+			{
+				throw std::runtime_error("failed to create synchronization fence");
+			}
+
+			// create the frame data
+			_framesData[i] = std::make_unique<FrameData> (frameUbo, std::move(frameUboBuffer), objectUbo,
+				std::move(objectUboBuffer), descriptorSets[i], drawFence, drawSceneCmdBuffers[i]);
+
+			_framesData[i]->computeCmdExecutedFence = computeFence;
+			_framesData[i]->computeCmdExecutedSem = computeSem;
+			_framesData[i]->computeCmdBuffer = computeCmdBuffers[i];
 		}
 	}
 
@@ -640,18 +647,15 @@ namespace m1
 		// Copy data to the staging buffer
 		stagingBuffer.copyDataToBuffer(particles.data());
 
-		// init array of SSBO buffers
-		_particleSSboBuffers.resize(FRAMES_IN_FLIGHT);
-
 		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 		{
 			// create the SSBO buffer
 			// VK_BUFFER_USAGE_STORAGE_BUFFER_BIT: to be read and write in the compute shader
 			// VK_BUFFER_USAGE_VERTEX_BUFFER_BIT: to be used in the vertex shader
-			_particleSSboBuffers[i] = std::make_unique<Buffer>(_device, bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT , VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			_framesData[i]->particleSSboBuffer = std::make_unique<Buffer>(_device, bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT , VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 			// Copy staging buffer to SSBO buffer
-			Utils::copyBuffer(_device, stagingBuffer, *_particleSSboBuffers[i], bufferSize);
+			Utils::copyBuffer(_device, stagingBuffer, *_framesData[i]->particleSSboBuffer, bufferSize);
 		}
 	}
 
@@ -695,7 +699,7 @@ namespace m1
 	    // populate each DescriptorSet
 	    for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 	    {
-	    	auto& frameResources = _framesResources[i];
+	    	auto& frameResources = _framesData[i];
 	    	auto frameDescriptorSet = frameResources->descriptorSet;
 
 		    // ObjectUbo Info
@@ -752,7 +756,7 @@ namespace m1
 
 	    	// Particles Ssbo previous frame
 	    	VkDescriptorBufferInfo particlesSsboInfoPrevFrame{};
-	    	particlesSsboInfoPrevFrame.buffer = _particleSSboBuffers[(i - 1) % FRAMES_IN_FLIGHT]->getVkBuffer();
+	    	particlesSsboInfoPrevFrame.buffer = _framesData[(i - 1) % FRAMES_IN_FLIGHT]->particleSSboBuffer->getVkBuffer();
 	    	particlesSsboInfoPrevFrame.offset = 0;
 	    	particlesSsboInfoPrevFrame.range = sizeof(Particle) * PARTICLES_COUNT;
 
@@ -769,9 +773,9 @@ namespace m1
 
 	    	// Particles Ssbo current frame
 	    	VkDescriptorBufferInfo particlesSsboInfoCurrentFrame{};
-	    	particlesSsboInfoCurrentFrame.buffer = _particleSSboBuffers[i]->getVkBuffer();
+	    	particlesSsboInfoCurrentFrame.buffer = _framesData[i]->particleSSboBuffer->getVkBuffer();
 	    	particlesSsboInfoCurrentFrame.offset = 0;
-	    	particlesSsboInfoCurrentFrame.range = sizeof(Particle) * Engine::PARTICLES_COUNT;
+	    	particlesSsboInfoCurrentFrame.range = sizeof(Particle) * PARTICLES_COUNT;
 
 	    	VkWriteDescriptorSet particlesDescriptorWriteCurrentFrame
 			{
@@ -798,7 +802,7 @@ namespace m1
 	{
 		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 		{
-			auto& frameResources = _framesResources[i];
+			auto& frameResources = _framesData[i];
 
 			// MaterialUbo Info
 			VkDescriptorBufferInfo materialDynUboInfo
@@ -912,7 +916,7 @@ namespace m1
 			materialDynUboBuffer->unmapMemory();
 
 			// assign the buffer to the frame resource
-			_framesResources[i]->materialDynUboBuffer = std::move(materialDynUboBuffer);
+			_framesData[i]->materialDynUboBuffer = std::move(materialDynUboBuffer);
 		}
 
 		// allocate one descriptor set for each material

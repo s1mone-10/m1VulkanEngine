@@ -37,7 +37,7 @@ namespace m1
         }
     }
 
-    std::vector<VkCommandBuffer> CommandPool::createCommandBuffers(int count) const
+    std::vector<VkCommandBuffer> CommandPool::allocateCommandBuffers(int count) const
     {
         std::vector<VkCommandBuffer> commandBuffers(count);
 

@@ -18,7 +18,7 @@ namespace m1 {
         CommandPool& operator=(CommandPool&&) = delete;
 
         VkCommandPool getVkCommandPool() const { return _commandPool; }
-        std::vector<VkCommandBuffer> createCommandBuffers(int count) const;
+        std::vector<VkCommandBuffer> allocateCommandBuffers(int count) const;
 
     private:
         void createCommandPool();
