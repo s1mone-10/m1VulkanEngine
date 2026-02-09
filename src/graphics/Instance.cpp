@@ -1,6 +1,8 @@
 #include "Instance.hpp"
 #include "Window.hpp"
 #include "log/Log.hpp"
+#include "Utils.hpp"
+
 #include <stdexcept>
 #include <vector>
 #include <cstring>
@@ -41,11 +43,7 @@ namespace m1
         createInfo.ppEnabledExtensionNames = extensions.data();
 
         // Create the Vulkan instance
-        if (vkCreateInstance(&createInfo, nullptr, &_vkInstance) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to create instance!");
-            throw std::runtime_error("failed to create instance!");
-        }
+    	VK_CHECK(vkCreateInstance(&createInfo, nullptr, &_vkInstance));
     }
 
     std::vector<const char*> Instance::getRequiredExtensions()

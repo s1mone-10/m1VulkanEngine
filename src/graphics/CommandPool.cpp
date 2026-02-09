@@ -1,5 +1,6 @@
 #include "CommandPool.hpp"
 #include "Device.hpp"
+#include "Utils.hpp"
 #include "log/Log.hpp"
 #include <stdexcept>
 #include <iostream>
@@ -30,11 +31,7 @@ namespace m1
         poolInfo.queueFamilyIndex = _queueFamilyIndex;
         poolInfo.flags = _flags;
 
-        if (vkCreateCommandPool(_device.getVkDevice(), &poolInfo, nullptr, &_commandPool) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to create command pool!");
-            throw std::runtime_error("failed to create command pool!");
-        }
+        VK_CHECK(vkCreateCommandPool(_device.getVkDevice(), &poolInfo, nullptr, &_commandPool));
     }
 
     std::vector<VkCommandBuffer> CommandPool::allocateCommandBuffers(int count) const
@@ -47,11 +44,7 @@ namespace m1
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         allocInfo.commandBufferCount = count;
 
-        if (vkAllocateCommandBuffers(_device.getVkDevice(), &allocInfo, commandBuffers.data()) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to allocate command buffers!");
-            throw std::runtime_error("failed to allocate command buffers!");
-        }
+        VK_CHECK(vkAllocateCommandBuffers(_device.getVkDevice(), &allocInfo, commandBuffers.data()));
 
         return commandBuffers;
     }

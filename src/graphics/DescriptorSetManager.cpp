@@ -2,6 +2,7 @@
 #include "Device.hpp"
 #include "Engine.hpp"
 #include "Buffer.hpp"
+#include "Utils.hpp"
 #include "../log/Log.hpp"
 #include "geometry/Particle.hpp"
 
@@ -105,8 +106,7 @@ namespace m1
 	    };
 
 	    // Create the DescriptorSet
-	    if (vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_descriptorSetLayout) !=	VK_SUCCESS)
-		    throw std::runtime_error("failed to create descriptor set layout!");
+	    VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_descriptorSetLayout));
 
 		createMaterialDescriptorSetLayout();
     }
@@ -161,8 +161,7 @@ namespace m1
 	    };
 
 	    // Create the DescriptorSet
-	    if (vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_materialDescriptorSetLayout) !=	VK_SUCCESS)
-		    throw std::runtime_error("failed to create descriptor set layout!");
+	    VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_materialDescriptorSetLayout));
     }
 
     void DescriptorSetManager::createDescriptorPool()
@@ -185,8 +184,8 @@ namespace m1
         poolInfo.pPoolSizes = poolSizes.data();
         poolInfo.maxSets = static_cast<uint32_t>(1000);
 
-        if (vkCreateDescriptorPool(_device.getVkDevice(), &poolInfo, nullptr, &_descriptorPool) != VK_SUCCESS)
-            throw std::runtime_error("failed to create descriptor pool!");
+		// Create the descriptor pool
+        VK_CHECK(vkCreateDescriptorPool(_device.getVkDevice(), &poolInfo, nullptr, &_descriptorPool));
     }
 
 	std::vector<VkDescriptorSet> DescriptorSetManager::allocateFrameDescriptorSets(uint32_t count) const
@@ -201,8 +200,7 @@ namespace m1
 
 		// create DescriptorSets
 		auto descriptorSets = std::vector<VkDescriptorSet>(count);
-		if (vkAllocateDescriptorSets(_device.getVkDevice(), &allocInfo, descriptorSets.data()) != VK_SUCCESS)
-			throw std::runtime_error("failed to allocate descriptor sets!");
+        VK_CHECK(vkAllocateDescriptorSets(_device.getVkDevice(), &allocInfo, descriptorSets.data()));
 
 		return descriptorSets;
 	}
@@ -223,9 +221,7 @@ namespace m1
 
 		// create material descriptor sets
 		auto descriptorSets = std::vector<VkDescriptorSet>(count);
-		auto vk_allocate_descriptor_sets = vkAllocateDescriptorSets(_device.getVkDevice(), &materialAllocInfo, descriptorSets.data());
-		if (vk_allocate_descriptor_sets != VK_SUCCESS)
-			throw std::runtime_error("failed to allocate material descriptor sets!");
+        VK_CHECK(vkAllocateDescriptorSets(_device.getVkDevice(), &materialAllocInfo, descriptorSets.data()));
 
 		return descriptorSets;
     }

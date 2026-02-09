@@ -156,8 +156,7 @@ namespace m1
 				.pSignalSemaphores = &frameData.computeCmdExecutedSem,
 			};
 
-	    	if (vkQueueSubmit(_device.getComputeQueue().getVkQueue(), 1, &computeSubmitInfo, frameData.computeCmdExecutedFence) != VK_SUCCESS)
-				throw std::runtime_error("failed to submit compute command buffer!");
+	    	VK_CHECK(vkQueueSubmit(_device.getComputeQueue().getVkQueue(), 1, &computeSubmitInfo, frameData.computeCmdExecutedFence));
 		}
 
 		// Update the frame uniform buffer
@@ -220,11 +219,7 @@ namespace m1
 		};
 
 		// submit the command buffer (the fence will be signaled when the command buffer finishes executing)
-        if (vkQueueSubmit(_device.getGraphicsQueue().getVkQueue(), 1, &submitInfo, frameData.drawCmdExecutedFence) != VK_SUCCESS)
-		{
-			Log::Get().Error("failed to submit draw command buffer!");
-			throw std::runtime_error("failed to submit draw command buffer!");
-		}
+        VK_CHECK(vkQueueSubmit(_device.getGraphicsQueue().getVkQueue(), 1, &submitInfo, frameData.drawCmdExecutedFence));
 
 		// present info
 		VkPresentInfoKHR presentInfo{};
@@ -288,15 +283,11 @@ namespace m1
 
 		for (size_t i = 0; i < imageCount; i++)
 		{
-            if (vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_imageAvailableSems[i]) != VK_SUCCESS ||
-                vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_drawCmdExecutedSems[i]) != VK_SUCCESS)
-			{
-				throw std::runtime_error("failed to create synchronization semaphores");
-			}
+            VK_CHECK(vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_imageAvailableSems[i]));
+            VK_CHECK(vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_drawCmdExecutedSems[i]));
 		}
 
-		if (vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_acquireSemaphore) != VK_SUCCESS)
-			throw std::runtime_error("failed to create synchronization semaphores");
+		VK_CHECK(vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_acquireSemaphore));
 	}
 
 	void Engine::drawObjectsLoop(VkCommandBuffer commandBuffer)
@@ -392,10 +383,7 @@ namespace m1
 		beginInfo.flags = 0; // Optional
 		beginInfo.pInheritanceInfo = nullptr; // Optional
 
-		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to begin recording command buffer!");
-		}
+		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
 		// begin render pass
 		VkRenderPassBeginInfo renderPassInfo{};
@@ -439,11 +427,7 @@ namespace m1
 		vkCmdEndRenderPass(commandBuffer);
 
 		// end command buffer recording
-		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
-		{
-			Log::Get().Error("failed to record command buffer!");
-			throw std::runtime_error("failed to record command buffer!");
-		}
+		VK_CHECK(vkEndCommandBuffer(commandBuffer));
 	}
 
 	void Engine::recordComputeCommands(VkCommandBuffer commandBuffer)
@@ -451,8 +435,7 @@ namespace m1
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
-			throw std::runtime_error("failed to begin recording command buffer!");
+		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline->getVkPipeline());
 		VkDescriptorSet descriptorSet = _framesData[_currentFrame]->descriptorSet;
@@ -461,10 +444,7 @@ namespace m1
 		// groupsCount = PARTICLE_COUNT / 256 because we defined in the particle shader 256 invocations for each group
 		vkCmdDispatch(commandBuffer, PARTICLES_COUNT / 256, 1, 1);
 
-		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to record command buffer!");
-		}
+		VK_CHECK(vkEndCommandBuffer(commandBuffer));
 	}
 
 	void Engine::recreateSwapChain()
@@ -599,14 +579,11 @@ namespace m1
 			ObjectUbo objectUbo = {};
 
 			// create synchronization objects
-			VkFence drawFence, computeFence, computeCmdExecutedFence;
+			VkFence drawFence, computeFence;
 			VkSemaphore computeSem;
-			if (vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &drawFence) != VK_SUCCESS ||
-				vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &computeFence) != VK_SUCCESS ||
-				vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &computeSem) != VK_SUCCESS)
-			{
-				throw std::runtime_error("failed to create synchronization fence");
-			}
+            VK_CHECK(vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &drawFence));
+            VK_CHECK(vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &computeFence));
+            VK_CHECK(vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &computeSem));
 
 			// create the frame data
 			_framesData[i] = std::make_unique<FrameData> (frameUbo, std::move(frameUboBuffer), objectUbo,

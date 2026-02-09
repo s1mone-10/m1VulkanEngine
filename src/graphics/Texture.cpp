@@ -4,6 +4,7 @@
 
 #include "Buffer.hpp"
 #include "Device.hpp"
+#include "Utils.hpp"
 #include "log/Log.hpp"
 
 namespace m1
@@ -60,10 +61,7 @@ namespace m1
         samplerInfo.maxLod = VK_LOD_CLAMP_NONE; // all available mipmap levels will be sampled
 
         // Create sampler
-        if (vkCreateSampler(_device.getVkDevice(), &samplerInfo, nullptr, &_sampler) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create texture sampler!");
-        }
+        VK_CHECK(vkCreateSampler(_device.getVkDevice(), &samplerInfo, nullptr, &_sampler));
     }
     
 } // namespace m1

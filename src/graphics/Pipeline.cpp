@@ -2,6 +2,7 @@
 #include "Device.hpp"
 #include "SwapChain.hpp"
 #include "DescriptorSetManager.hpp"
+#include "Utils.hpp"
 #include "geometry/Vertex.hpp"
 #include "log/Log.hpp"
 #include <stdexcept>
@@ -52,11 +53,7 @@ namespace m1
 
 		// create the ShaderModule
         VkShaderModule shaderModule;
-        if (vkCreateShaderModule(device.getVkDevice(), &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to create shader module!");
-            throw std::runtime_error("failed to create shader module!");
-        }
+        VK_CHECK(vkCreateShaderModule(device.getVkDevice(), &createInfo, nullptr, &shaderModule));
 
         return shaderModule;
     }
@@ -204,11 +201,7 @@ namespace m1
 
 		// crete pipeline layout
     	VkPipelineLayout pipelineLayout;
-        if (vkCreatePipelineLayout(device.getVkDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to create pipeline layout!");
-            throw std::runtime_error("failed to create pipeline layout!");
-        }
+        VK_CHECK(vkCreatePipelineLayout(device.getVkDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
         // pipeline info: all data configured above
         VkGraphicsPipelineCreateInfo pipelineInfo{
@@ -240,11 +233,7 @@ namespace m1
 
         // create the graphics pipeline
     	VkPipeline graphicsPipeline;
-        if (vkCreateGraphicsPipelines(device.getVkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to create graphics pipeline!");
-            throw std::runtime_error("failed to create graphics pipeline!");
-        }
+        VK_CHECK(vkCreateGraphicsPipelines(device.getVkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline));
 
         vkDestroyShaderModule(device.getVkDevice(), fragShaderModule, nullptr);
         vkDestroyShaderModule(device.getVkDevice(), vertShaderModule, nullptr);
@@ -269,9 +258,7 @@ namespace m1
     	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
 
     	VkPipelineLayout pipelineLayout;
-    	if (vkCreatePipelineLayout(device.getVkDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
-    		throw std::runtime_error("failed to create compute pipeline layout!");
-    	}
+        VK_CHECK(vkCreatePipelineLayout(device.getVkDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
     	VkComputePipelineCreateInfo computePipelineInfo{};
     	computePipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
@@ -279,9 +266,7 @@ namespace m1
     	computePipelineInfo.stage = shaderStageInfo;
 
     	VkPipeline computePipeline;
-    	if (vkCreateComputePipelines(device.getVkDevice(), VK_NULL_HANDLE, 1, &computePipelineInfo, nullptr, &computePipeline) != VK_SUCCESS) {
-    		throw std::runtime_error("failed to create compute pipeline!");
-    	}
+        VK_CHECK(vkCreateComputePipelines(device.getVkDevice(), VK_NULL_HANDLE, 1, &computePipelineInfo, nullptr, &computePipeline));
 
     	vkDestroyShaderModule(device.getVkDevice(), compShaderModule, nullptr);
 

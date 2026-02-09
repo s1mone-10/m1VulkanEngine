@@ -1,6 +1,7 @@
 #include "SwapChain.hpp"
 #include "Device.hpp"
 #include "Window.hpp"
+#include "Utils.hpp"
 #include "log/Log.hpp"
 
 #include <stdexcept>
@@ -94,11 +95,7 @@ namespace m1
         }
 
         // create SwapChain
-        if (vkCreateSwapchainKHR(_device.getVkDevice(), &createInfo, nullptr, &_vkSwapChain) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to create swap chain!");
-            throw std::runtime_error("failed to create swap chain!");
-        }
+        VK_CHECK(vkCreateSwapchainKHR(_device.getVkDevice(), &createInfo, nullptr, &_vkSwapChain));
     }
 
     void SwapChain::createImages()
@@ -138,11 +135,7 @@ namespace m1
             }
 
 			// create the ImageView
-            if (vkCreateImageView(_device.getVkDevice(), &viewInfo, nullptr, &_imageViews[i]) != VK_SUCCESS)
-            {
-                Log::Get().Error("failed to create image views!");
-                throw std::runtime_error("failed to create image views!");
-            }
+            VK_CHECK(vkCreateImageView(_device.getVkDevice(), &viewInfo, nullptr, &_imageViews[i]));
         }
     }
 
@@ -317,10 +310,7 @@ namespace m1
         renderPassInfo.pDependencies = &dependency;
 
         // create the render pass
-        if (vkCreateRenderPass(_device.getVkDevice(), &renderPassInfo, nullptr, &_renderPass) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create render pass!");
-        }
+        VK_CHECK(vkCreateRenderPass(_device.getVkDevice(), &renderPassInfo, nullptr, &_renderPass));
     }
 
     void SwapChain::createFramebuffers()
@@ -349,11 +339,7 @@ namespace m1
             framebufferInfo.layers = 1; // as in the swap chain
 
 			// create Framebuffer
-            if (vkCreateFramebuffer(_device.getVkDevice(), &framebufferInfo, nullptr, &_framebuffers[i]) != VK_SUCCESS)
-            {
-                Log::Get().Error("failed to create framebuffer!");
-                throw std::runtime_error("failed to create framebuffer!");
-            }
+            VK_CHECK(vkCreateFramebuffer(_device.getVkDevice(), &framebufferInfo, nullptr, &_framebuffers[i]));
         }
     }
 

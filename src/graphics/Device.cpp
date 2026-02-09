@@ -1,6 +1,7 @@
 #include "Device.hpp"
 #include "Instance.hpp"
 #include "SwapChain.hpp"
+#include "Utils.hpp"
 #include "log/Log.hpp"
 #include "Queue.hpp"
 
@@ -153,11 +154,7 @@ namespace m1
         createInfo.ppEnabledExtensionNames = _requiredExtensions.data();
 
         // Create logical device
-        if (vkCreateDevice(_physicalDevice, &createInfo, nullptr, &_vkDevice) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to create logical device!");
-            throw std::runtime_error("failed to create logical device!");
-        }
+        VK_CHECK(vkCreateDevice(_physicalDevice, &createInfo, nullptr, &_vkDevice));
     }
 
     bool Device::isDeviceSuitable(VkPhysicalDevice device)

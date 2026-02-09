@@ -1,6 +1,7 @@
 #include "Image.hpp"
 #include "Buffer.hpp"
 #include "Device.hpp"
+#include "Utils.hpp"
 #include "log/Log.hpp"
 
 #include <stdexcept>
@@ -34,7 +35,7 @@ namespace m1
     	allocInfo.flags = params.memoryProps;
 
     	// Create the Image
-    	vmaCreateImage(_device.getMemoryAllocator(), &imageInfo, &allocInfo, &_vkImage, &_allocation, nullptr);
+    	VK_CHECK(vmaCreateImage(_device.getMemoryAllocator(), &imageInfo, &allocInfo, &_vkImage, &_allocation, nullptr));
 
 		// ImageView info
         VkImageViewCreateInfo viewInfo{};
@@ -50,10 +51,7 @@ namespace m1
         viewInfo.subresourceRange.layerCount = 1;
 
 		// Create the Image View
-        if (vkCreateImageView(_device.getVkDevice(), &viewInfo, nullptr, &_imageView) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create image view!");
-        }
+        VK_CHECK(vkCreateImageView(_device.getVkDevice(), &viewInfo, nullptr, &_imageView));
     }
     
     Image::~Image()

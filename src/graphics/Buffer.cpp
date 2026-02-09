@@ -1,5 +1,6 @@
 #include "Buffer.hpp"
 #include "Device.hpp"
+#include "Utils.hpp"
 #include "log/Log.hpp"
 #include <stdexcept>
 #include <cstring>
@@ -40,6 +41,6 @@ namespace m1
 		allocInfo.flags = memoryProps;
 
 		// create the buffer
-		vmaCreateBuffer(_device.getMemoryAllocator(), &bufferInfo, &allocInfo, &_vkBuffer, &_allocation, nullptr);
+		VK_CHECK(vmaCreateBuffer(_device.getMemoryAllocator(), &bufferInfo, &allocInfo, &_vkBuffer, &_allocation, nullptr));
 	}
 }

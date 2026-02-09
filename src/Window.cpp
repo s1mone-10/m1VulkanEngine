@@ -1,8 +1,8 @@
 #include "Window.hpp"
 #include "log/Log.hpp"
+#include "graphics/Utils.hpp"
 #include <stdexcept>
 #include <iostream>
-
 
 namespace m1
 {
@@ -58,11 +58,7 @@ namespace m1
 
     void Window::createSurface(VkInstance instance, VkSurfaceKHR* surface) const
     {
-        if (glfwCreateWindowSurface(instance, _glfwWindow, nullptr, surface) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to create window surface!");
-            throw std::runtime_error("failed to create window surface!");
-        }
+    	VK_CHECK(glfwCreateWindowSurface(instance, _glfwWindow, nullptr, surface));
 	}
 
     
