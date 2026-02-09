@@ -3,7 +3,7 @@
 #include <graphics/Material.hpp>
 
 // libs
-#include <vulkan/vulkan.h>
+#include "vk_mem_alloc.h"
 
 namespace m1
 {
@@ -59,7 +59,7 @@ namespace m1
 	class Buffer
 	{
 	public:
-		Buffer(const Device& device, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
+		Buffer(const Device& device, VkDeviceSize size, VkBufferUsageFlags usage, VmaAllocationCreateFlags memoryProps = 0);
 		~Buffer();
 
 		// Non-copyable
@@ -67,17 +67,14 @@ namespace m1
 		Buffer& operator=(const Buffer&) = delete;
 
 		VkBuffer getVkBuffer() const { return _vkBuffer; }
-		void mapMemory();
-		void unmapMemory();
-		void copyDataToBuffer(void* data);
+		void copyDataToBuffer(const void* data) const;
 		VkDeviceSize getSize() const { return _size; }
 
 	private:
 		VkBuffer _vkBuffer;
-		VkDeviceMemory _deviceMemory;
-		void* _mappedMemory = nullptr;
+		VmaAllocation _allocation;
 		VkDeviceSize _size;
 		const Device& _device;
-		void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
+		void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaAllocationCreateFlags memoryProps);
 	};
 }

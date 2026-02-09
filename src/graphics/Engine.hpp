@@ -96,7 +96,7 @@ namespace m1
 
 		std::unique_ptr<DescriptorSetManager> _descriptorSetManager;
     	VkDeviceSize _materialUboAlignment = -1;
-    	
+
         std::vector<std::unique_ptr<SceneObject>> _sceneObjects{};
     	std::unordered_map<std::string, std::unique_ptr<Material>> _materials{};
     	std::unique_ptr<Material> _defaultMaterial = std::make_unique<Material>(DEFAULT_MATERIAL_NAME);

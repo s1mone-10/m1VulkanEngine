@@ -28,17 +28,13 @@ namespace m1
         imageInfo.samples = params.samples;
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // not shared between multiple queue families
 
-        // Create the Image
-        if (vkCreateImage(_device.getVkDevice(), &imageInfo, nullptr, &_vkImage) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create image!");
-        }
+    	// memory allocation info
+    	VmaAllocationCreateInfo allocInfo = {};
+    	allocInfo.usage = VMA_MEMORY_USAGE_AUTO; // best memory type selected automatically based on usage
+    	allocInfo.flags = params.memoryProps;
 
-        // Allocate and bind device memory for the image
-        VkMemoryRequirements memRequirements;
-        vkGetImageMemoryRequirements(_device.getVkDevice(), _vkImage, &memRequirements);
-        _deviceMemory = _device.allocateMemory(memRequirements, params.properties);
-        vkBindImageMemory(_device.getVkDevice(), _vkImage, _deviceMemory, 0);
+    	// Create the Image
+    	vmaCreateImage(_device.getMemoryAllocator(), &imageInfo, &allocInfo, &_vkImage, &_allocation, nullptr);
 
 		// ImageView info
         VkImageViewCreateInfo viewInfo{};
@@ -64,7 +60,6 @@ namespace m1
     {
         Log::Get().Info("Destroying image");
         vkDestroyImageView(_device.getVkDevice(), _imageView, nullptr);
-        vkDestroyImage(_device.getVkDevice(), _vkImage, nullptr);
-        vkFreeMemory(_device.getVkDevice(), _deviceMemory, nullptr);
+    	vmaDestroyImage(_device.getMemoryAllocator(), _vkImage, _allocation);
     }
 } // namespace m1

@@ -24,7 +24,7 @@ namespace m1
     void Utils::uploadToDeviceBuffer(const Device& device, const Buffer& dstBuffer, VkDeviceSize size, void* data)
     {
         // Create a staging buffer accessible to CPU to upload the data
-        Buffer stagingBuffer{ device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
+        Buffer stagingBuffer{ device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT};
 
         // Copy data to the staging buffer
         stagingBuffer.copyDataToBuffer(data);

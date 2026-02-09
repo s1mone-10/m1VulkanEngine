@@ -1,11 +1,16 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
+#include "Window.hpp"
+#include "Instance.hpp"
+
+// libs
+#include "vk_mem_alloc.h"
+
+// std
+#include <array>
 #include <optional>
 #include <vector>
 #include <memory>
-#include "Window.hpp"
-#include "Instance.hpp"
 
 namespace m1
 {
@@ -52,13 +57,14 @@ namespace m1
         const Queue& getComputeQueue() const { return *_computeQueue; }
         VkSurfaceKHR getSurface() const { return _surface; }
 		VkSampleCountFlagBits getMaxMsaaSamples() const { return _deviceProperties.maxMsaaSamples; }
-        SwapChainProperties getSwapChainProperties() const { return getSwapChainProperties(_physicalDevice); };
-        VkDeviceMemory allocateMemory(VkMemoryRequirements memRequirements, VkMemoryPropertyFlags properties) const;
+        SwapChainProperties getSwapChainProperties() const { return getSwapChainProperties(_physicalDevice); }
+    	VmaAllocator getMemoryAllocator() const { return _memAllocator; }
         VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
         bool isLinearFilteringSupported(VkFormat format, VkImageTiling tiling);
     	VkDeviceSize getUniformBufferAlignment(VkDeviceSize uboInstanceSize);
 
     private:
+    	void createMemoryAllocator();
         void createSurface(const Window& window);
         void pickPhysicalDevice();
         void createLogicalDevice();
@@ -66,8 +72,7 @@ namespace m1
         bool isDeviceSuitable(VkPhysicalDevice device);
         bool checkDeviceExtensionSupport(VkPhysicalDevice device);
         QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
-        SwapChainProperties getSwapChainProperties(const VkPhysicalDevice device) const;
-        uint32_t findMemoryTypeIndex(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
+        SwapChainProperties getSwapChainProperties(VkPhysicalDevice device) const;
 
         Instance _instance;
         VkSurfaceKHR _surface = VK_NULL_HANDLE;
@@ -79,7 +84,9 @@ namespace m1
         QueueFamilyIndices _queueFamilies;
     	DeviceProperties _deviceProperties;
 
-        const std::vector<const char*> _requiredExtensions = {
+    	VmaAllocator _memAllocator;
+
+        const std::array<const char*, 1> _requiredExtensions = {
             VK_KHR_SWAPCHAIN_EXTENSION_NAME // Not all graphics cards are capable of presenting images
         }; 
     };

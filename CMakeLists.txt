@@ -92,6 +92,7 @@ if (WIN32)
     ${STB_IMAGE_PATH}
     ${GLFW_INCLUDE_DIRS}
     ${GLM_PATH}
+    ${VK_MEM_ALLOC_PATH}
     )
 
   # Add all necessary library directories for the linker

@@ -1,6 +1,7 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
+// libs
+#include "vk_mem_alloc.h"
 
 namespace m1
 {
@@ -12,7 +13,7 @@ namespace m1
         VkFormat format;
         VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
         VkImageUsageFlags usage;
-        VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+        VmaAllocationCreateFlags memoryProps = 0;
         VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
         uint32_t mipLevels = 1;
 		VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
@@ -40,7 +41,7 @@ namespace m1
     private:
         const Device& _device;
         VkImage _vkImage = VK_NULL_HANDLE;
-        VkDeviceMemory _deviceMemory = VK_NULL_HANDLE;
+    	VmaAllocation _allocation;
         VkImageView _imageView = VK_NULL_HANDLE;
 		VkFormat _format;
         VkExtent2D _extent;

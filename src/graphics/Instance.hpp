@@ -8,6 +8,8 @@ namespace m1
     class Instance
     {
     public:
+    	static constexpr int VK_API_VERSION = VK_API_VERSION_1_3;
+
         Instance();
         ~Instance();
 

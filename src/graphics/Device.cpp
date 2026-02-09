@@ -4,6 +4,10 @@
 #include "log/Log.hpp"
 #include "Queue.hpp"
 
+// libs
+#define VMA_IMPLEMENTATION
+#include "vk_mem_alloc.h"
+
 #include <stdexcept>
 #include <set>
 #include <iostream>
@@ -17,6 +21,7 @@ namespace m1
         createSurface(window);
         pickPhysicalDevice();
         createLogicalDevice();
+		createMemoryAllocator();
         _graphicsQueue = std::make_unique<Queue>(*this, _queueFamilies.graphicsFamily.value(), 0);
         _presentQueue = std::make_unique<Queue>(*this, _queueFamilies.presentFamily.value(), 0);
         _computeQueue = std::make_unique<Queue>(*this, _queueFamilies.graphicsFamily.value(), 0);
@@ -24,6 +29,9 @@ namespace m1
 
     Device::~Device()
     {
+		// destroy allocator before destroying the device
+		vmaDestroyAllocator(_memAllocator);
+
 		// destroy command pools before destroying the device
         _graphicsQueue = nullptr;
         _presentQueue = nullptr;
@@ -34,24 +42,6 @@ namespace m1
         vkDestroyDevice(_vkDevice, nullptr);
         vkDestroySurfaceKHR(_instance.getVkInstance(), _surface, nullptr);
         Log::Get().Info("Device destroyed");
-    }
-
-    VkDeviceMemory Device::allocateMemory(VkMemoryRequirements memRequirements, VkMemoryPropertyFlags properties) const
-    {
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size; // maybe different from bufferInfo.size
-        allocInfo.memoryTypeIndex = findMemoryTypeIndex(memRequirements.memoryTypeBits, properties);
-
-        // Allocate the memory
-		VkDeviceMemory deviceMemory;
-        if (vkAllocateMemory(_vkDevice, &allocInfo, nullptr, &deviceMemory) != VK_SUCCESS)
-        {
-            Log::Get().Error("failed to allocate device memory!");
-            throw std::runtime_error("failed to allocate device memory!");
-        }
-
-        return deviceMemory;
     }
 
     VkFormat Device::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const
@@ -299,33 +289,6 @@ namespace m1
         return details;
     }
 
-    /// <summary>
-    /// Finds a suitable memory type index based on a type filter and desired memory properties.
-    /// </summary>
-    /// <param name="typeFilter">A bitmask specifying the acceptable memory types.</param>
-    /// <param name="properties">Flags specifying the desired memory properties.</param>
-    /// <returns>The index of a suitable memory type that matches the filter and properties.</returns>
-    uint32_t Device::findMemoryTypeIndex(uint32_t typeFilter, VkMemoryPropertyFlags properties) const
-    {
-        // GPU can offer different types of memory, each type varies in terms of allowed operations and performance characteristics
-
-        // Get the memory properties of the physical device
-        VkPhysicalDeviceMemoryProperties memProperties;
-        vkGetPhysicalDeviceMemoryProperties(_physicalDevice, &memProperties);
-
-        // Find a memory type that matches the type filter and has the desired properties
-        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
-        {
-            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
-            {
-                return i;
-            }
-        }
-
-        Log::Get().Error("failed to find suitable memory type!");
-        throw std::runtime_error("failed to find suitable memory type!");
-    }
-
 	VkDeviceSize Device::getUniformBufferAlignment(VkDeviceSize uboInstanceSize)
 	{
 		// Vulkan requires each element in a dynamic uniform buffer to be aligned to VkPhysicalDeviceLimits::minUniformBufferOffsetAlignment.
@@ -338,5 +301,21 @@ namespace m1
 			return (uboInstanceSize + _deviceProperties.minUniformBufferOffsetAlignment - 1) & ~(_deviceProperties.minUniformBufferOffsetAlignment - 1);
 		}
 		return uboInstanceSize;
+	}
+
+	void Device::createMemoryAllocator()
+	{
+		// quick start of VMA allocator
+		// https://gpuopen-librariesandsdks.github.io/VulkanMemoryAllocator/html/quick_start.html
+
+		VmaAllocatorCreateInfo allocatorInfo = {};
+		allocatorInfo.vulkanApiVersion = Instance::VK_API_VERSION;
+		allocatorInfo.physicalDevice = _physicalDevice;
+		allocatorInfo.device = _vkDevice;
+		allocatorInfo.instance = _instance.getVkInstance();
+
+		//allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+
+		vmaCreateAllocator(&allocatorInfo, &_memAllocator);
 	}
 } // namespace m1

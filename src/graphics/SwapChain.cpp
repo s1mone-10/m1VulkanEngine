@@ -364,6 +364,7 @@ namespace m1
             .extent = _extent,
             .format = _imageFormat,
             .usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        	.memoryProps = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, // dedicated allocation for special, big resources, like fullscreen images used as attachments
 			.samples = _samples,
         };
 
@@ -384,6 +385,7 @@ namespace m1
             .extent = _extent,
             .format = depthFormat,
             .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        	.memoryProps = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, // dedicated allocation for special, big resources, like fullscreen images used as attachments
             .aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT,
 			.samples = _samples,
         };

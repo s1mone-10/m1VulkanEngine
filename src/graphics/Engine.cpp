@@ -589,13 +589,13 @@ namespace m1
 			// persistent mapping because we need to update it every frame
 
 			// create frame ubo
-			auto frameUboBuffer = std::make_unique<Buffer>(_device, frameUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-			frameUboBuffer->mapMemory(); // persistent mapping
+			auto frameUboBuffer = std::make_unique<Buffer>(_device, frameUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+				VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT); // persistent mapping
 			FrameUbo frameUbo = {};
 
 			// create object ubo
-			auto objectUboBuffer = std::make_unique<Buffer>(_device, objectUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-			objectUboBuffer->mapMemory(); // persistent mapping
+			auto objectUboBuffer = std::make_unique<Buffer>(_device, objectUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+				VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT); // persistent mapping
 			ObjectUbo objectUbo = {};
 
 			// create synchronization objects
@@ -642,7 +642,7 @@ namespace m1
 		VkDeviceSize bufferSize = sizeof(Particle) * PARTICLES_COUNT;
 
 		// Create a staging buffer accessible to CPU to upload the data
-		Buffer stagingBuffer{ _device, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
+		Buffer stagingBuffer{ _device, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT };
 
 		// Copy data to the staging buffer
 		stagingBuffer.copyDataToBuffer(particles.data());
@@ -652,7 +652,7 @@ namespace m1
 			// create the SSBO buffer
 			// VK_BUFFER_USAGE_STORAGE_BUFFER_BIT: to be read and write in the compute shader
 			// VK_BUFFER_USAGE_VERTEX_BUFFER_BIT: to be used in the vertex shader
-			_framesData[i]->particleSSboBuffer = std::make_unique<Buffer>(_device, bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT , VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			_framesData[i]->particleSSboBuffer = std::make_unique<Buffer>(_device, bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
 			// Copy staging buffer to SSBO buffer
 			Utils::copyBuffer(_device, stagingBuffer, *_framesData[i]->particleSSboBuffer, bufferSize);
@@ -680,7 +680,7 @@ namespace m1
 
 		// Create the lights ubo with device local memory for better performance
 		VkDeviceSize lightsUboSize = sizeof(LightsUbo);
-        _lightsUboBuffer = std::make_unique<Buffer>(_device, lightsUboSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        _lightsUboBuffer = std::make_unique<Buffer>(_device, lightsUboSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
 		// upload lights data to buffer
 		Utils::uploadToDeviceBuffer(_device, *_lightsUboBuffer, lightsUboSize, &lightsUbo);
@@ -908,12 +908,10 @@ namespace m1
 		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 		{
 			// create material dyn buffer
-			auto materialDynUboBuffer = std::make_unique<Buffer>(_device, materialUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			auto materialDynUboBuffer = std::make_unique<Buffer>(_device, materialUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
 			// copy material ubos array to the dynamic buffer
-			materialDynUboBuffer->mapMemory();
-			materialDynUboBuffer->copyDataToBuffer(materialUbos.data());
-			materialDynUboBuffer->unmapMemory();
+			Utils::uploadToDeviceBuffer(_device, *materialDynUboBuffer, materialUboSize, materialUbos.data());
 
 			// assign the buffer to the frame resource
 			_framesData[i]->materialDynUboBuffer = std::move(materialDynUboBuffer);
@@ -1019,7 +1017,7 @@ namespace m1
 		VkDeviceSize imageSize = width * height * 4; // 4 bytes per pixel (RGBA)
 
 		// Create a staging buffer to upload the texture data to GPU
-        Buffer stagingBuffer{ _device, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
+        Buffer stagingBuffer{ _device, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT };
 
 		// Copy texture data to the staging buffer
 		stagingBuffer.copyDataToBuffer(data);
