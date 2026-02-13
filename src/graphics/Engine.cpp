@@ -113,7 +113,8 @@ namespace m1
 			if (_framesTime >= 1.0f)
 			{
 				double fps = 1.0f / (_framesTime / _frameCount);
-				_window.setTitle(std::format("Vulkan App | FPS: {:.1f}", fps).c_str());
+				double avgFrameMs = (_framesTime / _frameCount) * 1000.0;
+				_window.setTitle(std::format("Vulkan App | FPS: {:.1f} | Frame: {:.2f} ms", fps, avgFrameMs).c_str());
 
 				_framesTime = 0.0f;
 				_frameCount = 0;
