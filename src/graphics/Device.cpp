@@ -144,9 +144,18 @@ namespace m1
 		deviceFeatures.samplerAnisotropy = VK_TRUE; // enable anisotropic filtering
 		deviceFeatures.sampleRateShading = VK_TRUE; // enable sample shading (for better quality when using MSAA)
 
+        // enable Vulkan 1.3 features
+        VkPhysicalDeviceVulkan13Features features =
+        {
+	        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+        	.synchronization2 = true,
+	        .dynamicRendering = true,
+        };
+
         // Device info
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		createInfo.pNext = &features;
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
         createInfo.pEnabledFeatures = &deviceFeatures;

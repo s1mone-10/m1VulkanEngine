@@ -34,6 +34,7 @@ namespace m1
         VkImage getVkImage() const { return _vkImage; }
         VkImageView getVkImageView() const { return _imageView; }
 		VkFormat getFormat() const { return _format; }
+		VkExtent2D getExtent() const { return _extent; }
 		uint32_t getWidth() const { return _extent.width; }
 		uint32_t getHeight() const { return _extent.height; }
 		uint32_t getMipLevels() const { return _mipLevels; }

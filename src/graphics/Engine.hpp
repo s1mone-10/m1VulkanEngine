@@ -42,7 +42,7 @@ namespace m1
         void addSceneObject(std::unique_ptr<SceneObject> obj);
     	void addMaterial(std::unique_ptr<Material> material);
     	void compile();
-    	const EngineConfig& getConfig() const { return _engineConfig; }
+    	const EngineConfig& getConfig() const { return _config; }
 
     private:
         void mainLoop();
@@ -72,14 +72,15 @@ namespace m1
 
         void processInput(float delta);
 
-		// TODO: move these methods to Image class?
-        void transitionImageLayout(const Image& image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+        void transitionImageLayout(const Image &image, VkImageLayout oldLayout, VkImageLayout newLayout) const;
+        static void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout, VkImageLayout newLayout);
         void generateMipmaps(const Image& image);
+        static void copyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize);
 
         const uint32_t  WIDTH = 800;
         const uint32_t  HEIGHT = 600;
 
-    	EngineConfig _engineConfig{};
+    	EngineConfig _config{};
 
         Camera camera{};
 

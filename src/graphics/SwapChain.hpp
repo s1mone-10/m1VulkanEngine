@@ -32,21 +32,22 @@ namespace m1
         SwapChain& operator=(SwapChain&&) = delete;
 
         VkSwapchainKHR getVkSwapChain() const { return _vkSwapChain; }
-        VkFormat getImageFormat() const { return _imageFormat; }
+        VkFormat getSwapChainImageFormat() const { return _swapChainImageFormat; }
+    	Image& getColorImage() const { return *_colorImage; }
+    	Image& getMsaaColorImage() const { return *_msaaColorImage; }
+    	Image& getDepthImage() const { return *_depthImage; }
         VkExtent2D getExtent() const { return _extent; }
-        float getAspectRatio() const { return _extent.width / (float) _extent.height; }
-        const std::vector<VkImageView>& getImageViews() const { return _imageViews; }
-        size_t getImageCount() const { return _images.size(); }
-		VkRenderPass getRenderPass() const { return _renderPass; }
-        VkFramebuffer getFrameBuffer(int index) { return _framebuffers[index]; }
+        float getAspectRatio() const { return _extent.width / static_cast<float>(_extent.height); }
+        VkImage getSwapChainImage(uint32_t index) const { return _swapChainImages[index]; }
+        VkImageView getSwapChainImageView(uint32_t index) const { return _swapChainImageViews[index]; }
+        size_t getImageCount() const { return _swapChainImages.size(); }
 		VkSampleCountFlagBits getSamples() const { return _samples; }
 
     private:
         void createSwapChain(const Window& window, VkSwapchainKHR oldSpawChain);
         void createImages();
-        void createRenderPass();
-        void createFramebuffers();
         void createColorImage();
+        void createMsaaImage();
         void createDepthImage();
         bool hasStencilComponent(VkFormat format);
 
@@ -55,18 +56,14 @@ namespace m1
         VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, const Window& window);
         
         VkSwapchainKHR _vkSwapChain = VK_NULL_HANDLE;
-        VkFormat _imageFormat;
+        VkFormat _swapChainImageFormat;
         VkExtent2D _extent;
         VkSampleCountFlagBits _samples;
 
-        std::vector<VkImage> _images;
-        std::vector<VkImageView> _imageViews;
-        std::vector<VkFramebuffer> _framebuffers;
+        std::vector<VkImage> _swapChainImages;
+        std::vector<VkImageView> _swapChainImageViews;
         
-        std::unique_ptr<Image> _colorImage; // for msaa only
-        std::unique_ptr<Image> _depthImage;
-        
-        VkRenderPass _renderPass = VK_NULL_HANDLE;
+        std::unique_ptr<Image> _colorImage, _msaaColorImage, _depthImage;
 
         const Device& _device;
     };

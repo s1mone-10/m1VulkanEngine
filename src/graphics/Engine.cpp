@@ -22,7 +22,7 @@
 
 namespace m1
 {
-	Engine::Engine(EngineConfig config) : _engineConfig(config)
+	Engine::Engine(EngineConfig config) : _config(config)
 	{
 		Log::Get().Info("Engine constructor");
 
@@ -128,7 +128,7 @@ namespace m1
 
 		    - Wait for the previous frame to finish
 		    - Acquire an image from the swap chain
-		    - Record a command buffer which draws the scene onto that image
+		    - Record a command buffer which draws the scene onto a color image and copy it to the swap chain image
 			- Submit the recorded command buffer (waiting on the image to be available - signal when the command buffer finishes)
 			- Present the swap chain image (waiting on the command buffer to finish)
 		*/
@@ -191,7 +191,6 @@ namespace m1
 		}
 
 		// record the drawing commands
-		vkResetCommandBuffer(frameData.drawSceneCmdBuffer, 0);
 		recordDrawSceneCommands(frameData.drawSceneCmdBuffer, swapChainImageIndex);
 
 		// specify the semaphores and stages to wait on
@@ -377,29 +376,88 @@ namespace m1
 	{
 		// it can be executed on a separate thread
 
-		// begin command buffer recording
+		/*
+			Rendering is done on a color image, then copied to the swap chain image.
+			If multi-sample antialiasing is enabled, rendering is done on msaa image, then resolved to the color image.
+
+			At a high level:
+			- transition the attachments images to right layouts
+			- begin rendering
+			- draw objects command
+			- end rendering
+			- copy color image to swap chain image
+			- transition swap chain image to present layout
+		*/
+
+		// reset the command buffer and begin a new recording
+		vkResetCommandBuffer(commandBuffer, 0);
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = 0; // Optional
 		beginInfo.pInheritanceInfo = nullptr; // Optional
-
 		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
-		// begin render pass
-		VkRenderPassBeginInfo renderPassInfo{};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassInfo.renderPass = _swapChain->getRenderPass();
-		renderPassInfo.framebuffer = _swapChain->getFrameBuffer(swapChainImageIndex);
-		renderPassInfo.renderArea.offset = {0, 0};
-		renderPassInfo.renderArea.extent = _swapChain->getExtent();
+		// gets the images attachments
+		Image& colorImage = _swapChain->getColorImage();
+		Image& msaaImage = _swapChain->getMsaaColorImage();
+		Image& depthImage = _swapChain->getDepthImage();
+		VkImage swapChainImage = _swapChain->getSwapChainImage(swapChainImageIndex);
 
-		std::array<VkClearValue, 2> clearValues{}; // the order of clear values must match the order of attachments in the render pass
-		clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-		clearValues[1].depthStencil = { 1.0f, 0 }; // depth range [0.0f, 1.0f] with 1.0f being furthest - init depth with furthest value
-		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-		renderPassInfo.pClearValues = clearValues.data();
+		// TODO: should I use the real current layout instead of undefined?
+		// TODO: should I set the layout at each frame even if is not changing (e.g. depthImage). Transition is not only for changing the layout but also to set the memory barriers
 
-		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		// transition the msaa and color image to COLOR_ATTACHMENT_OPTIMAL
+		transitionImageLayout(commandBuffer, colorImage.getVkImage(), 1, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		if (_config.msaa) transitionImageLayout(commandBuffer, msaaImage.getVkImage(), msaaImage.getMipLevels(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+		// transition the depth image to DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+		transitionImageLayout(commandBuffer, depthImage.getVkImage(), depthImage.getMipLevels(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+		// choose the render target image
+		Image& renderTarget = _config.msaa ? msaaImage : colorImage;
+
+		// set the color attachment
+		VkRenderingAttachmentInfo colorAttachment
+		{
+			.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+			.imageView = renderTarget.getVkImageView(),
+			.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+			.clearValue = {{0.0f, 0.0f, 0.0f, 1.0f}},
+		};
+
+		// set resolve image if msaa is enable
+		if (_config.msaa)
+		{
+			colorAttachment.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
+			colorAttachment.resolveImageView = colorImage.getVkImageView();
+			colorAttachment.resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // Optimization: don't save the multi-sample image
+		}
+
+		// set depth attachment
+		VkRenderingAttachmentInfo depthAttachment
+		{
+			.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+			.imageView = depthImage.getVkImageView(),
+			.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+			.clearValue = { .depthStencil { 1.0f, 0 } } // depth range [0.0f, 1.0f] with 1.0f being furthest - init depth with furthest value
+		};
+
+		// begin rendering
+		VkRenderingInfo renderingInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+			.renderArea = {{0, 0}, renderTarget.getExtent()},
+			.layerCount = 1,
+			.colorAttachmentCount = 1,
+			.pColorAttachments = &colorAttachment,
+			.pDepthAttachment = &depthAttachment,
+		};
+		vkCmdBeginRendering(commandBuffer, &renderingInfo);
 
 		// set viewport
 		VkViewport viewport{};
@@ -424,7 +482,17 @@ namespace m1
 		drawParticles(commandBuffer);
 
 		// end render pass
-		vkCmdEndRenderPass(commandBuffer);
+		vkCmdEndRendering(commandBuffer);
+
+		// transition the color image and the swapchain image into their correct transfer layouts
+		transitionImageLayout(commandBuffer, colorImage.getVkImage(), 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+		transitionImageLayout(commandBuffer, swapChainImage, 1, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+		// copy the color image into the swapchain image
+		copyImageToImage(commandBuffer, colorImage.getVkImage(), swapChainImage, colorImage.getExtent(), _swapChain->getExtent());
+
+		// set the swapchain image layout to Present to show it on the screen
+		transitionImageLayout(commandBuffer, swapChainImage, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 		// end command buffer recording
 		VK_CHECK(vkEndCommandBuffer(commandBuffer));
@@ -459,7 +527,7 @@ namespace m1
 
 		SwapChainConfig config
 		{
-			.samples = _engineConfig.msaa ? _device.getMaxMsaaSamples() : VK_SAMPLE_COUNT_1_BIT,
+			.samples = _config.msaa ? _device.getMaxMsaaSamples() : VK_SAMPLE_COUNT_1_BIT,
 		};
 
 		if (_swapChain != nullptr)
@@ -1004,7 +1072,7 @@ namespace m1
 		Image& textImage = texture->getImage();
 
 		// Transition image layout to be optimal for receiving data
-        transitionImageLayout(textImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        transitionImageLayout(textImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
 		// Copy the texture data from the staging buffer to the image
         copyBufferToImage(stagingBuffer, textImage.getVkImage(), width, height);
@@ -1045,68 +1113,135 @@ namespace m1
 		}
 	}
 
-    void Engine::transitionImageLayout(const Image& image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
+	void Engine::transitionImageLayout(const Image &image, VkImageLayout oldLayout, VkImageLayout newLayout) const
+	{
+		VkCommandBuffer commandBuffer = _device.getGraphicsQueue().beginOneTimeCommand();
+
+		transitionImageLayout(commandBuffer, image.getVkImage(), image.getMipLevels(), oldLayout, newLayout);
+
+		_device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
+	}
+
+
+	void Engine::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout, VkImageLayout newLayout)
 	{
 		/*
 		In Vulkan, an image layout describes how the GPU should treat the memory of an image (texture, framebuffer, etc.).
 		A layout transition is changing an image from one layout to another, so the GPU knows how to access it correctly.
-		This is done with a pipeline barrier(vkCmdPipelineBarrier), which synchronizes memory access and updates the image layout.
+		This is done with a pipeline barrier(vkCmdPipelineBarrier2), which synchronizes memory access and updates the image layout.
+
+		SYNCHRONIZATION PARAMETERS (https://docs.vulkan.org/spec/latest/chapters/synchronization.html)
+
+		srcStageMask: pipeline stage to wait to be finished before starting the transition
+		srcAccessMask: memory cache to flush before starting the transition. E.g.: if the GPU just wrote to the image, the data might still
+						be in a fast L1/L2 cache and not in the main VRAM yet. This flag tells the driver which caches to flush.
+
+		destStageMask: pipeline stage to block until the transition is done
+		dstAccessMask: which memory caches need to be invalidated. E.g.: If you are going to read the texture,
+						the GPU needs to ensure the L1/L2 read caches are fresh.
 		*/
 
-		VkCommandBuffer commandBuffer = _device.getGraphicsQueue().beginOneTimeCommand();
+		VkImageAspectFlags aspectMask = newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
-		// Set a memory barrier to synchronize access to the image
-		VkImageMemoryBarrier barrier{};
-		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		barrier.oldLayout = oldLayout; // it's ok to use VK_IMAGE_LAYOUT_UNDEFINED if we don't care about the existing image data
-		barrier.newLayout = newLayout;
-
-		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED; // for queue family ownership transfer, not used here
-		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-
-		// set image info
-		barrier.image = image.getVkImage();
-		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		barrier.subresourceRange.baseMipLevel = 0;
-		barrier.subresourceRange.levelCount = image.getMipLevels();
-		barrier.subresourceRange.baseArrayLayer = 0;
-		barrier.subresourceRange.layerCount = 1;
-
-		VkPipelineStageFlags sourceStage; // stage that should happen before the barrier
-		VkPipelineStageFlags destinationStage; // stage that will wait until on the barrier
-
-		if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+		VkImageMemoryBarrier2 barrier
 		{
-			barrier.srcAccessMask = 0;
-			barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+			.oldLayout = currentLayout,
+			.newLayout = newLayout,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, // for queue family ownership transfer, not used here
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image = image,
+			.subresourceRange = {aspectMask, 0, mipLevels, 0, 1}
+		};
 
-			sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT; // earliest possible stage
-			destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT; // transfer stage (it's a pseudo-stage)
-        }
-        else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+		// UNDEFINED -> COLOR_ATTACHMENT
+		// We don't care about previous data, so we don't wait for anything.
+		if (currentLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
 		{
-			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT; // earliest possible stage
+			barrier.srcAccessMask = VK_ACCESS_2_NONE;
 
-			sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-			destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; // fragment shader reads from the texture
-        }
-        else
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		}
+		// COLOR_ATTACHMENT -> PRESENT
+		else if (currentLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
 		{
-			throw std::invalid_argument("unsupported layout transition!");
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT; // Nothing typically runs after this on the GPU
+			barrier.dstAccessMask = VK_ACCESS_2_NONE;
+		}
+		// TRANSFER_DST -> PRESENT
+		else if (currentLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
+		{
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_NONE;
+		}
+		// COLOR_ATTACHMENT -> TRANSFER_SRC
+		else if (currentLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+		{
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+		}
+		// UNDEFINED -> TRANSFER_DST (upload data to texture)
+		else if (currentLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+		{
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_NONE;
+
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT; // transfer stage (it's a pseudo-stage)
+			barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		}
+		// TRANSFER_DST -> SHADER_READ (Texture upload finished, ready for shader)
+		else if (currentLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+		{
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; // fragment shader reads from the texture
+			barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+		}
+		// UNDEFINED -> DEPTH_STENCIL_ATTACHMENT
+		else if (currentLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+		{
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_NONE;
+
+			// Block the Depth Test units
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | // where the GPU checks the depth before running the Fragment Shader
+									VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT; // where the GPU writes the final depth value after the Fragment Shader
+			barrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		}
+		else
+		{
+			throw std::invalid_argument("not implemented image layout transition!");
+
+			/*
+			// Fallback for unknown transitions (Safe but slow)
+			// It basically waits for EVERYTHING to finish before doing the transition.
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
+			*/
 		}
 
-		vkCmdPipelineBarrier(
-			commandBuffer,
-			sourceStage,
-			destinationStage,
-			0, // dependency flags
-			0, nullptr, // memory barriers
-			0, nullptr, // buffer memory barries
-			1, &barrier // image memory barriers
-		);
+		VkDependencyInfo depInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+			.imageMemoryBarrierCount = 1,
+			.pImageMemoryBarriers = &barrier,
+		};
 
-		_device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
+		vkCmdPipelineBarrier2(commandBuffer, &depInfo);
 	}
 
 	void Engine::generateMipmaps(const Image &image)
@@ -1120,7 +1255,7 @@ namespace m1
 		{
 			Log::Get().Warning("Failed to create mip levels. Texture image format does not support linear blitting!");
 
-            transitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            transitionImageLayout(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 			return;
 		}
 
@@ -1208,5 +1343,39 @@ namespace m1
 		                     1, &barrier);
 
 		_device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
+	}
+
+	void Engine::copyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize)
+	{
+		VkImageBlit2 blitRegion{ .sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2, .pNext = nullptr };
+
+		blitRegion.srcOffsets[1].x = srcSize.width;
+		blitRegion.srcOffsets[1].y = srcSize.height;
+		blitRegion.srcOffsets[1].z = 1;
+
+		blitRegion.dstOffsets[1].x = dstSize.width;
+		blitRegion.dstOffsets[1].y = dstSize.height;
+		blitRegion.dstOffsets[1].z = 1;
+
+		blitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		blitRegion.srcSubresource.baseArrayLayer = 0;
+		blitRegion.srcSubresource.layerCount = 1;
+		blitRegion.srcSubresource.mipLevel = 0;
+
+		blitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		blitRegion.dstSubresource.baseArrayLayer = 0;
+		blitRegion.dstSubresource.layerCount = 1;
+		blitRegion.dstSubresource.mipLevel = 0;
+
+		VkBlitImageInfo2 blitInfo{ .sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2, .pNext = nullptr };
+		blitInfo.dstImage = destination;
+		blitInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		blitInfo.srcImage = source;
+		blitInfo.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		blitInfo.filter = VK_FILTER_LINEAR;
+		blitInfo.regionCount = 1;
+		blitInfo.pRegions = &blitRegion;
+
+		vkCmdBlitImage2(cmd, &blitInfo);
 	}
 } // namespace m1

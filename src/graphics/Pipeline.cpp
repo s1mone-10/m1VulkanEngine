@@ -171,7 +171,7 @@ namespace m1
             finalColor = finalColor & colorWriteMask;
         */
 
-        // color blending info: globlal settings
+        // color blending info: global settings
         VkPipelineColorBlendStateCreateInfo colorBlending{};
         colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         colorBlending.logicOpEnable = VK_FALSE;
@@ -203,9 +203,23 @@ namespace m1
     	VkPipelineLayout pipelineLayout;
         VK_CHECK(vkCreatePipelineLayout(device.getVkDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
+    	// rendering info (color and depth attachments)
+    	auto colorAttachFormats = config.swapChain.getSwapChainImageFormat();
+    	VkPipelineRenderingCreateInfo pipelineRenderingInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+			.colorAttachmentCount = 1,
+			.pColorAttachmentFormats = &colorAttachFormats,
+			.depthAttachmentFormat = config.swapChain.getDepthImage().getFormat(),
+		};
+
         // pipeline info: all data configured above
-        VkGraphicsPipelineCreateInfo pipelineInfo{
+        VkGraphicsPipelineCreateInfo pipelineInfo
+    	{
             .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+
+    		// append rendering info
+    		.pNext = &pipelineRenderingInfo,
             
             // set shader, programmable stage,
             .stageCount = 2,
@@ -223,7 +237,6 @@ namespace m1
             
             // set layout and render pas,
             .layout = pipelineLayout,
-            .renderPass = config.swapChain.getRenderPass(),
             .subpass = 0,
 
             // optional. Vulkan allows you to create a new graphics pipeline by deriving from an existing pipeline
