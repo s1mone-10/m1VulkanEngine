@@ -7,6 +7,7 @@
 #include "log/Log.hpp"
 #include <stdexcept>
 #include <fstream>
+#include <array>
 
 namespace m1
 {
@@ -63,11 +64,16 @@ namespace m1
         Log::Get().Info("Creating graphics pipeline");
         // read shaders' code
         std::vector<char> vertShaderCode = readFile(config.vertShaderPath);
-        std::vector<char> fragShaderCode = readFile(config.fragShaderPath);
+        const bool hasFragmentStage = !config.fragShaderPath.empty();
+        std::vector<char> fragShaderCode;
+        if (hasFragmentStage)
+            fragShaderCode = readFile(config.fragShaderPath);
 
         // wrap to shader modules
         VkShaderModule vertShaderModule = createShaderModule(device, vertShaderCode);
-        VkShaderModule fragShaderModule = createShaderModule(device, fragShaderCode);
+        VkShaderModule fragShaderModule = VK_NULL_HANDLE;
+        if (hasFragmentStage)
+            fragShaderModule = createShaderModule(device, fragShaderCode);
 
         // set info to assign the shaders to a specific pipeline stage
         VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
@@ -84,7 +90,7 @@ namespace m1
         fragShaderStageInfo.pName = "main";
         vertShaderStageInfo.pSpecializationInfo = nullptr; // Optional, used for specialization constants
 
-        VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
+        std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = { vertShaderStageInfo, fragShaderStageInfo };
 
         // dynamic state: will be specified at drawing time
         std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
@@ -117,10 +123,10 @@ namespace m1
         rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
         rasterizer.depthClampEnable = VK_FALSE;
         rasterizer.rasterizerDiscardEnable = VK_FALSE; // if enabled, discard all the fragments, useful for debugging
-        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizer.polygonMode = config.polygonMode;
         rasterizer.lineWidth = 1.0f;
-        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-		rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; // If the projection matrix includes a Y-flip, the order of the vertices is inverted
+        rasterizer.cullMode = config.cullMode;
+		rasterizer.frontFace = config.frontFace; // If the projection matrix includes a Y-flip, the order of the vertices is inverted
         rasterizer.depthBiasEnable = VK_FALSE;
         rasterizer.depthBiasConstantFactor = 0.0f; // Optional
         rasterizer.depthBiasClamp = 0.0f; // Optional
@@ -176,8 +182,8 @@ namespace m1
         colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         colorBlending.logicOpEnable = VK_FALSE;
         colorBlending.logicOp = VK_LOGIC_OP_COPY; // Optional
-        colorBlending.attachmentCount = 1;
-        colorBlending.pAttachments = &colorBlendAttachment;
+        colorBlending.attachmentCount = config.colorAttachmentCount;
+        colorBlending.pAttachments = config.colorAttachmentCount > 0 ? &colorBlendAttachment : nullptr;
         colorBlending.blendConstants[0] = 0.0f; // Optional
         colorBlending.blendConstants[1] = 0.0f; // Optional
         colorBlending.blendConstants[2] = 0.0f; // Optional
@@ -208,8 +214,8 @@ namespace m1
             .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
             
             // set shader, programmable stage,
-            .stageCount = 2,
-            .pStages = shaderStages,
+            .stageCount = hasFragmentStage ? 2u : 1u,
+            .pStages = shaderStages.data(),
             
             // set structures describing the fixed stage,
             .pVertexInputState = &vertexInputInfo,
@@ -223,7 +229,7 @@ namespace m1
             
             // set layout and render pas,
             .layout = pipelineLayout,
-            .renderPass = config.swapChain.getRenderPass(),
+            .renderPass = config.renderPass == VK_NULL_HANDLE ? config.swapChain.getRenderPass() : config.renderPass,
             .subpass = 0,
 
             // optional. Vulkan allows you to create a new graphics pipeline by deriving from an existing pipeline
@@ -235,7 +241,8 @@ namespace m1
     	VkPipeline graphicsPipeline;
         VK_CHECK(vkCreateGraphicsPipelines(device.getVkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline));
 
-        vkDestroyShaderModule(device.getVkDevice(), fragShaderModule, nullptr);
+        if (hasFragmentStage)
+            vkDestroyShaderModule(device.getVkDevice(), fragShaderModule, nullptr);
         vkDestroyShaderModule(device.getVkDevice(), vertShaderModule, nullptr);
 
     	return std::make_unique<Pipeline>(device, graphicsPipeline, pipelineLayout);

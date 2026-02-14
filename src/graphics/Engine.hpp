@@ -57,6 +57,10 @@ namespace m1
         void recreateSwapChain();
     	void createPipelines();
 		void createFramesResources();
+		void createShadowResources();
+		void destroyShadowResources();
+		void recordShadowCommands(VkCommandBuffer commandBuffer);
+		glm::mat4 getDirectionalLightSpaceMatrix() const;
         void initParticles();
         void initLights();
         void updateFrameDescriptorSet();
@@ -88,6 +92,7 @@ namespace m1
         std::unique_ptr<SwapChain> _swapChain;
     	std::unordered_map<PipelineType, std::unique_ptr<Pipeline>> _graphicsPipelines;
         std::unique_ptr<Pipeline> _computePipeline;
+		std::unique_ptr<Pipeline> _shadowPipeline;
 
     	std::vector<std::unique_ptr<FrameData>> _framesData;
 
@@ -103,6 +108,13 @@ namespace m1
     	std::shared_ptr<Texture> _whiteTexture;
     	std::string _currentMaterialName;
         uint32_t _currentFrame = 0;
+
+		VkRenderPass _shadowRenderPass = VK_NULL_HANDLE;
+		VkFramebuffer _shadowFramebuffer = VK_NULL_HANDLE;
+		std::unique_ptr<Image> _shadowDepthImage;
+		VkSampler _shadowSampler = VK_NULL_HANDLE;
+		VkFormat _shadowFormat = VK_FORMAT_UNDEFINED;
+		VkExtent2D _shadowExtent { 2048, 2048 };
 
 		// Synchronization objects (semaphores for GPU-GPU sync, fences for CPU-GPU sync)
         std::vector<VkSemaphore> _imageAvailableSems;

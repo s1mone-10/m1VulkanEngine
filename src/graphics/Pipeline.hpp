@@ -30,8 +30,9 @@ namespace m1
 
     struct GraphicsPipelineConfig
     {
-    	// swap chain
-    	const SwapChain& swapChain;
+	    // swap chain
+	    const SwapChain& swapChain;
+	    VkRenderPass renderPass = VK_NULL_HANDLE;
 
     	// shaders
         std::string vertShaderPath;
@@ -51,8 +52,9 @@ namespace m1
     	bool depthTestEnable = true;
     	bool depthWriteEnable = true;
 
-    	// blending
-    	bool blendEnable = false;
+	    // blending
+	    bool blendEnable = false;
+	    uint32_t colorAttachmentCount = 1;
 
     	// layouts
     	uint32_t setLayoutCount;

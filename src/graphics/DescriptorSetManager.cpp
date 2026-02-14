@@ -88,6 +88,16 @@ namespace m1
 			.pImmutableSamplers = nullptr
 		};
 
+		// Shadow map sampler
+		VkDescriptorSetLayoutBinding shadowMapSamplerBinding
+		{
+			.binding = 5,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
 	    // DescriptorSet Info
 	    std::array bindings =
 	    {
@@ -95,7 +105,8 @@ namespace m1
 		    frameUboLayoutBinding,
 	    	lightsUboLayoutBinding,
 	    	particleSsboInLayoutBinding,
-	    	particleSsboOutLayoutBinding
+	    	particleSsboOutLayoutBinding,
+			shadowMapSamplerBinding
 	    };
 
 	    VkDescriptorSetLayoutCreateInfo layoutInfo
@@ -173,7 +184,7 @@ namespace m1
 		poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 		poolSizes[1].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT); // materials dyn ubo (each buffer contains all materials data)
         poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[2].descriptorCount = static_cast<uint32_t>(1000); // sampler, one for each material
+        poolSizes[2].descriptorCount = static_cast<uint32_t>(1000 + Engine::FRAMES_IN_FLIGHT); // material samplers + shadow map sampler per frame
 		poolSizes[3].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 		poolSizes[3].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT) * 2; // *2 => prev and current frame SSBO
 

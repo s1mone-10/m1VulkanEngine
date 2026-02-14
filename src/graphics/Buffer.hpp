@@ -29,6 +29,7 @@ namespace m1
 	{
 		glm::mat4 view;
 		glm::mat4 proj;
+		glm::mat4 lightSpaceMatrix;
 		glm::vec3 camPos;
 	};
 

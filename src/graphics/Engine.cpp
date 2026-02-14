@@ -28,6 +28,7 @@ namespace m1
 
 		recreateSwapChain();
 		_descriptorSetManager = std::make_unique<DescriptorSetManager>(_device);
+		createShadowResources();
 		createPipelines();
 
 		_materialUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialUbo));
@@ -60,6 +61,8 @@ namespace m1
 			vkDestroyFence(_device.getVkDevice(), _framesData[i]->computeCmdExecutedFence, nullptr);
 			vkDestroySemaphore(_device.getVkDevice(), _framesData[i]->computeCmdExecutedSem, nullptr);
 		}
+
+		destroyShadowResources();
 
 		Log::Get().Info("Engine destroyed");
 	}
@@ -256,6 +259,7 @@ namespace m1
 		auto frameUbo = _framesData[_currentFrame]->frameUbo;
 		frameUbo.view = camera.getViewMatrix();
 		frameUbo.proj = camera.getProjectionMatrix();
+		frameUbo.lightSpaceMatrix = getDirectionalLightSpaceMatrix();
 		frameUbo.camPos = camera.getPosition();
 
 		_framesData[_currentFrame]->frameUboBuffer->copyDataToBuffer(&frameUbo);
@@ -385,6 +389,8 @@ namespace m1
 
 		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
+		recordShadowCommands(commandBuffer);
+
 		// begin render pass
 		VkRenderPassBeginInfo renderPassInfo{};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -480,8 +486,179 @@ namespace m1
 		camera.setAspectRatio(_swapChain->getAspectRatio());
 	}
 
+	glm::mat4 Engine::getDirectionalLightSpaceMatrix() const
+	{
+		glm::vec3 lightDir = glm::normalize(glm::vec3(-0.5f, 1.0f, -0.3f));
+		glm::vec3 lightPos = -lightDir * 20.0f;
+		glm::mat4 lightView = glm::lookAt(lightPos, glm::vec3(3.0f, 3.0f, 3.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		glm::mat4 lightProj = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f, 0.1f, 50.0f);
+		return lightProj * lightView;
+	}
+
+	void Engine::createShadowResources()
+	{
+		_shadowFormat = _device.findSupportedFormat(
+			{ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D16_UNORM },
+			VK_IMAGE_TILING_OPTIMAL,
+			VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+		);
+
+		ImageParams params
+		{
+			.extent = _shadowExtent,
+			.format = _shadowFormat,
+			.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+			.aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT,
+		};
+		_shadowDepthImage = std::make_unique<Image>(_device, params);
+
+		VkSamplerCreateInfo samplerInfo{};
+		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		samplerInfo.magFilter = VK_FILTER_LINEAR;
+		samplerInfo.minFilter = VK_FILTER_LINEAR;
+		samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+		samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+		samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+		samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+		samplerInfo.compareEnable = VK_FALSE;
+		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		VK_CHECK(vkCreateSampler(_device.getVkDevice(), &samplerInfo, nullptr, &_shadowSampler));
+
+		VkAttachmentDescription depthAttachment{};
+		depthAttachment.format = _shadowFormat;
+		depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthAttachment.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		depthAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkAttachmentReference depthRef{};
+		depthRef.attachment = 0;
+		depthRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		VkSubpassDescription subpass{};
+		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpass.pDepthStencilAttachment = &depthRef;
+
+		std::array<VkSubpassDependency, 2> dependencies{};
+		dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+		dependencies[0].dstSubpass = 0;
+		dependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		dependencies[0].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		dependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		dependencies[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		dependencies[1].srcSubpass = 0;
+		dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+		dependencies[1].srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+		dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		dependencies[1].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		VkRenderPassCreateInfo renderPassInfo{};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassInfo.attachmentCount = 1;
+		renderPassInfo.pAttachments = &depthAttachment;
+		renderPassInfo.subpassCount = 1;
+		renderPassInfo.pSubpasses = &subpass;
+		renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
+		renderPassInfo.pDependencies = dependencies.data();
+		VK_CHECK(vkCreateRenderPass(_device.getVkDevice(), &renderPassInfo, nullptr, &_shadowRenderPass));
+
+		VkImageView shadowView = _shadowDepthImage->getVkImageView();
+		VkFramebufferCreateInfo framebufferInfo{};
+		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebufferInfo.renderPass = _shadowRenderPass;
+		framebufferInfo.attachmentCount = 1;
+		framebufferInfo.pAttachments = &shadowView;
+		framebufferInfo.width = _shadowExtent.width;
+		framebufferInfo.height = _shadowExtent.height;
+		framebufferInfo.layers = 1;
+		VK_CHECK(vkCreateFramebuffer(_device.getVkDevice(), &framebufferInfo, nullptr, &_shadowFramebuffer));
+	}
+
+	void Engine::destroyShadowResources()
+	{
+		if (_shadowFramebuffer != VK_NULL_HANDLE)
+			vkDestroyFramebuffer(_device.getVkDevice(), _shadowFramebuffer, nullptr);
+		if (_shadowRenderPass != VK_NULL_HANDLE)
+			vkDestroyRenderPass(_device.getVkDevice(), _shadowRenderPass, nullptr);
+		if (_shadowSampler != VK_NULL_HANDLE)
+			vkDestroySampler(_device.getVkDevice(), _shadowSampler, nullptr);
+		_shadowFramebuffer = VK_NULL_HANDLE;
+		_shadowRenderPass = VK_NULL_HANDLE;
+		_shadowSampler = VK_NULL_HANDLE;
+		_shadowDepthImage = nullptr;
+	}
+
+	void Engine::recordShadowCommands(VkCommandBuffer commandBuffer)
+	{
+		VkRenderPassBeginInfo rpInfo{};
+		rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		rpInfo.renderPass = _shadowRenderPass;
+		rpInfo.framebuffer = _shadowFramebuffer;
+		rpInfo.renderArea.offset = {0, 0};
+		rpInfo.renderArea.extent = _shadowExtent;
+		VkClearValue clearDepth{};
+		clearDepth.depthStencil = {1.0f, 0};
+		rpInfo.clearValueCount = 1;
+		rpInfo.pClearValues = &clearDepth;
+
+		vkCmdBeginRenderPass(commandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		VkViewport viewport{};
+		viewport.width = static_cast<float>(_shadowExtent.width);
+		viewport.height = static_cast<float>(_shadowExtent.height);
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+		VkRect2D scissor{};
+		scissor.extent = _shadowExtent;
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _shadowPipeline->getVkPipeline());
+		VkDescriptorSet descriptorSet0 = _framesData[_currentFrame]->descriptorSet;
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _shadowPipeline->getLayout(), 0, 1, &descriptorSet0, 0, nullptr);
+
+		for (auto &obj: _sceneObjects)
+		{
+			PushConstantData push
+			{
+				.model = obj->Transform,
+				.normalMatrix = glm::transpose(glm::inverse(obj->Transform))
+			};
+			vkCmdPushConstants(commandBuffer, _shadowPipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &push);
+			obj->Mesh->draw(commandBuffer);
+		}
+
+		vkCmdEndRenderPass(commandBuffer);
+	}
+
 	void Engine::createPipelines()
 	{
+		std::array shadowSetLayouts
+		{
+			_descriptorSetManager->getFrameDescriptorSetLayout(),
+		};
+		GraphicsPipelineConfig shadowPipelineInfo
+		{
+			.swapChain = *_swapChain,
+			.renderPass = _shadowRenderPass,
+			.vertShaderPath = R"(..\shaders\compiled\shadow.vert.spv)",
+			.fragShaderPath = R"(..\shaders\compiled\shadow.frag.spv)",
+			.vertexBindingDescription = Vertex::getBindingDescription(),
+			.vertexAttributeDescriptions = Vertex::getAttributeDescriptions(),
+			.cullMode = VK_CULL_MODE_FRONT_BIT,
+			.depthTestEnable = true,
+			.depthWriteEnable = true,
+			.colorAttachmentCount = 0,
+			.setLayoutCount = shadowSetLayouts.size(),
+			.pSetLayouts = shadowSetLayouts.data(),
+		};
+		_shadowPipeline = PipelineFactory::createGraphicsPipeline(_device, shadowPipelineInfo);
+
 		// NoLight
 		std::array noLightSetLayouts =
 		{
@@ -673,6 +850,13 @@ namespace m1
 		    .range = sizeof(LightsUbo)
 	    };
 
+	    VkDescriptorImageInfo shadowMapImageInfo
+		{
+			.sampler = _shadowSampler,
+			.imageView = _shadowDepthImage->getVkImageView(),
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+		};
+
 	    // populate each DescriptorSet
 	    for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 	    {
@@ -748,6 +932,19 @@ namespace m1
 				.pBufferInfo = &particlesSsboInfoPrevFrame
 			};
 
+
+	    	// Shadow map sampler write
+	    	VkWriteDescriptorSet shadowMapDescriptorWrite
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = frameDescriptorSet,
+				.dstBinding = 5,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &shadowMapImageInfo
+			};
+
 	    	// Particles Ssbo current frame
 	    	VkDescriptorBufferInfo particlesSsboInfoCurrentFrame{};
 	    	particlesSsboInfoCurrentFrame.buffer = _framesData[i]->particleSSboBuffer->getVkBuffer();
@@ -767,7 +964,7 @@ namespace m1
 
 		    std::array descriptorWrites =
 		    {
-			    objectUboWrite, frameUboWrite, lightsDescriptorWrite, particlesDescriptorWritePrevFrame, particlesDescriptorWriteCurrentFrame
+			    objectUboWrite, frameUboWrite, lightsDescriptorWrite, particlesDescriptorWritePrevFrame, particlesDescriptorWriteCurrentFrame, shadowMapDescriptorWrite
 		    };
 
 		    vkUpdateDescriptorSets(_device.getVkDevice(), descriptorWrites.size(),
