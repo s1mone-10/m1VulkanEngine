@@ -6,11 +6,6 @@ struct Light {
     vec4 attenuation;   // x = constant, y = linear, z = quadratic
 };
 
-struct LightComponents {
-    vec3 diffuse;
-    vec3 specular;
-};
-
 // Input
 layout (location = 0) in vec3 fragColor;
 layout (location = 1) in vec2 fragTextCoord;
@@ -56,7 +51,7 @@ layout(push_constant) uniform Push {
 } push;
 
 // Functions
-LightComponents calculateLight(Light light, vec3 fragNormal, vec3 diffuseColor, vec3 specularColor);
+vec3 calculateLight(Light light, vec3 fragNormal, vec3 diffuseColor, vec3 specularColor);
 
 void main(){
     //outColor = vec4(fragColor, 1.0); // rgba color, range [0, 1]
@@ -76,22 +71,19 @@ void main(){
     vec3 fragNormal = normalize(fragNormalWorld);
 
     // loops on the lights to get diffuse and specular components
-    vec3 diffuseComponent = vec3(0.0);
-    vec3 specularComponent = vec3(0.0);
+    vec3 diffuseAndSpecularComponent = vec3(0.0);
     for (int i = 0; i < lightsUbo.numLights; i++) {
-        LightComponents lc = calculateLight(lightsUbo.lights[i], fragNormal, diffuseColor, specularColor);
-        diffuseComponent += lc.diffuse;
-        specularComponent += lc.specular;
+        diffuseAndSpecularComponent += calculateLight(lightsUbo.lights[i], fragNormal, diffuseColor, specularColor);
     }
 
     // comput the ambient component
     vec3 ambientComponent = ambientColor * lightsUbo.ambient.rgb * lightsUbo.ambient.a;
 
     // sum lights components
-    outColor = vec4((ambientComponent + diffuseComponent + specularComponent), 1.0);
+    outColor = vec4((ambientComponent + diffuseAndSpecularComponent), 1.0);
 }
 
-LightComponents calculateLight(Light light, vec3 fragNormal, vec3 diffuseColor, vec3 specularColor) {
+vec3 calculateLight(Light light, vec3 fragNormal, vec3 diffuseColor, vec3 specularColor) {
     vec3 lightDir = (light.posDir.w == 0.0)
                     ? normalize(-light.posDir.xyz)  // directional
                     : normalize(light.posDir.xyz - fragPosWorld); // point
@@ -124,5 +116,5 @@ LightComponents calculateLight(Light light, vec3 fragNormal, vec3 diffuseColor, 
     // final specular color component
     vec3 specularComponent = specularColor * lightColor * specStrength;
 
-    return LightComponents(diffuseComponent, specularComponent);
+    return diffuseComponent + specularComponent;
 }
