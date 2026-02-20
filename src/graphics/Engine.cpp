@@ -19,6 +19,7 @@
 #include <chrono>
 #include <random>
 #include <ranges>
+#include <limits>
 
 namespace m1
 {
@@ -28,6 +29,7 @@ namespace m1
 
 		recreateSwapChain();
 		_descriptorSetManager = std::make_unique<DescriptorSetManager>(_device);
+		createShadowResources();
 		createPipelines();
 
 		_materialUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialUbo));
@@ -83,6 +85,7 @@ namespace m1
 	{
 		compileMaterials();
 		compileSceneObjects();
+		_bbox = computeSceneBBox();
 	}
 
 	int _frameCount = 0;
@@ -254,9 +257,11 @@ namespace m1
 	void Engine::updateFrameUbo()
 	{
 		auto frameUbo = _framesData[_currentFrame]->frameUbo;
-		frameUbo.view = camera.getViewMatrix();
-		frameUbo.proj = camera.getProjectionMatrix();
-		frameUbo.camPos = camera.getPosition();
+		frameUbo.view = _camera.getViewMatrix();
+		frameUbo.proj = _camera.getProjectionMatrix();
+		frameUbo.lightViewProjMatrix = computeLightViewProjMatrix();
+		frameUbo.camPos = glm::vec4(_camera.getPosition(), 1.0f);
+		frameUbo.shadowsEnabled = _config.shadows ? 1 : 0;
 
 		_framesData[_currentFrame]->frameUboBuffer->copyDataToBuffer(&frameUbo);
 	}
@@ -398,6 +403,14 @@ namespace m1
 		beginInfo.pInheritanceInfo = nullptr; // Optional
 		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
+		if (_config.shadows)
+			// create the shadow map
+			recordShadowMappingPass(commandBuffer);
+		else
+			// transition layout SHADER_READ_ONLY_OPTIMAL - still attached to the descriptor even if not used in the shader when shadows are disabled
+			transitionImageLayout(commandBuffer, _shadowMap->getImage().getVkImage(), 1,
+				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+
 		// gets the images attachments
 		Image& colorImage = _swapChain->getColorImage();
 		Image& msaaImage = _swapChain->getMsaaColorImage();
@@ -408,11 +421,11 @@ namespace m1
 		// TODO: should I set the layout at each frame even if is not changing (e.g. depthImage). Transition is not only for changing the layout but also to set the memory barriers
 
 		// transition the msaa and color image to COLOR_ATTACHMENT_OPTIMAL
-		transitionImageLayout(commandBuffer, colorImage.getVkImage(), 1, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-		if (_config.msaa) transitionImageLayout(commandBuffer, msaaImage.getVkImage(), msaaImage.getMipLevels(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		transitionImageLayout(commandBuffer, colorImage.getVkImage(), 1, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+		if (_config.msaa) transitionImageLayout(commandBuffer, msaaImage.getVkImage(), msaaImage.getMipLevels(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
 
 		// transition the depth image to DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-		transitionImageLayout(commandBuffer, depthImage.getVkImage(), depthImage.getMipLevels(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+		transitionImageLayout(commandBuffer, depthImage.getVkImage(), depthImage.getMipLevels(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
 
 		// choose the render target image
 		Image& renderTarget = _config.msaa ? msaaImage : colorImage;
@@ -464,8 +477,8 @@ namespace m1
 		VkViewport viewport{};
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
-		viewport.width = static_cast<float>(_swapChain->getExtent().width);
-		viewport.height = static_cast<float>(_swapChain->getExtent().height);
+		viewport.width = static_cast<float>(renderTarget.getExtent().width);
+		viewport.height = static_cast<float>(renderTarget.getExtent().height);
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
@@ -473,7 +486,7 @@ namespace m1
 		// set scissor
 		VkRect2D scissor{};
 		scissor.offset = {0, 0};
-		scissor.extent = _swapChain->getExtent();
+		scissor.extent = renderTarget.getExtent();
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 		// draw objects
@@ -482,18 +495,18 @@ namespace m1
 		// draw particles
 		drawParticles(commandBuffer);
 
-		// end render pass
+		// end rendering
 		vkCmdEndRendering(commandBuffer);
 
 		// transition the color image and the swapchain image into their correct transfer layouts
-		transitionImageLayout(commandBuffer, colorImage.getVkImage(), 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-		transitionImageLayout(commandBuffer, swapChainImage, 1, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		transitionImageLayout(commandBuffer, colorImage.getVkImage(), 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+		transitionImageLayout(commandBuffer, swapChainImage, 1, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
 
 		// copy the color image into the swapchain image
 		copyImageToImage(commandBuffer, colorImage.getVkImage(), swapChainImage, colorImage.getExtent(), _swapChain->getExtent());
 
 		// set the swapchain image layout to Present to show it on the screen
-		transitionImageLayout(commandBuffer, swapChainImage, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+		transitionImageLayout(commandBuffer, swapChainImage, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_ASPECT_COLOR_BIT);
 
 		// end command buffer recording
 		VK_CHECK(vkEndCommandBuffer(commandBuffer));
@@ -546,11 +559,308 @@ namespace m1
 		_swapChain = std::make_unique<SwapChain>(_device, _window, config);
 
 		// update camera aspect ratio
-		camera.setAspectRatio(_swapChain->getAspectRatio());
+		_camera.setAspectRatio(_swapChain->getAspectRatio());
+	}
+
+	BBox Engine::computeSceneBBox() const
+	{
+		BBox bbox;
+		for (const auto& obj : _sceneObjects)
+		{
+			// skip auxiliary objects
+			if (obj->IsAuxiliary)
+				continue;
+
+			for (const auto& vertex : obj->Mesh->Vertices)
+			{
+				glm::vec3 worldPos = glm::vec3(obj->Transform * glm::vec4(vertex.pos, 1.0f));
+				bbox.merge(worldPos);
+			}
+		}
+		return bbox;
+	}
+
+	glm::mat4 Engine::computeLightViewProjMatrix() const
+	{
+		const Light& directionalLight = _lightsUbo.lights[1];
+		glm::vec3 lightDir = glm::normalize(glm::vec3(directionalLight.posDir));
+
+		// fit on scene bounding box
+		auto center = _bbox.getCenter();
+
+		// Create the light view matrix
+		glm::vec3 lightPos = center - lightDir;
+		glm::vec3 up = glm::abs(glm::dot(lightDir, glm::vec3(0.0f, 0.0f, 1.0f))) > 0.99f
+			? glm::vec3(1.0f, 0.0f, 0.0f) // use x-axis if the light direction is parallel to z-axis
+			: glm::vec3(0.0f, 0.0f, 1.0f);
+		const auto lightView = glm::lookAt(lightPos, center, up);
+
+		float left = -1, right = 1, bottom = -1, top = 1, near = 0, far = 1;
+
+		if (_bbox.min.x <= _bbox.max.x) // Check if the bbox is valid
+		{
+			// transform bbox corners in light view space and find max and min coordinates (AABB)
+			auto corners = _bbox.getCorners();
+
+			float minX = std::numeric_limits<float>::max();
+			float maxX = std::numeric_limits<float>::lowest();
+			float minY = std::numeric_limits<float>::max();
+			float maxY = std::numeric_limits<float>::lowest();
+			float minZ = std::numeric_limits<float>::max();
+			float maxZ = std::numeric_limits<float>::lowest();
+
+			for (const auto& corner : corners)
+			{
+				const auto trf = lightView * glm::vec4(corner, 1.0f);
+				minX = std::min(minX, trf.x);
+				maxX = std::max(maxX, trf.x);
+				minY = std::min(minY, trf.y);
+				maxY = std::max(maxY, trf.y);
+				minZ = std::min(minZ, trf.z);
+				maxZ = std::max(maxZ, trf.z);
+			}
+
+			// make the AABB square around the center
+			float width  = maxX - minX;
+			float height = maxY - minY;
+
+			float extend = std::max(width, height);
+			glm::vec3 centerLightSpace = lightView * glm::vec4(center, 1.0f);;
+
+			left = centerLightSpace.x - extend * 0.5f;
+			right = centerLightSpace.x + extend * 0.5f;
+
+			bottom = centerLightSpace.y - extend * 0.5f;
+			top = centerLightSpace.y + extend * 0.5f;
+
+			near = minZ;
+			far = maxZ;
+		}
+
+		// Build ortho projection that encloses the frustum in light space
+		glm::mat4 lightProj = Utils::orthoProjection(left, right, bottom, top, near, far);
+
+		return lightProj * lightView;
+
+		/*
+			// Compute light view-projection matrix that tightly fits the camera view frustum (https://learnopengl.com/Guest-Articles/2021/CSM)
+			// Steps:
+			// 1. Extract camera frustum corners and center in world space
+			// 2. Transform those corners into light space
+			// 3. Compute an orthographic projection that encloses those points
+
+
+		// Camera matrices
+		auto camView = _camera.getViewMatrix();
+		auto camProj = _camera.getProjectionMatrix();
+
+		// We need the inverse of view*proj to transform NDC cube corners in world space
+		glm::mat4 invViewProj = glm::inverse(camProj * camView);
+
+		// compute frustum corners in world space
+		std::vector<glm::vec4> frustumCornersWorld;
+		for (unsigned int x = 0; x < 2; ++x)
+		{
+			for (unsigned int y = 0; y < 2; ++y)
+			{
+				for (unsigned int z = 0; z < 2; ++z)
+				{
+					const glm::vec4 pt =
+						invViewProj * glm::vec4(
+							2.0f * x - 1.0f,
+							2.0f * y - 1.0f,
+							static_cast<float>(z), // depth [0, 1]
+							1.0f);
+					frustumCornersWorld.push_back(pt / pt.w);
+				}
+			}
+		}
+
+		// Compute the center of the frustum
+		auto frustumCenterWorld = glm::vec3(0.0f);
+		for (const auto &c : frustumCornersWorld) frustumCenterWorld += glm::vec3(c);
+		frustumCenterWorld /= 8.0f;
+
+		// Create the light view matrix
+		glm::vec3 lightPos = frustumCenterWorld - lightDir;
+		glm::vec3 up = glm::abs(glm::dot(lightDir, glm::vec3(0.0f, 0.0f, 1.0f))) > 0.99f
+			? glm::vec3(1.0f, 0.0f, 0.0f) // use this if the light direction is parallel to z axis
+			: glm::vec3(0.0f, 0.0f, 1.0f);
+		const auto lightView = glm::lookAt(lightPos, frustumCenterWorld, up);
+
+		// gets min and max in light view space
+		float minX = std::numeric_limits<float>::max();
+		float maxX = std::numeric_limits<float>::lowest();
+		float minY = std::numeric_limits<float>::max();
+		float maxY = std::numeric_limits<float>::lowest();
+		float minZ = std::numeric_limits<float>::max();
+		float maxZ = std::numeric_limits<float>::lowest();
+
+		// 1. Consider camera frustum corners
+		for (const auto& v : frustumCornersWorld)
+		{
+			const auto trf = lightView * v;
+			minX = std::min(minX, trf.x);
+			maxX = std::max(maxX, trf.x);
+			minY = std::min(minY, trf.y);
+			maxY = std::max(maxY, trf.y);
+			minZ = std::min(minZ, trf.z);
+			maxZ = std::max(maxZ, trf.z);
+		}
+
+		// extend near/far (not only geometry which is in the frustum can cast shadows on a surface in the frustum!)
+		constexpr float zMult = 10.0f; // Tune this parameter according to the scene
+		if (minZ < 0) minZ *= zMult; else minZ /= zMult;
+		if (maxZ < 0) maxZ /= zMult; else maxZ *= zMult;
+
+		// Build ortho projection that encloses the frustum in light space
+		glm::mat4 lightProj = Utils::orthoProjection(minX, maxX, minY, maxY, minZ, maxZ);
+
+		return lightProj * lightView;
+		*/
+	}
+
+	void Engine::createShadowResources()
+	{
+		// find image format
+		auto shadowImageFormat = _device.findSupportedFormat(
+{ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
+			VK_IMAGE_TILING_OPTIMAL,
+			VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+		);
+
+		// set image parameters
+		ImageParams params
+		{
+			.extent = {2048, 2048},
+			.format = shadowImageFormat,
+			.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+			.memoryProps = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, // dedicated allocation for special, big resources, like fullscreen images used as attachments
+			.aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT,
+		};
+
+		// create the shadow map image
+		auto shadowMapImage = std::make_unique<Image>(_device, params);
+
+		// set sampler info
+		VkSamplerCreateInfo samplerInfo{};
+		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		samplerInfo.magFilter = VK_FILTER_LINEAR;
+		samplerInfo.minFilter = VK_FILTER_LINEAR;
+		// clamp to a white border => projected fragment coordinates outside the light frustum are not in shadow
+		samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+		samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+		samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+		samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+		samplerInfo.compareEnable = VK_FALSE;
+		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+		// create the sampler
+		VkSampler shadowSampler{};
+		VK_CHECK(vkCreateSampler(_device.getVkDevice(), &samplerInfo, nullptr, &shadowSampler));
+
+		// create the shadow map texture
+		_shadowMap = std::make_unique<Texture>(_device, std::move(shadowMapImage), shadowSampler);
+	}
+
+	void Engine::recordShadowMappingPass(VkCommandBuffer commandBuffer) const
+	{
+		Image& shadowMapImage = _shadowMap->getImage();
+
+		// transition the layout to DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+		transitionImageLayout(commandBuffer, shadowMapImage.getVkImage(), 1, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+		// set depth attachment
+		VkRenderingAttachmentInfo depthAttachment
+		{
+			.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+			.imageView = shadowMapImage.getVkImageView(),
+			.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+			.clearValue = { .depthStencil { 1.0f, 0 } } // depth range [0.0f, 1.0f] with 1.0f being furthest - init depth with furthest value
+		};
+
+		// begin rendering
+		VkRenderingInfo renderingInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+			.renderArea = {{0, 0}, shadowMapImage.getExtent()},
+			.layerCount = 1,
+			.colorAttachmentCount = 0,
+			.pColorAttachments = nullptr,
+			.pDepthAttachment = &depthAttachment,
+		};
+		vkCmdBeginRendering(commandBuffer, &renderingInfo);
+
+		// set viewport
+		VkViewport viewport{};
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		viewport.width = static_cast<float>(shadowMapImage.getExtent().width);
+		viewport.height = static_cast<float>(shadowMapImage.getExtent().height);
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+		// set scissor
+		VkRect2D scissor{};
+		scissor.offset = {0, 0};
+		scissor.extent = shadowMapImage.getExtent();
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+		// bind shadow mapping pipeline
+		Pipeline* pipeline = _graphicsPipelines.at(PipelineType::ShadowMapping).get();
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getVkPipeline());
+
+		// bind frame descriptor set
+		VkDescriptorSet descriptorSet = _framesData[_currentFrame]->descriptorSet;
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getLayout(), 0, 1, &descriptorSet, 0, nullptr);
+
+		// draw objects loop
+		for (auto &obj: _sceneObjects)
+		{
+			// push constants
+			PushConstantData push
+			{
+				.model = obj->Transform,
+				.normalMatrix = glm::transpose(glm::inverse(obj->Transform))
+			};
+			vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &push);
+
+			// draw the mesh
+			obj->Mesh->draw(commandBuffer);
+		}
+
+		// end rendering
+		vkCmdEndRendering(commandBuffer);
+
+		// transition layout SHADER_READ_ONLY_OPTIMAL
+		transitionImageLayout(commandBuffer, shadowMapImage.getVkImage(), 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
 	}
 
 	void Engine::createPipelines()
 	{
+		// Shadow mapping
+		std::array shadowSetLayouts
+		{
+			_descriptorSetManager->getFrameDescriptorSetLayout(),
+		};
+		GraphicsPipelineConfig shadowPipelineInfo
+		{
+			.swapChain = *_swapChain,
+			.shadowMapFormat = _shadowMap->getImage().getFormat(),
+			.vertShaderPath = R"(..\shaders\compiled\shadow.vert.spv)",
+			.vertexBindingDescription = Vertex::getBindingDescription(),
+			.vertexAttributeDescriptions = Vertex::getAttributeDescriptions(),
+			.cullMode = VK_CULL_MODE_FRONT_BIT, // front face culling to fix peter panning artifacts, but works only for 3D solid objects, not for planes/surfaces
+			.depthTestEnable = true,
+			.depthWriteEnable = true,
+			.setLayoutCount = shadowSetLayouts.size(),
+			.pSetLayouts = shadowSetLayouts.data(),
+		};
+		_graphicsPipelines.emplace(PipelineType::ShadowMapping, PipelineFactory::createShadowMapPipeline(_device, shadowPipelineInfo));
+
 		// NoLight
 		std::array noLightSetLayouts =
 		{
@@ -707,29 +1017,26 @@ namespace m1
 
 	void Engine::initLights()
 	{
-		// define lights
-		LightsUbo lightsUbo{};
-
 		// Ambient light
-		lightsUbo.ambient = glm::vec4(1.0f, 1.0f, 1.0f, 0.08f); // soft gray ambient
+		_lightsUbo.ambient = glm::vec4(1.0f, 1.0f, 1.0f, 0.08f); // soft gray ambient
 
-		lightsUbo.numLights = 2;
+		_lightsUbo.numLights = 2;
 
 		// Directional light (like sunlight)
-		lightsUbo.lights[1].posDir = glm::vec4(-0.5f, 1.0f, -0.3f, 0.0f); // w=0 => dir light
-		lightsUbo.lights[1].color = glm::vec4(1.0f, 1.0f, 1.0f, 0.2f);
+		_lightsUbo.lights[1].posDir = glm::vec4(-0.5f, 1.0f, -0.8f, 0.0f); // w=0 => dir light
+		_lightsUbo.lights[1].color = glm::vec4(1.0f, 1.0f, 1.0f, 0.2f);
 
 		// Point light
-		lightsUbo.lights[0].posDir = glm::vec4(5.2f, 5.2f, 6.2f, 1.0f); // w=1 => point light
-		lightsUbo.lights[0].color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-		lightsUbo.lights[0].attenuation = glm::vec4(1.0f, 0.09f, 0.032f, 0.0f);
+		_lightsUbo.lights[0].posDir = glm::vec4(5.2f, 5.2f, 6.2f, 1.0f); // w=1 => point light
+		_lightsUbo.lights[0].color = glm::vec4(1.0f, 1.0f, 1.0f, 0.4f);
+		_lightsUbo.lights[0].attenuation = glm::vec4(1.0f, 0.09f, 0.032f, 0.0f);
 
 		// Create the lights ubo with device local memory for better performance
 		VkDeviceSize lightsUboSize = sizeof(LightsUbo);
         _lightsUboBuffer = std::make_unique<Buffer>(_device, lightsUboSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
 		// upload lights data to buffer
-		Utils::uploadToDeviceBuffer(_device, *_lightsUboBuffer, lightsUboSize, &lightsUbo);
+		Utils::uploadToDeviceBuffer(_device, *_lightsUboBuffer, lightsUboSize, &_lightsUbo);
 	}
 
 	void Engine::updateFrameDescriptorSet()
@@ -741,6 +1048,14 @@ namespace m1
 		    .offset = 0,
 		    .range = sizeof(LightsUbo)
 	    };
+
+		// ShadowMap info (used to define the sampler)
+	    VkDescriptorImageInfo shadowMapImageInfo
+		{
+			.sampler = _shadowMap->getSampler(),
+			.imageView = _shadowMap->getImage().getVkImageView(),
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+		};
 
 	    // populate each DescriptorSet
 	    for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
@@ -834,9 +1149,21 @@ namespace m1
 				.pBufferInfo = &particlesSsboInfoCurrentFrame
 			};
 
+	    	// Shadow map sampler write
+	    	VkWriteDescriptorSet shadowMapDescriptorWrite
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = frameDescriptorSet,
+				.dstBinding = 5,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &shadowMapImageInfo
+			};
+
 		    std::array descriptorWrites =
 		    {
-			    objectUboWrite, frameUboWrite, lightsDescriptorWrite, particlesDescriptorWritePrevFrame, particlesDescriptorWriteCurrentFrame
+			    objectUboWrite, frameUboWrite, lightsDescriptorWrite, particlesDescriptorWritePrevFrame, particlesDescriptorWriteCurrentFrame, shadowMapDescriptorWrite
 		    };
 
 		    vkUpdateDescriptorSets(_device.getVkDevice(), descriptorWrites.size(),
@@ -1073,7 +1400,7 @@ namespace m1
 		Image& textImage = texture->getImage();
 
 		// Transition image layout to be optimal for receiving data
-        transitionImageLayout(textImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        transitionImageLayout(textImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
 
 		// Copy the texture data from the staging buffer to the image
         copyBufferToImage(stagingBuffer, textImage.getVkImage(), width, height);
@@ -1092,40 +1419,42 @@ namespace m1
 	{
 		int key = _window.getPressedKey();
 
-		if (key == GLFW_KEY_W) camera.moveUp(delta);
-		if (key == GLFW_KEY_S) camera.moveUp(-delta);
-		if (key == GLFW_KEY_D) camera.moveRight(delta);
-		if (key == GLFW_KEY_A) camera.moveRight(-delta);
+		if (key == GLFW_KEY_W) _camera.moveUp(delta);
+		if (key == GLFW_KEY_S) _camera.moveUp(-delta);
+		if (key == GLFW_KEY_D) _camera.moveRight(delta);
+		if (key == GLFW_KEY_A) _camera.moveRight(-delta);
 
-		if (key == GLFW_KEY_UP) camera.orbitVertical(delta);
-		if (key == GLFW_KEY_DOWN) camera.orbitVertical(-delta);
-		if (key == GLFW_KEY_RIGHT) camera.orbitHorizontal(delta);
-		if (key == GLFW_KEY_LEFT) camera.orbitHorizontal(-delta);
+		if (key == GLFW_KEY_UP) _camera.orbitVertical(delta);
+		if (key == GLFW_KEY_DOWN) _camera.orbitVertical(-delta);
+		if (key == GLFW_KEY_RIGHT) _camera.orbitHorizontal(delta);
+		if (key == GLFW_KEY_LEFT) _camera.orbitHorizontal(-delta);
 
-		if (key == GLFW_KEY_PAGE_DOWN || key == GLFW_KEY_E) camera.zoom(delta);
-		if (key == GLFW_KEY_PAGE_UP || key == GLFW_KEY_Q) camera.zoom(-delta);
+		if (key == GLFW_KEY_PAGE_DOWN || key == GLFW_KEY_E) _camera.zoom(delta);
+		if (key == GLFW_KEY_PAGE_UP || key == GLFW_KEY_Q) _camera.zoom(-delta);
 
 		if (key == GLFW_KEY_P)
 		{
-			if (camera.getProjectionType() == Camera::ProjectionType::Perspective)
-				camera.setProjectionType(Camera::ProjectionType::Orthographic);
+			if (_camera.getProjectionType() == Camera::ProjectionType::Perspective)
+				_camera.setProjectionType(Camera::ProjectionType::Orthographic);
 			else
-				camera.setProjectionType(Camera::ProjectionType::Perspective);
+				_camera.setProjectionType(Camera::ProjectionType::Perspective);
 		}
 	}
 
-	void Engine::transitionImageLayout(const Image &image, VkImageLayout oldLayout, VkImageLayout newLayout) const
+	void Engine::transitionImageLayout(const Image &image, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask) const
 	{
 		VkCommandBuffer commandBuffer = _device.getGraphicsQueue().beginOneTimeCommand();
 
-		transitionImageLayout(commandBuffer, image.getVkImage(), image.getMipLevels(), oldLayout, newLayout);
+		transitionImageLayout(commandBuffer, image.getVkImage(), image.getMipLevels(), oldLayout, newLayout, aspectMask);
 
 		_device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
 	}
 
 
-	void Engine::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout, VkImageLayout newLayout)
+	void Engine::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask)
 	{
+		// TODO: refactor this method without duplicated code?
+
 		/*
 		In Vulkan, an image layout describes how the GPU should treat the memory of an image (texture, framebuffer, etc.).
 		A layout transition is changing an image from one layout to another, so the GPU knows how to access it correctly.
@@ -1141,8 +1470,6 @@ namespace m1
 		dstAccessMask: which memory caches need to be invalidated. E.g.: If you are going to read the texture,
 						the GPU needs to ensure the L1/L2 read caches are fresh.
 		*/
-
-		VkImageAspectFlags aspectMask = newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
 		VkImageMemoryBarrier2 barrier
 		{
@@ -1221,6 +1548,24 @@ namespace m1
 									VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT; // where the GPU writes the final depth value after the Fragment Shader
 			barrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 		}
+		// DEPTH_STENCIL_ATTACHMENT -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL (shadowMap)
+		else if (currentLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+		{
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+			barrier.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+		}
+		// UNDEFINED -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL (shadowMap)
+		else if (currentLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+		{
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_NONE;
+
+			barrier.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+		}
 		else
 		{
 			throw std::invalid_argument("not implemented image layout transition!");
@@ -1256,7 +1601,7 @@ namespace m1
 		{
 			Log::Get().Warning("Failed to create mip levels. Texture image format does not support linear blitting!");
 
-            transitionImageLayout(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            transitionImageLayout(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
 			return;
 		}
 

@@ -14,6 +14,9 @@ namespace m1
     {
     public:
         Texture(const Device& device, uint32_t width, uint32_t height);
+        Texture(const Device& device, std::unique_ptr<Image> image, VkSampler sampler) :
+    		_device(device), _image(std::move(image)), _sampler(sampler) {}
+
         ~Texture();
 
         // Non-copyable
@@ -22,6 +25,7 @@ namespace m1
 
         Image& getImage() const { return *_image; }
         VkSampler getSampler() const { return _sampler; }
+    	VkExtent2D getExtent() const { return _image->getExtent();}
         uint32_t getWidth() const { return _image->getWidth(); }
         uint32_t getHeight() const { return _image->getHeight(); }
 

@@ -24,6 +24,7 @@ int main()
 	m1::EngineConfig engineConfig
 	{
 		.msaa = true,
+		.shadows = true,
 	};
     m1::Engine engine{engineConfig};
 
@@ -163,15 +164,15 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	material->specularTexturePath = "../resources/container_specular.png";
 	engine.addMaterial(std::move(material));
 
-    auto sceneObj = m1::SceneObject::createSceneObject();
-	auto mesh = m1::Mesh::createCube();
-	mesh->setMaterialName("container");
-	//mesh->setMaterialName("shiny");
-    sceneObj->setMesh(std::move(mesh));
-    engine.addSceneObject(std::move(sceneObj));
+	// floor
+	auto sceneObj = m1::SceneObject::createSceneObject();
+	auto mesh = m1::Mesh::createQuad({0.5f, 0.5f, 0.5f});
+	sceneObj->setMesh(std::move(mesh));
+	engine.addSceneObject(std::move(sceneObj));
 
 	// cube that represents the light source
     sceneObj = m1::SceneObject::createSceneObject();
+	sceneObj->IsAuxiliary = true;
 	mesh = m1::Mesh::createCube(glm::vec3(1.0f, 1.0f, 1.0f));
     sceneObj->setMesh(std::move(mesh));
     auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(5.2f, 5.2f, 6.2f));
@@ -212,6 +213,7 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	}
 	else
 	{
+		// cube grid
 		for (uint32_t i = 0; i < numCubes; i++)
 		{
 			for (uint32_t j = 0; j < numCubes; j++)

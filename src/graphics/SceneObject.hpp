@@ -29,6 +29,8 @@ namespace m1
 		// Optional: which pipeline to use when drawing this object
 		std::optional<PipelineType> PipelineKey = std::nullopt;
 
+		bool IsAuxiliary = false;
+
 	private:
 		explicit SceneObject(const uint64_t id) : Id{ id } { }
 	};

@@ -143,4 +143,44 @@ namespace m1
 
 		return mesh;
 	}
+
+	std::unique_ptr<Mesh> Mesh::createQuad(const glm::vec3& color)
+	{
+		auto mesh = std::make_unique<Mesh>();
+
+		const glm::vec3 positions[4] =
+		{
+			{-10.f, -10.f, -.8f}, // 0
+			{ 10.f, -10.f, -.8f}, // 1
+			{ 10.f,  10.f, -.8f}, // 2
+			{-10.f,  10.f, -.8f}, // 3
+		};
+		const glm::vec3 colors[4] =
+		{
+			color, color, color, color,
+		};
+		const glm::vec2 texCoords[4] =
+		{
+			{0.0f, 0.0f},
+			{1.0f, 0.0f},
+			{1.0f, 1.0f},
+			{0.0f, 1.0f}
+		};
+
+		const glm::vec3 normal = { 0, 0, 1};
+
+		mesh->Vertices.push_back({positions[0], colors[0], normal, texCoords[0]});
+		mesh->Vertices.push_back({positions[1], colors[1], normal, texCoords[1]});
+		mesh->Vertices.push_back({positions[2], colors[2], normal, texCoords[2]});
+		mesh->Vertices.push_back({positions[3], colors[3], normal, texCoords[3]});
+
+		mesh->Indices.push_back(0);
+		mesh->Indices.push_back(1);
+		mesh->Indices.push_back(2);
+		mesh->Indices.push_back(2);
+		mesh->Indices.push_back(3);
+		mesh->Indices.push_back(0);
+
+		return mesh;
+	}
 }

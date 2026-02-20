@@ -11,6 +11,7 @@ layout (location = 0) out vec3 fragColor;
 layout (location = 1) out vec2 fragTexCoord;
 layout (location = 2) out vec3 fragPosWorld;
 layout (location = 3) out vec3 fragNormalWorld;
+layout (location = 4) out vec4 fragPosLightSpace;
 
 layout(set = 0, binding = 0) uniform ObjectUbo {
     mat4 model;
@@ -20,7 +21,9 @@ layout(set = 0, binding = 0) uniform ObjectUbo {
 layout(set = 0, binding = 1) uniform FrameUbo {
     mat4 view;
     mat4 proj;
-    vec3 camPos;
+    mat4 lightViewProjMatrix;
+    vec4 camPos;
+    int shadowsEnabled;
 } frameUbo;
 
 layout(push_constant) uniform Push {
@@ -38,4 +41,5 @@ void main() {
     fragTexCoord = texCoord;
     fragPosWorld = vec3(push.model * vec4(position, 1.0));
     fragNormalWorld = normalize(push.normalMatrix * normal);
+    fragPosLightSpace = frameUbo.lightViewProjMatrix * vec4(fragPosWorld, 1.0);
 }

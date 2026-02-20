@@ -1,4 +1,5 @@
 #include "Camera.hpp"
+#include "Utils.hpp"
 
 namespace m1
 {
@@ -115,14 +116,11 @@ namespace m1
 	{
 		if (_projectionType == ProjectionType::Perspective)
 		{
-			_projectionMatrix = glm::perspective(glm::radians(_fov), _aspectRatio, _nearPlane, _farPlane);
+			_projectionMatrix = Utils::perspectiveProjection(glm::radians(_fov), _aspectRatio, _nearPlane, _farPlane);
 		}
-		else if (_projectionType == ProjectionType::Orthographic)
+		else // Orthographic
 		{
-			_projectionMatrix = glm::ortho(_left / _zoomfactor, _right / _zoomfactor, _bottom / _zoomfactor, _top / _zoomfactor, _nearPlane, _farPlane);
+			_projectionMatrix = Utils::orthoProjection(_left / _zoomfactor, _right / _zoomfactor, _bottom / _zoomfactor, _top / _zoomfactor, _nearPlane, _farPlane);
 		}
-
-		// flip the sign of Y scaling factor because GLM was originally designed for OpenGL, where the Y coordinate of the clip coordinates is inverted
-		_projectionMatrix[1][1] *= -1;
 	}
 } // namespace m1

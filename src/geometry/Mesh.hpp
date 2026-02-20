@@ -22,6 +22,7 @@ namespace m1
 		~Mesh();
 
 		static std::unique_ptr<Mesh> createCube(const glm::vec3& color = glm::vec3(1.0f, 1.0f, 1.0f));
+		static std::unique_ptr<Mesh> createQuad(const glm::vec3& color = glm::vec3(1.0f, 1.0f, 1.0f));
 
 		void setMaterialName(const std::string& materialName) { _materialName = materialName; }
 		const std::string& getMaterialName() const { return _materialName; }

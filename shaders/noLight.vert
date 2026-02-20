@@ -11,7 +11,9 @@ layout (location = 0) out vec3 fragColor;
 layout(set = 0, binding = 1) uniform FrameUbo {
     mat4 view;
     mat4 proj;
-    vec3 camPos;
+    mat4 lightViewProjMatrix;
+    vec4 camPos;
+    int shadowsEnabled;
 } frameUbo;
 
 // Push Constants

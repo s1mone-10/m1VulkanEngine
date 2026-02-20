@@ -19,6 +19,7 @@ namespace m1
 	{
 		NoLight,
 		PhongLighting,
+		ShadowMapping,
 		Particles
 	};
 
@@ -32,6 +33,9 @@ namespace m1
     {
     	// swap chain
     	const SwapChain& swapChain;
+
+    	// format of the shadow map image
+    	VkFormat shadowMapFormat;
 
     	// shaders
         std::string vertShaderPath;
@@ -85,6 +89,7 @@ namespace m1
 	{
 	public:
 		static std::unique_ptr<Pipeline> createGraphicsPipeline(const Device& device, const GraphicsPipelineConfig& config);
+		static std::unique_ptr<Pipeline> createShadowMapPipeline(const Device& device, const GraphicsPipelineConfig& config);
 		static std::unique_ptr<Pipeline> createComputePipeline(const Device &device, const VkDescriptorSetLayout &descriptorSetLayout);
 
 	private:

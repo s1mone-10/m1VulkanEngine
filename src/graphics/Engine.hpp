@@ -11,6 +11,7 @@
 #include "Material.hpp"
 #include "Camera.hpp"
 #include "FrameData.hpp"
+#include "geometry/BBox.hpp"
 
 // std
 #include <memory>
@@ -25,6 +26,7 @@ namespace m1
 	struct EngineConfig
 	{
 		bool msaa = true;
+		bool shadows = true;
 	};
 
     class Engine
@@ -57,6 +59,10 @@ namespace m1
         void recreateSwapChain();
     	void createPipelines();
 		void createFramesResources();
+		void createShadowResources();
+		void recordShadowMappingPass(VkCommandBuffer commandBuffer) const;
+    	BBox computeSceneBBox() const;
+        glm::mat4 computeLightViewProjMatrix() const;
         void initParticles();
         void initLights();
         void updateFrameDescriptorSet();
@@ -72,8 +78,8 @@ namespace m1
 
         void processInput(float delta);
 
-        void transitionImageLayout(const Image &image, VkImageLayout oldLayout, VkImageLayout newLayout) const;
-        static void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout, VkImageLayout newLayout);
+        void transitionImageLayout(const Image &image, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask) const;
+        static void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask);
         void generateMipmaps(const Image& image);
         static void copyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize);
 
@@ -82,7 +88,7 @@ namespace m1
 
     	EngineConfig _config{};
 
-        Camera camera{};
+        Camera _camera{};
 
         Window _window{ WIDTH, HEIGHT, "Vulkan App" };
         Device _device{ _window };
@@ -94,16 +100,20 @@ namespace m1
 
     	// static lights -> just one buffer. If lights change at each frame, move them in the FrameResources
     	std::unique_ptr<Buffer> _lightsUboBuffer;
+    	LightsUbo _lightsUbo{};
 
 		std::unique_ptr<DescriptorSetManager> _descriptorSetManager;
     	VkDeviceSize _materialUboAlignment = -1;
 
         std::vector<std::unique_ptr<SceneObject>> _sceneObjects{};
+    	BBox _bbox;
     	std::unordered_map<std::string, std::unique_ptr<Material>> _materials{};
     	std::unique_ptr<Material> _defaultMaterial = std::make_unique<Material>(DEFAULT_MATERIAL_NAME);
     	std::shared_ptr<Texture> _whiteTexture;
     	std::string _currentMaterialName;
         uint32_t _currentFrame = 0;
+
+    	std::unique_ptr<Texture> _shadowMap;
 
 		// Synchronization objects (semaphores for GPU-GPU sync, fences for CPU-GPU sync)
         std::vector<VkSemaphore> _imageAvailableSems;

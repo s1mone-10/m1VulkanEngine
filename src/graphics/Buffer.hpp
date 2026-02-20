@@ -29,7 +29,9 @@ namespace m1
 	{
 		glm::mat4 view;
 		glm::mat4 proj;
-		glm::vec3 camPos;
+		glm::mat4 lightViewProjMatrix;
+		glm::vec4 camPos; // 3 meaningful value, vec4 for padding
+		int shadowsEnabled;
 	};
 
 	struct ObjectUbo
