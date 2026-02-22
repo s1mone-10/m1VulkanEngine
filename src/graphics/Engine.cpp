@@ -1453,8 +1453,6 @@ namespace m1
 
 	void Engine::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask)
 	{
-		// TODO: refactor this method without duplicated code?
-
 		/*
 		In Vulkan, an image layout describes how the GPU should treat the memory of an image (texture, framebuffer, etc.).
 		A layout transition is changing an image from one layout to another, so the GPU knows how to access it correctly.
@@ -1471,114 +1469,25 @@ namespace m1
 						the GPU needs to ensure the L1/L2 read caches are fresh.
 		*/
 
+		VkAccessFlags srcAccessMask, dstAccessMask;
+		VkPipelineStageFlags srcStageMask, dstStageMask;
+		getStageAndAccessMaskForLayout(currentLayout, srcStageMask, srcAccessMask);
+		getStageAndAccessMaskForLayout(newLayout, dstStageMask, dstAccessMask);
+
 		VkImageMemoryBarrier2 barrier
 		{
 			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+			.srcStageMask = srcStageMask,
+			.srcAccessMask = srcAccessMask,
+			.dstStageMask = dstStageMask,
+			.dstAccessMask = dstAccessMask,
 			.oldLayout = currentLayout,
 			.newLayout = newLayout,
 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, // for queue family ownership transfer, not used here
 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.image = image,
-			.subresourceRange = {aspectMask, 0, mipLevels, 0, 1}
+			.subresourceRange = {aspectMask, 0, mipLevels, 0, 1},
 		};
-
-		// UNDEFINED -> COLOR_ATTACHMENT
-		// We don't care about previous data, so we don't wait for anything.
-		if (currentLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
-		{
-			barrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT; // earliest possible stage
-			barrier.srcAccessMask = VK_ACCESS_2_NONE;
-
-			barrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-			barrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-		}
-		// COLOR_ATTACHMENT -> PRESENT
-		else if (currentLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
-		{
-			barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-			barrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-
-			barrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT; // Nothing typically runs after this on the GPU
-			barrier.dstAccessMask = VK_ACCESS_2_NONE;
-		}
-		// TRANSFER_DST -> PRESENT
-		else if (currentLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
-		{
-			barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-			barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-
-			barrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
-			barrier.dstAccessMask = VK_ACCESS_2_NONE;
-		}
-		// COLOR_ATTACHMENT -> TRANSFER_SRC
-		else if (currentLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
-		{
-			barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-			barrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-
-			barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-			barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-		}
-		// UNDEFINED -> TRANSFER_DST (upload data to texture)
-		else if (currentLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-		{
-			barrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-			barrier.srcAccessMask = VK_ACCESS_2_NONE;
-
-			barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT; // transfer stage (it's a pseudo-stage)
-			barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-		}
-		// TRANSFER_DST -> SHADER_READ (Texture upload finished, ready for shader)
-		else if (currentLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-		{
-			barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-			barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-
-			barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; // fragment shader reads from the texture
-			barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
-		}
-		// UNDEFINED -> DEPTH_STENCIL_ATTACHMENT
-		else if (currentLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-		{
-			barrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-			barrier.srcAccessMask = VK_ACCESS_2_NONE;
-
-			// Block the Depth Test units
-			barrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | // where the GPU checks the depth before running the Fragment Shader
-									VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT; // where the GPU writes the final depth value after the Fragment Shader
-			barrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		}
-		// DEPTH_STENCIL_ATTACHMENT -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL (shadowMap)
-		else if (currentLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-		{
-			barrier.srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-			barrier.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-			barrier.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-			barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
-		}
-		// UNDEFINED -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL (shadowMap)
-		else if (currentLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-		{
-			barrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-			barrier.srcAccessMask = VK_ACCESS_2_NONE;
-
-			barrier.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-			barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
-		}
-		else
-		{
-			throw std::invalid_argument("not implemented image layout transition!");
-
-			/*
-			// Fallback for unknown transitions (Safe but slow)
-			// It basically waits for EVERYTHING to finish before doing the transition.
-			barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-			barrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
-			barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-			barrier.dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
-			*/
-		}
 
 		VkDependencyInfo depInfo
 		{
@@ -1588,6 +1497,54 @@ namespace m1
 		};
 
 		vkCmdPipelineBarrier2(commandBuffer, &depInfo);
+	}
+
+	void Engine::getStageAndAccessMaskForLayout(VkImageLayout layout, VkPipelineStageFlags& stageMask, VkAccessFlags& accessMask)
+	{
+		switch (layout)
+		{
+			case VK_IMAGE_LAYOUT_UNDEFINED:
+				// We don't care about previous data, so we don't wait for anything.
+				stageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT; // earliest possible stage
+				accessMask = VK_ACCESS_2_NONE;
+				break;
+			case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+				stageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+				accessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+				break;
+			case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+				stageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+				accessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+				break;
+			case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+				stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+				accessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+				break;
+			case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+				stageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | // where the GPU checks the depth before running the Fragment Shader
+						VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT; // where the GPU writes the final depth value after the Fragment Shader
+				accessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+				break;
+			case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+				stageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; // fragment shader reads from texture
+				accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+				break;
+			case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+				stageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+				accessMask = VK_ACCESS_2_NONE;
+				break;
+			default:
+				throw std::invalid_argument("not implemented image layout transition!");
+				
+				/*
+				// Fallback for unknown transitions (Safe but slow)
+				// It basically waits for EVERYTHING to finish before doing the transition.
+				barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+				barrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
+				barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+				barrier.dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
+				*/
+		}
 	}
 
 	void Engine::generateMipmaps(const Image &image)

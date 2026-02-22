@@ -80,6 +80,8 @@ namespace m1
 
         void transitionImageLayout(const Image &image, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask) const;
         static void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask);
+        static void getStageAndAccessMaskForLayout(VkImageLayout layout, VkPipelineStageFlags &stageMask, VkAccessFlags &accessMask);
+
         void generateMipmaps(const Image& image);
         static void copyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize);
 
