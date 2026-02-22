@@ -51,6 +51,8 @@ namespace m1
         Device& operator=(Device&&) = delete;
 
         VkDevice getVkDevice() const { return _vkDevice; }
+        VkInstance getVkInstance() const { return _instance.getVkInstance(); }
+        VkPhysicalDevice getVkPhysicalDevice() const { return _physicalDevice; }
         QueueFamilyIndices getQueueFamilyIndices() const { return _queueFamilies; }
         const Queue& getGraphicsQueue() const { return *_graphicsQueue; }
         const Queue& getPresentQueue() const { return *_presentQueue; }

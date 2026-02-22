@@ -24,6 +24,9 @@ int main()
 	m1::EngineConfig engineConfig
 	{
 		.msaa = true,
+		.particlesEnabled = true,
+		.shadowsEnabled = false,
+		.showUi = true,
 	};
     m1::Engine engine{engineConfig};
 

@@ -36,6 +36,17 @@ The code is heavily commented to make Vulkan concepts easier to understand.
 *   Basic phong lighting (no shadows).
 *   Compute shader to animate a particle system.
 
+## Optional ImGui integration
+
+The engine now exposes runtime toggles through an ImGui panel (MSAA, particles, and a shadow flag placeholder).
+
+To enable ImGui at build time, set one of:
+
+* `IMGUI_PATH` in `.env.cmake` pointing to an ImGui checkout.
+* `third_party/imgui` in this repository (same layout as upstream ImGui).
+
+If neither is present, the engine builds without ImGui support and UI rendering is disabled automatically.
+
 ## Notes
 
 This project is still under development as I continue studying Vulkan.

@@ -21,6 +21,35 @@ endif()
 
 project(${NAME} VERSION 0.1.0) # build version
 
+set(M1_ENABLE_IMGUI OFF)
+if (DEFINED IMGUI_PATH)
+  set(M1_ENABLE_IMGUI ON)
+  set(IMGUI_INCLUDE_DIRS ${IMGUI_PATH} ${IMGUI_PATH}/backends)
+  set(IMGUI_SOURCES
+    ${IMGUI_PATH}/imgui.cpp
+    ${IMGUI_PATH}/imgui_demo.cpp
+    ${IMGUI_PATH}/imgui_draw.cpp
+    ${IMGUI_PATH}/imgui_tables.cpp
+    ${IMGUI_PATH}/imgui_widgets.cpp
+    ${IMGUI_PATH}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_PATH}/backends/imgui_impl_vulkan.cpp
+  )
+elseif (EXISTS "${PROJECT_SOURCE_DIR}/third_party/imgui/imgui.h")
+  set(M1_ENABLE_IMGUI ON)
+  set(IMGUI_PATH ${PROJECT_SOURCE_DIR}/third_party/imgui)
+  set(IMGUI_INCLUDE_DIRS ${IMGUI_PATH} ${IMGUI_PATH}/backends)
+  set(IMGUI_SOURCES
+    ${IMGUI_PATH}/imgui.cpp
+    ${IMGUI_PATH}/imgui_demo.cpp
+    ${IMGUI_PATH}/imgui_draw.cpp
+    ${IMGUI_PATH}/imgui_tables.cpp
+    ${IMGUI_PATH}/imgui_widgets.cpp
+    ${IMGUI_PATH}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_PATH}/backends/imgui_impl_vulkan.cpp
+  )
+endif()
+
+
 # 1. Set VULKAN_SDK_PATH in .env.cmake to target specific vulkan version
 if (DEFINED VULKAN_SDK_PATH)
   set(Vulkan_INCLUDE_DIRS "${VULKAN_SDK_PATH}/Include") # 1.1 Make sure this include path is correct
@@ -62,7 +91,8 @@ endif()
 
 file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/src/*.cpp) # Find all .cpp files in the src/ directory and its subdirectories
 
-add_executable(${PROJECT_NAME} ${SOURCES}) # Create an executable target from the collected source files
+
+add_executable(${PROJECT_NAME} ${SOURCES} ${IMGUI_SOURCES}) # Create an executable target from the collected source files
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/build")
 
@@ -71,6 +101,11 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 23
     CXX_STANDARD_REQUIRED ON
 )
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE M1_ENABLE_IMGUI=$<BOOL:${M1_ENABLE_IMGUI}>)
+if (M1_ENABLE_IMGUI)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE IMGUI_IMPL_VULKAN_HAS_DYNAMIC_RENDERING)
+endif()
 
 if (WIN32)
   message(STATUS "CREATING BUILD FOR WINDOWS")
@@ -93,6 +128,7 @@ if (WIN32)
     ${GLFW_INCLUDE_DIRS}
     ${GLM_PATH}
     ${VK_MEM_ALLOC_PATH}
+    ${IMGUI_INCLUDE_DIRS}
     )
 
   # Add all necessary library directories for the linker
@@ -107,6 +143,7 @@ elseif (UNIX)
     target_include_directories(${PROJECT_NAME} PUBLIC
       ${PROJECT_SOURCE_DIR}/src
       ${TINYOBJ_PATH}
+      ${IMGUI_INCLUDE_DIRS}
     )
     target_link_libraries(${PROJECT_NAME} glfw ${Vulkan_LIBRARIES})
 endif()

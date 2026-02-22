@@ -9,6 +9,12 @@
 //libs
 #include "glm_config.hpp"
 
+#if M1_ENABLE_IMGUI
+#include <imgui.h>
+#include <backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_vulkan.h>
+#endif
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
@@ -38,6 +44,7 @@ namespace m1
 		updateFrameDescriptorSet();
 
 		createSyncObjects();
+		initImGui();
 	}
 
 	Engine::~Engine()
@@ -60,6 +67,8 @@ namespace m1
 			vkDestroyFence(_device.getVkDevice(), _framesData[i]->computeCmdExecutedFence, nullptr);
 			vkDestroySemaphore(_device.getVkDevice(), _framesData[i]->computeCmdExecutedSem, nullptr);
 		}
+
+		shutdownImGui();
 
 		Log::Get().Info("Engine destroyed");
 	}
@@ -85,6 +94,30 @@ namespace m1
 		compileSceneObjects();
 	}
 
+	void Engine::setMsaaEnabled(bool enabled)
+	{
+		if (_config.msaa == enabled) return;
+		_config.msaa = enabled;
+		vkDeviceWaitIdle(_device.getVkDevice());
+		recreateSwapChain();
+		recreatePipelines();
+	}
+
+	void Engine::setParticlesEnabled(bool enabled)
+	{
+		_config.particlesEnabled = enabled;
+	}
+
+	void Engine::setShadowsEnabled(bool enabled)
+	{
+		_config.shadowsEnabled = enabled;
+	}
+
+	void Engine::setUiEnabled(bool enabled)
+	{
+		_config.showUi = enabled;
+	}
+
 	int _frameCount = 0;
 	float _framesTime = 0.0f;
 
@@ -96,8 +129,6 @@ namespace m1
 		{
 			glfwPollEvents();
 
-			drawFrame();
-
 			// update frame time
 			_frameCount++;
 			auto currentTime = std::chrono::high_resolution_clock::now();
@@ -106,6 +137,9 @@ namespace m1
 
 			// process input
 			processInput(frameTime);
+
+			buildUi();
+			drawFrame();
 
 			// update fps
 			// NOTE: VK_PRESENT_MODE_FIFO_KHR enables vertical sync and caps FPS to the monitor refresh rate.
@@ -137,6 +171,7 @@ namespace m1
 		FrameData& frameData = *_framesData[_currentFrame];
 
 		// record and submit compute commands
+		if (_config.particlesEnabled)
 		{
 			// wait for the previous computation to finish
 			vkWaitForFences(_device.getVkDevice(), 1, &frameData.computeCmdExecutedFence, VK_TRUE, UINT64_MAX);
@@ -196,8 +231,16 @@ namespace m1
 
 		// specify the semaphores and stages to wait on
 		// Each entry in the waitStages array corresponds to the semaphore with the same index in waitSemaphores
-		VkSemaphore waitSemaphores[] = {frameData.computeCmdExecutedSem, _imageAvailableSems[swapChainImageIndex]};
-        VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; // in which stage(s) of the pipeline to wait
+		std::array<VkSemaphore, 2> waitSemaphores = {frameData.computeCmdExecutedSem, _imageAvailableSems[swapChainImageIndex]};
+        std::array<VkPipelineStageFlags, 2> waitStages = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; // in which stage(s) of the pipeline to wait
+
+		uint32_t waitSemaphoreCount = 2;
+		if (!_config.particlesEnabled)
+		{
+			waitSemaphores[0] = _imageAvailableSems[swapChainImageIndex];
+			waitStages[0] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			waitSemaphoreCount = 1;
+		}
 
 		// specify which semaphores to signal once the command buffer has finished executing
 		VkSemaphore cmdExecutedSignalSemaphores[] = {_drawCmdExecutedSems[swapChainImageIndex]};
@@ -207,9 +250,9 @@ namespace m1
 		{
 			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 			//wait semaphores
-			.waitSemaphoreCount = 2,
-			.pWaitSemaphores = waitSemaphores,
-			.pWaitDstStageMask = waitStages,
+			.waitSemaphoreCount = waitSemaphoreCount,
+			.pWaitSemaphores = waitSemaphores.data(),
+			.pWaitDstStageMask = waitStages.data(),
 			// command buffers
 			.commandBufferCount = 1,
 			.pCommandBuffers = &frameData.drawSceneCmdBuffer,
@@ -480,7 +523,10 @@ namespace m1
 		drawObjectsLoop(commandBuffer);
 
 		// draw particles
-		drawParticles(commandBuffer);
+		if (_config.particlesEnabled)
+		{
+			drawParticles(commandBuffer);
+		}
 
 		// end render pass
 		vkCmdEndRendering(commandBuffer);
@@ -492,8 +538,46 @@ namespace m1
 		// copy the color image into the swapchain image
 		copyImageToImage(commandBuffer, colorImage.getVkImage(), swapChainImage, colorImage.getExtent(), _swapChain->getExtent());
 
-		// set the swapchain image layout to Present to show it on the screen
-		transitionImageLayout(commandBuffer, swapChainImage, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+#if M1_ENABLE_IMGUI
+		if (_config.showUi)
+		{
+			transitionImageLayout(commandBuffer, swapChainImage, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+			VkRenderingAttachmentInfo uiColorAttachment
+			{
+				.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+				.imageView = _swapChain->getSwapChainImageView(swapChainImageIndex),
+				.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+				.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+			};
+
+			VkRenderingInfo uiRenderingInfo
+			{
+				.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+				.renderArea = {{0, 0}, _swapChain->getExtent()},
+				.layerCount = 1,
+				.colorAttachmentCount = 1,
+				.pColorAttachments = &uiColorAttachment,
+			};
+
+			vkCmdBeginRendering(commandBuffer, &uiRenderingInfo);
+			ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+			vkCmdEndRendering(commandBuffer);
+
+			transitionImageLayout(commandBuffer, swapChainImage, 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+		}
+		else
+#else
+		if (false)
+		{
+		}
+		else
+#endif
+		{
+			// set the swapchain image layout to Present to show it on the screen
+			transitionImageLayout(commandBuffer, swapChainImage, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+		}
 
 		// end command buffer recording
 		VK_CHECK(vkEndCommandBuffer(commandBuffer));
@@ -607,6 +691,13 @@ namespace m1
 
 		// Compute
 		_computePipeline = PipelineFactory::createComputePipeline(_device, _descriptorSetManager->getFrameDescriptorSetLayout());
+	}
+
+	void Engine::recreatePipelines()
+	{
+		_graphicsPipelines.clear();
+		_computePipeline.reset();
+		createPipelines();
 	}
 
 	void Engine::createFramesResources()
@@ -1088,8 +1179,141 @@ namespace m1
 		return texture;
 	}
 
+
+#if M1_ENABLE_IMGUI
+
+	void Engine::initImGui()
+	{
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGui::StyleColorsDark();
+
+		std::array<VkDescriptorPoolSize, 1> poolSizes =
+		{
+			VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 256}
+		};
+
+		VkDescriptorPoolCreateInfo poolInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+			.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+			.maxSets = 256,
+			.poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
+			.pPoolSizes = poolSizes.data(),
+		};
+		VK_CHECK(vkCreateDescriptorPool(_device.getVkDevice(), &poolInfo, nullptr, &_imguiDescriptorPool));
+
+		ImGui_ImplGlfw_InitForVulkan(_window.getGlfwWindow(), true);
+
+		VkFormat swapChainFormat = _swapChain->getSwapChainImageFormat();
+		VkPipelineRenderingCreateInfo renderingInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+			.colorAttachmentCount = 1,
+			.pColorAttachmentFormats = &swapChainFormat,
+		};
+
+		ImGui_ImplVulkan_InitInfo initInfo{};
+		initInfo.Instance = _device.getVkInstance();
+		initInfo.PhysicalDevice = _device.getVkPhysicalDevice();
+		initInfo.Device = _device.getVkDevice();
+		initInfo.QueueFamily = _device.getQueueFamilyIndices().graphicsFamily.value();
+		initInfo.Queue = _device.getGraphicsQueue().getVkQueue();
+		initInfo.DescriptorPool = _imguiDescriptorPool;
+		initInfo.MinImageCount = static_cast<uint32_t>(_swapChain->getImageCount());
+		initInfo.ImageCount = static_cast<uint32_t>(_swapChain->getImageCount());
+		initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+		initInfo.UseDynamicRendering = true;
+		initInfo.PipelineRenderingCreateInfo = renderingInfo;
+
+		ImGui_ImplVulkan_Init(&initInfo);
+
+		auto fontUploadCmd = _device.getGraphicsQueue().beginOneTimeCommand();
+		ImGui_ImplVulkan_CreateFontsTexture(fontUploadCmd);
+		_device.getGraphicsQueue().endOneTimeCommand(fontUploadCmd);
+		ImGui_ImplVulkan_DestroyFontUploadObjects();
+	}
+
+	void Engine::shutdownImGui()
+	{
+		if (ImGui::GetCurrentContext() == nullptr)
+		{
+			return;
+		}
+
+		ImGui_ImplVulkan_Shutdown();
+		ImGui_ImplGlfw_Shutdown();
+		ImGui::DestroyContext();
+
+		if (_imguiDescriptorPool != VK_NULL_HANDLE)
+		{
+			vkDestroyDescriptorPool(_device.getVkDevice(), _imguiDescriptorPool, nullptr);
+			_imguiDescriptorPool = VK_NULL_HANDLE;
+		}
+	}
+
+	void Engine::buildUi()
+	{
+		if (!_config.showUi)
+		{
+			ImGui::GetIO().MouseDrawCursor = false;
+			return;
+		}
+
+		ImGui_ImplVulkan_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		ImGui::Begin("Engine controls");
+
+		bool enableMsaa = _config.msaa;
+		if (ImGui::Checkbox("MSAA", &enableMsaa))
+		{
+			setMsaaEnabled(enableMsaa);
+		}
+
+		bool particlesEnabled = _config.particlesEnabled;
+		if (ImGui::Checkbox("Particles", &particlesEnabled))
+		{
+			setParticlesEnabled(particlesEnabled);
+		}
+
+		bool shadowsEnabled = _config.shadowsEnabled;
+		if (ImGui::Checkbox("Shadows", &shadowsEnabled))
+		{
+			setShadowsEnabled(shadowsEnabled);
+		}
+
+		ImGui::TextUnformatted("Note: shadow toggle is config-only right now.");
+		ImGui::End();
+
+		ImGui::Render();
+	}
+
+#else
+	void Engine::initImGui()
+	{
+		_config.showUi = false;
+	}
+
+	void Engine::shutdownImGui()
+	{
+	}
+
+	void Engine::buildUi()
+	{
+	}
+#endif
+
 	void Engine::processInput(float delta)
 	{
+#if M1_ENABLE_IMGUI
+		if (_config.showUi && ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureKeyboard)
+		{
+			return;
+		}
+#endif
+
 		int key = _window.getPressedKey();
 
 		if (key == GLFW_KEY_W) camera.moveUp(delta);

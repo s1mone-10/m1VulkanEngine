@@ -25,6 +25,9 @@ namespace m1
 	struct EngineConfig
 	{
 		bool msaa = true;
+		bool particlesEnabled = true;
+		bool shadowsEnabled = false;
+		bool showUi = true;
 	};
 
     class Engine
@@ -43,6 +46,10 @@ namespace m1
     	void addMaterial(std::unique_ptr<Material> material);
     	void compile();
     	const EngineConfig& getConfig() const { return _config; }
+		void setMsaaEnabled(bool enabled);
+		void setParticlesEnabled(bool enabled);
+		void setShadowsEnabled(bool enabled);
+		void setUiEnabled(bool enabled);
 
     private:
         void mainLoop();
@@ -71,6 +78,10 @@ namespace m1
         std::unique_ptr<Texture> createTexture(uint32_t width, uint32_t height, void *data);
 
         void processInput(float delta);
+		void initImGui();
+		void shutdownImGui();
+		void buildUi();
+		void recreatePipelines();
 
         void transitionImageLayout(const Image &image, VkImageLayout oldLayout, VkImageLayout newLayout) const;
         static void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout, VkImageLayout newLayout);
@@ -109,5 +120,7 @@ namespace m1
         std::vector<VkSemaphore> _imageAvailableSems;
         std::vector<VkSemaphore> _drawCmdExecutedSems;
         VkSemaphore _acquireSemaphore; // only used during acquiring of an image, then swapped into _imageAvailableSems
+
+		VkDescriptorPool _imguiDescriptorPool = VK_NULL_HANDLE;
     };
 }
