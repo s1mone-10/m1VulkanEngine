@@ -10,10 +10,16 @@ namespace m1
 {
     class Device;   // Forward declaration
 
+	struct TextureParams
+	{
+		VkExtent2D extent;
+		VkFormat format;
+	};
+
     class Texture
     {
     public:
-        Texture(const Device& device, uint32_t width, uint32_t height);
+        Texture(const Device& device, const TextureParams& params);
         Texture(const Device& device, std::unique_ptr<Image> image, VkSampler sampler) :
     		_device(device), _image(std::move(image)), _sampler(sampler) {}
 
@@ -30,7 +36,7 @@ namespace m1
         uint32_t getHeight() const { return _image->getHeight(); }
 
     private:
-        void createTextureImage(uint32_t width, uint32_t height);
+        void createTextureImage(const TextureParams& textureParams);
         void createSampler();
 
         const Device& _device;

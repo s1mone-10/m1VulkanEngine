@@ -85,9 +85,9 @@ namespace m1
         
         void copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height);
 
-    	void createDefaultTexture();
-        std::unique_ptr<Texture> loadTexture(const std::string &filePath);
-        std::unique_ptr<Texture> createTexture(uint32_t width, uint32_t height, void *data);
+    	void createDefaultTextures();
+        std::unique_ptr<Texture> loadTexture(const std::string &filePath, VkFormat format);
+        std::unique_ptr<Texture> createTexture(const TextureParams &params, void *data);
 
         void processInput(float delta);
 
@@ -124,7 +124,8 @@ namespace m1
     	BBox _bbox;
     	std::unordered_map<std::string, std::unique_ptr<Material>> _materials{};
     	std::unique_ptr<Material> _defaultMaterial = std::make_unique<Material>(DEFAULT_MATERIAL_NAME);
-    	std::shared_ptr<Texture> _whiteTexture;
+    	std::shared_ptr<Texture> _whiteDiffuseMap;
+    	std::shared_ptr<Texture> _whiteSpecularMap;
     	std::string _currentMaterialName;
         uint32_t _currentFrame = 0;
 

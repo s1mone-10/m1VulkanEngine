@@ -35,7 +35,7 @@ namespace m1
 
 		_materialUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialUbo));
 		createFramesResources();
-		createDefaultTexture();
+		createDefaultTextures();
 		initLights();
 		initParticles();
 		updateFrameDescriptorSet();
@@ -1331,8 +1331,8 @@ namespace m1
 
 		// set materials properties and update descriptorSet
 		_defaultMaterial->uboIndex = 0;
-		_defaultMaterial->diffuseMap = _whiteTexture;
-		_defaultMaterial->specularMap = _whiteTexture;
+		_defaultMaterial->diffuseMap = _whiteDiffuseMap;
+		_defaultMaterial->specularMap = _whiteSpecularMap;
 		_defaultMaterial->descriptorSet = descriptorSets[0];
 		updateMaterialDescriptorSets(*_defaultMaterial);
 
@@ -1344,14 +1344,15 @@ namespace m1
 
 			// load texture
 			if (!material->diffuseTexturePath.empty())
-				material->diffuseMap = loadTexture(material->diffuseTexturePath);
+				material->diffuseMap = loadTexture(material->diffuseTexturePath, VK_FORMAT_R8G8B8A8_SRGB);
 			else
-				material->diffuseMap = _whiteTexture;
+				material->diffuseMap = _whiteDiffuseMap;
 
 			if (!material->specularTexturePath.empty())
-				material->specularMap = loadTexture(material->specularTexturePath);
+				// UNORM format because generally specular map is a grayscale mask/intensity, not a color
+				material->specularMap = loadTexture(material->specularTexturePath, VK_FORMAT_R8G8B8A8_UNORM);
 			else
-				material->specularMap = _whiteTexture;
+				material->specularMap = _whiteSpecularMap;
 
 			// update the material descriptor set
 			material->descriptorSet = descriptorSets[index++];
@@ -1388,14 +1389,22 @@ namespace m1
 		_device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
 	}
 
-	void Engine::createDefaultTexture()
+	void Engine::createDefaultTextures()
 	{
 		uint8_t whitePixel[4] = { 255, 255, 255, 255 };
 
-		_whiteTexture = createTexture(1, 1, &whitePixel);
+		TextureParams params
+		{
+			.extent = {1, 1},
+			.format = VK_FORMAT_R8G8B8A8_SRGB
+		};
+		_whiteDiffuseMap = createTexture(params, &whitePixel);
+
+		params.format = VK_FORMAT_R8G8B8A8_UNORM;
+		_whiteSpecularMap = createTexture(params, &whitePixel);
 	}
 
-	std::unique_ptr<Texture> Engine::loadTexture(const std::string& filePath)
+	std::unique_ptr<Texture> Engine::loadTexture(const std::string& filePath, VkFormat format)
 	{
 		// load texture data. Return a pointer to the array of RGBA values
 		int texWidth, texHeight, texChannels;
@@ -1407,7 +1416,12 @@ namespace m1
 		}
 
 		// create the texture
-		auto texture = createTexture(static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), pixels);
+		TextureParams params
+		{
+			.extent = {static_cast<uint32_t>(texWidth), static_cast<uint32_t> (texHeight)},
+			.format = format
+		};
+		auto texture = createTexture(params, pixels);
 
 		// Free texture data
 		stbi_image_free(pixels);
@@ -1415,13 +1429,16 @@ namespace m1
 		return texture;
 	}
 
-	std::unique_ptr<Texture> Engine::createTexture(uint32_t width, uint32_t height, void* data)
+	std::unique_ptr<Texture> Engine::createTexture(const TextureParams& params, void* data)
 	{
 		/*
 		- Create a staging buffer and copy the image data to it
 		- Create the VkImage object
 		- Copy data from the staging buffer to the VkImage
 		*/
+
+		auto width = params.extent.width;
+		auto height = params.extent.height;
 
 		VkDeviceSize imageSize = width * height * 4; // 4 bytes per pixel (RGBA)
 
@@ -1431,7 +1448,7 @@ namespace m1
 		// Copy texture data to the staging buffer
 		stagingBuffer.copyDataToBuffer(data);
 
-		auto texture = std::make_unique<Texture>(_device, width, height);
+		auto texture = std::make_unique<Texture>(_device, params);
 
 		Image& textImage = texture->getImage();
 

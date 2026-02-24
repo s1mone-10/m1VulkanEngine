@@ -9,10 +9,10 @@
 
 namespace m1
 {
-    Texture::Texture(const Device& device, uint32_t width, uint32_t height)
+    Texture::Texture(const Device& device, const TextureParams& params)
         : _device(device)
     {
-        createTextureImage(width, height);
+        createTextureImage(params);
         createSampler();
     }
 
@@ -22,19 +22,19 @@ namespace m1
         vkDestroySampler(_device.getVkDevice(), _sampler, nullptr);
     }
 
-    void Texture::createTextureImage(uint32_t width, uint32_t height)
+    void Texture::createTextureImage(const TextureParams& textureParams)
     {
-        auto mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
+        auto mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(textureParams.extent.width, textureParams.extent.height)))) + 1;
 
-        ImageParams params
+        ImageParams imageParams
         {
-            .extent = {width, height},
-            .format = VK_FORMAT_R8G8B8A8_SRGB,
+            .extent = textureParams.extent,
+            .format = textureParams.format,
             .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, // source (for creating mipmaps) and destination of transfer and shader read
             .mipLevels = mipLevels,
         };
 
-        _image = std::make_unique<Image>(_device, params);
+        _image = std::make_unique<Image>(_device, imageParams);
     }
 
     void Texture::createSampler()
