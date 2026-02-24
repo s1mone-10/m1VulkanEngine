@@ -70,6 +70,11 @@ add_executable(${PROJECT_NAME} ${SOURCES}) # Create an executable target from th
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/build")
 
+# define DEBUG when it's Debug
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG)
+endif()
+
 # Set the C++ standard for the target
 set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 23

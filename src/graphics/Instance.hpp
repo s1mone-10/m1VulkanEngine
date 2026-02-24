@@ -26,6 +26,5 @@ namespace m1
         std::vector<const char*> getRequiredExtensions();
 
         VkInstance _vkInstance = VK_NULL_HANDLE;
-        VkDebugUtilsMessengerEXT _debugMessenger = VK_NULL_HANDLE;
     };
 }

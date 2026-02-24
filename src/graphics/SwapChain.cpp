@@ -150,6 +150,9 @@ namespace m1
 
     VkPresentModeKHR SwapChain::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes)
     {
+#ifdef DEBUG
+		return VK_PRESENT_MODE_IMMEDIATE_KHR; // VK_PRESENT_MODE_FIFO_KHR enables vertical sync and caps FPS to the monitor refresh rate.
+#endif
         // https://vulkan-tutorial.com/en/Drawing_a_triangle/Presentation/Swap_chain
         // it represents the actual conditions for showing images to the screen
         for (const auto& availablePresentMode : availablePresentModes)
