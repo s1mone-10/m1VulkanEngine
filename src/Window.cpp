@@ -60,7 +60,4 @@ namespace m1
     {
     	VK_CHECK(glfwCreateWindowSurface(instance, _glfwWindow, nullptr, surface));
 	}
-
-    
-
 }

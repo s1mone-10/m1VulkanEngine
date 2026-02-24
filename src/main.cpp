@@ -23,8 +23,10 @@ int main()
 
 	m1::EngineConfig engineConfig
 	{
-		.msaa = true,
-		.shadows = true,
+		.msaaEnabled = true,
+		.shadowsEnabled = true,
+		.particlesEnabled = true,
+		.uiEnabled = false,
 	};
     m1::Engine engine{engineConfig};
 

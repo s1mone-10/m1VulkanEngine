@@ -25,6 +25,7 @@ namespace m1
 			bool IsMinimized = false;
             int getPressedKey();
     		void setTitle(const char* title) { glfwSetWindowTitle(_glfwWindow, title); }
+    		GLFWwindow* getGlfwWindow() const { return _glfwWindow; }
 
         private:
             void InitWindow();

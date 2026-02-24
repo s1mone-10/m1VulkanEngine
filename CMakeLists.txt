@@ -60,7 +60,11 @@ else()
 	message(STATUS "Using glfw lib at: ${GLFW_LIB}")
 endif()
 
-file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/src/*.cpp) # Find all .cpp files in the src/ directory and its subdirectories
+# Find all .cpp files in the specified directories and its subdirectories
+file(GLOB_RECURSE SOURCES
+        ${PROJECT_SOURCE_DIR}/src/*.cpp
+        ${PROJECT_SOURCE_DIR}/third_party/*.cpp
+)
 
 add_executable(${PROJECT_NAME} ${SOURCES}) # Create an executable target from the collected source files
 
@@ -87,6 +91,7 @@ if (WIN32)
   # Add all necessary include directories
   target_include_directories(${PROJECT_NAME} PUBLIC
     ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/third_party
     ${Vulkan_INCLUDE_DIRS}
     ${TINYOBJ_PATH}
     ${STB_IMAGE_PATH}

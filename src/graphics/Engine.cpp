@@ -8,6 +8,7 @@
 
 //libs
 #include "glm_config.hpp"
+#include "UiModule.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -40,12 +41,16 @@ namespace m1
 		updateFrameDescriptorSet();
 
 		createSyncObjects();
+
+		_gui = std::make_unique<UiModule>(*this, _device, _window, *_swapChain);
 	}
 
 	Engine::~Engine()
 	{
 		// wait for the GPU to finish all operations before destroying the resources
 		vkDeviceWaitIdle(_device.getVkDevice());
+
+		_gui.reset(); // destroy first
 
 		// Command buffers are implicitly destroyed when the command pool is destroyed
 
@@ -99,6 +104,9 @@ namespace m1
 		{
 			glfwPollEvents();
 
+			if (_config.uiEnabled)
+				_gui->build(); // must be called at each frame
+
 			drawFrame();
 
 			// update frame time
@@ -140,6 +148,7 @@ namespace m1
 		FrameData& frameData = *_framesData[_currentFrame];
 
 		// record and submit compute commands
+		if (_config.particlesEnabled)
 		{
 			// wait for the previous computation to finish
 			vkWaitForFences(_device.getVkDevice(), 1, &frameData.computeCmdExecutedFence, VK_TRUE, UINT64_MAX);
@@ -199,8 +208,16 @@ namespace m1
 
 		// specify the semaphores and stages to wait on
 		// Each entry in the waitStages array corresponds to the semaphore with the same index in waitSemaphores
-		VkSemaphore waitSemaphores[] = {frameData.computeCmdExecutedSem, _imageAvailableSems[swapChainImageIndex]};
-        VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; // in which stage(s) of the pipeline to wait
+		std::vector<VkSemaphore> waitSemaphores;
+		std::vector<VkPipelineStageFlags> waitStages;
+		waitSemaphores.push_back(_imageAvailableSems[swapChainImageIndex]);
+		waitStages.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+
+		if (_config.particlesEnabled)
+		{
+			waitSemaphores.push_back(frameData.computeCmdExecutedSem);
+			waitStages.push_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+		}
 
 		// specify which semaphores to signal once the command buffer has finished executing
 		VkSemaphore cmdExecutedSignalSemaphores[] = {_drawCmdExecutedSems[swapChainImageIndex]};
@@ -210,9 +227,9 @@ namespace m1
 		{
 			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 			//wait semaphores
-			.waitSemaphoreCount = 2,
-			.pWaitSemaphores = waitSemaphores,
-			.pWaitDstStageMask = waitStages,
+			.waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size()),
+			.pWaitSemaphores = waitSemaphores.data(),
+			.pWaitDstStageMask = waitStages.data(),
 			// command buffers
 			.commandBufferCount = 1,
 			.pCommandBuffers = &frameData.drawSceneCmdBuffer,
@@ -261,7 +278,7 @@ namespace m1
 		frameUbo.proj = _camera.getProjectionMatrix();
 		frameUbo.lightViewProjMatrix = computeLightViewProjMatrix();
 		frameUbo.camPos = glm::vec4(_camera.getPosition(), 1.0f);
-		frameUbo.shadowsEnabled = _config.shadows ? 1 : 0;
+		frameUbo.shadowsEnabled = _config.shadowsEnabled ? 1 : 0;
 
 		_framesData[_currentFrame]->frameUboBuffer->copyDataToBuffer(&frameUbo);
 	}
@@ -403,7 +420,7 @@ namespace m1
 		beginInfo.pInheritanceInfo = nullptr; // Optional
 		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
-		if (_config.shadows)
+		if (_config.shadowsEnabled)
 			// create the shadow map
 			recordShadowMappingPass(commandBuffer);
 		else
@@ -416,19 +433,20 @@ namespace m1
 		Image& msaaImage = _swapChain->getMsaaColorImage();
 		Image& depthImage = _swapChain->getDepthImage();
 		VkImage swapChainImage = _swapChain->getSwapChainImage(swapChainImageIndex);
+		VkImageView swapChainImageView = _swapChain->getSwapChainImageView(swapChainImageIndex);
 
 		// TODO: should I use the real current layout instead of undefined?
 		// TODO: should I set the layout at each frame even if is not changing (e.g. depthImage). Transition is not only for changing the layout but also to set the memory barriers
 
 		// transition the msaa and color image to COLOR_ATTACHMENT_OPTIMAL
 		transitionImageLayout(commandBuffer, colorImage.getVkImage(), 1, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
-		if (_config.msaa) transitionImageLayout(commandBuffer, msaaImage.getVkImage(), msaaImage.getMipLevels(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+		if (_config.msaaEnabled) transitionImageLayout(commandBuffer, msaaImage.getVkImage(), msaaImage.getMipLevels(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
 
 		// transition the depth image to DEPTH_STENCIL_ATTACHMENT_OPTIMAL
 		transitionImageLayout(commandBuffer, depthImage.getVkImage(), depthImage.getMipLevels(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
 
 		// choose the render target image
-		Image& renderTarget = _config.msaa ? msaaImage : colorImage;
+		Image& renderTarget = _config.msaaEnabled ? msaaImage : colorImage;
 
 		// set the color attachment
 		VkRenderingAttachmentInfo colorAttachment
@@ -442,7 +460,7 @@ namespace m1
 		};
 
 		// set resolve image if msaa is enable
-		if (_config.msaa)
+		if (_config.msaaEnabled)
 		{
 			colorAttachment.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
 			colorAttachment.resolveImageView = colorImage.getVkImageView();
@@ -493,7 +511,8 @@ namespace m1
 		drawObjectsLoop(commandBuffer);
 
 		// draw particles
-		drawParticles(commandBuffer);
+		if (_config.particlesEnabled)
+			drawParticles(commandBuffer);
 
 		// end rendering
 		vkCmdEndRendering(commandBuffer);
@@ -505,8 +524,22 @@ namespace m1
 		// copy the color image into the swapchain image
 		copyImageToImage(commandBuffer, colorImage.getVkImage(), swapChainImage, colorImage.getExtent(), _swapChain->getExtent());
 
-		// set the swapchain image layout to Present to show it on the screen
-		transitionImageLayout(commandBuffer, swapChainImage, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_ASPECT_COLOR_BIT);
+		if (_config.uiEnabled)
+		{
+			// set the spawChain image layout to color attachment optimal to render ui on it
+			transitionImageLayout(commandBuffer, swapChainImage, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+
+			// draw the ui
+			_gui->draw(commandBuffer, swapChainImageView, {0, 0, _swapChain->getExtent()});
+
+			// set the swapChain image layout to Present to show it on the screen
+			transitionImageLayout(commandBuffer, swapChainImage, 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_ASPECT_COLOR_BIT);
+		}
+		else
+		{
+			// set the swapchain image layout to Present to show it on the screen
+			transitionImageLayout(commandBuffer, swapChainImage, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_ASPECT_COLOR_BIT);
+		}
 
 		// end command buffer recording
 		VK_CHECK(vkEndCommandBuffer(commandBuffer));
@@ -541,7 +574,7 @@ namespace m1
 
 		SwapChainConfig config
 		{
-			.samples = _config.msaa ? _device.getMaxMsaaSamples() : VK_SAMPLE_COUNT_1_BIT,
+			.samples = _config.msaaEnabled ? _device.getMaxMsaaSamples() : VK_SAMPLE_COUNT_1_BIT,
 		};
 
 		if (_swapChain != nullptr)
@@ -841,6 +874,9 @@ namespace m1
 
 	void Engine::createPipelines()
 	{
+		_graphicsPipelines.clear();
+		_computePipeline.reset();
+
 		// Shadow mapping
 		std::array shadowSetLayouts
 		{
@@ -1417,7 +1453,12 @@ namespace m1
 
 	void Engine::processInput(float delta)
 	{
+		if (_config.uiEnabled && ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureKeyboard)
+			return;
+
 		int key = _window.getPressedKey();
+
+		if (key == GLFW_KEY_U) setUiEnabled(!_config.uiEnabled);
 
 		if (key == GLFW_KEY_W) _camera.moveUp(delta);
 		if (key == GLFW_KEY_S) _camera.moveUp(-delta);

@@ -22,11 +22,14 @@
 namespace m1
 {
     class SceneObject;
+    class UiModule;
 
 	struct EngineConfig
 	{
-		bool msaa = true;
-		bool shadows = true;
+		bool msaaEnabled = true;
+		bool shadowsEnabled = true;
+		bool particlesEnabled = true;
+		bool uiEnabled = true;
 	};
 
     class Engine
@@ -45,6 +48,16 @@ namespace m1
     	void addMaterial(std::unique_ptr<Material> material);
     	void compile();
     	const EngineConfig& getConfig() const { return _config; }
+
+		// properties
+		void setUiEnabled(bool enabled);
+		bool getUiEnabled() const;
+		void setMsaaEnabled(bool enabled);
+		bool getMsaaEnabled() const;
+		void setParticlesEnabled(bool enabled);
+		bool getParticlesEnabled() const;
+		void setShadowsEnabled(bool enabled);
+		bool getShadowsEnabled() const;
 
     private:
         void mainLoop();
@@ -89,7 +102,7 @@ namespace m1
         const uint32_t  HEIGHT = 600;
 
     	EngineConfig _config{};
-
+    	std::unique_ptr<UiModule> _gui;
         Camera _camera{};
 
         Window _window{ WIDTH, HEIGHT, "Vulkan App" };
