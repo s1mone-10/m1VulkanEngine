@@ -124,11 +124,19 @@ vec3 calculateLight(Light light, vec3 fragNormal, vec3 diffuseColor, vec3 specul
 
     vec3 viewDir = normalize(frameUbo.camPos.xyz - fragPosWorld);
 
+    // Blinn-Phong specular (halfway vector)
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+
+    // specular strength: raise to the power of shininess the dot product between fragment normal and halfwayDir
+    float specStrength = pow(max(dot(fragNormal, halfwayDir), 0.0), material.shininess);
+
+    /* phong
     // calculate the reflection vector by reflecting the light direction around the normal vector
     vec3 reflectDir = reflect(-lightDir, fragNormal);
 
     // specular strength: raise to the power of shininess the dot product between view direction and reflection direction
     float specStrength = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    */
 
     // final specular color component
     vec3 specularComponent = specularColor * lightColor * specStrength;
