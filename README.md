@@ -2,12 +2,6 @@
 
 This is a personal project to learn Vulkan and moder C++.
 
-The project is mainly based on the tutorial at [vulkan-tutorial.com](https://vulkan-tutorial.com/), but it was reworked to have a more structured, engine-like architecture, with the goal of improving code readability and maintainability and facilitates future developments.
-
-Several C++ RAII wrapper classes are used to manage core Vulkan objects such as the device, swap chain, pipeline, and buffers.
-
-The code is heavily commented to make Vulkan concepts easier to understand.
-
 ## Project Structure
 
 ```
@@ -33,7 +27,8 @@ The code is heavily commented to make Vulkan concepts easier to understand.
 ## Current Features
 
 *   Load and render textured `.obj` models.
-*   Basic phong lighting (no shadows).
+*   Basic phong lighting.
+*   Shadow mapping.
 *   Compute shader to animate a particle system.
 
 ## Notes
