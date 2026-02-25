@@ -27,6 +27,7 @@ This is a personal project to learn Vulkan and moder C++.
 ## Current Features
 
 *   Load and render textured `.obj` models.
+*   Import and render `.gltf` / `.glb` meshes (triangle primitives).
 *   Basic phong lighting.
 *   Shadow mapping.
 *   Compute shader to animate a particle system.
@@ -35,3 +36,9 @@ This is a personal project to learn Vulkan and moder C++.
 
 This project is still under development as I continue studying Vulkan.
 
+
+
+## glTF support
+
+The project uses [fastgltf](https://github.com/spnda/fastgltf) for loading glTF files.
+The repository expects fastgltf to be available under `third_party/fastgltf` (including its `deps/simdjson` folder).

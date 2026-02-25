@@ -8,13 +8,68 @@
 //libs
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <glm/gtc/quaternion.hpp>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
+#include <fastgltf/core.hpp>
+#include <fastgltf/tools.hpp>
+#include <fastgltf/types.hpp>
+
+//std
+#include <filesystem>
+#include <functional>
+#include <unordered_map>
+
 void loadScene(m1::Engine& engine);
 void loadObj(m1::Engine& engine, const std::string &path);
+void loadGltf(m1::Engine& engine, const std::string &path);
 void loadCubes(m1::Engine& engine, const uint32_t numCubes);
+
+namespace
+{
+glm::mat4 getNodeTransform(const fastgltf::Node& node)
+{
+    if (std::holds_alternative<fastgltf::Node::TransformMatrix>(node.transform))
+    {
+        const auto& matrix = std::get<fastgltf::Node::TransformMatrix>(node.transform);
+        glm::mat4 transform = glm::mat4(1.0f);
+
+        for (int column = 0; column < 4; ++column)
+        {
+            for (int row = 0; row < 4; ++row)
+            {
+                transform[column][row] = matrix.data()[column * 4 + row];
+            }
+        }
+
+        return transform;
+    }
+
+    const auto& trs = std::get<fastgltf::TRS>(node.transform);
+    glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(
+        trs.translation[0],
+        trs.translation[1],
+        trs.translation[2]
+    ));
+
+    transform *= glm::mat4_cast(glm::quat(
+        trs.rotation[3],
+        trs.rotation[0],
+        trs.rotation[1],
+        trs.rotation[2]
+    ));
+
+    transform = glm::scale(transform, glm::vec3(
+        trs.scale[0],
+        trs.scale[1],
+        trs.scale[2]
+    ));
+
+    return transform;
+}
+}
 
 int main()
 {
@@ -52,11 +107,11 @@ void loadScene(m1::Engine& engine)
     //const std::string MODEL_PATH = "../resources/colored_cube.obj";
     //const std::string MODEL_PATH = "../resources/smooth_vase.obj";
     //const std::string MODEL_PATH = "../resources/flat_vase.obj";
-    const std::string TEXTURE_PATH = "../resources/viking_room.png";
 
 
     loadCubes(engine, 3);
     //loadObj(engine, MODEL_PATH);
+    //loadGltf(engine, "../resources/DamagedHelmet.gltf");
 }
 
 void loadObj(m1::Engine& engine, const std::string& path)
@@ -123,6 +178,158 @@ void loadObj(m1::Engine& engine, const std::string& path)
     }
 
     engine.addSceneObject(std::move(sceneObj));
+}
+
+void loadGltf(m1::Engine& engine, const std::string& path)
+{
+    fastgltf::Parser parser {};
+    constexpr auto options = fastgltf::Options::DontRequireValidAssetMember | fastgltf::Options::LoadExternalBuffers;
+
+    auto data = fastgltf::GltfDataBuffer::FromPath(path);
+    if (data.error() != fastgltf::Error::None)
+    {
+        throw std::runtime_error("Failed to read glTF file data");
+    }
+
+    const auto type = fastgltf::determineGltfFileType(&data.get());
+    if (type == fastgltf::GltfType::Invalid)
+    {
+        throw std::runtime_error("Invalid glTF file type");
+    }
+
+    const std::filesystem::path gltfPath(path);
+    const auto baseDirectory = gltfPath.parent_path();
+
+    auto asset = type == fastgltf::GltfType::glTF
+        ? parser.loadGLTF(&data.get(), baseDirectory, options)
+        : parser.loadBinaryGLTF(&data.get(), baseDirectory, options);
+
+    if (asset.error() != fastgltf::Error::None)
+    {
+        throw std::runtime_error("Failed to parse glTF file");
+    }
+
+    auto& gltf = asset.get();
+
+    if (gltf.scenes.empty())
+    {
+        throw std::runtime_error("glTF file has no scene");
+    }
+
+    const std::size_t sceneIndex = gltf.defaultScene.has_value() ? *gltf.defaultScene : 0;
+    if (sceneIndex >= gltf.scenes.size())
+    {
+        throw std::runtime_error("glTF file has an invalid default scene index");
+    }
+
+    std::function<void(std::size_t, const glm::mat4&)> loadNode = [&](std::size_t nodeIndex, const glm::mat4& parentTransform)
+    {
+        const auto& node = gltf.nodes[nodeIndex];
+        const glm::mat4 nodeTransform = parentTransform * getNodeTransform(node);
+
+        if (node.meshIndex.has_value())
+        {
+            const auto& mesh = gltf.meshes[*node.meshIndex];
+            for (const auto& primitive : mesh.primitives)
+            {
+                if (primitive.type != fastgltf::PrimitiveType::Triangles)
+                {
+                    continue;
+                }
+
+                auto positionIt = primitive.findAttribute("POSITION");
+                if (positionIt == primitive.attributes.end())
+                {
+                    continue;
+                }
+
+                auto sceneObj = m1::SceneObject::createSceneObject();
+                sceneObj->setTransform(nodeTransform);
+                std::unordered_map<m1::Vertex, uint32_t> uniqueVertices{};
+
+                const auto& positionAccessor = gltf.accessors[positionIt->accessorIndex];
+                std::vector<glm::vec3> positions(positionAccessor.count);
+                fastgltf::copyFromAccessor<glm::vec3>(gltf, positionAccessor, positions.data());
+
+                std::vector<glm::vec3> normals;
+                auto normalIt = primitive.findAttribute("NORMAL");
+                if (normalIt != primitive.attributes.end())
+                {
+                    const auto& normalAccessor = gltf.accessors[normalIt->accessorIndex];
+                    normals.resize(normalAccessor.count);
+                    fastgltf::copyFromAccessor<glm::vec3>(gltf, normalAccessor, normals.data());
+                }
+
+                std::vector<glm::vec2> texcoords;
+                auto texIt = primitive.findAttribute("TEXCOORD_0");
+                if (texIt != primitive.attributes.end())
+                {
+                    const auto& texAccessor = gltf.accessors[texIt->accessorIndex];
+                    texcoords.resize(texAccessor.count);
+                    fastgltf::copyFromAccessor<glm::vec2>(gltf, texAccessor, texcoords.data());
+                }
+
+                auto appendVertex = [&](uint32_t vertexIndex)
+                {
+                    m1::Vertex vertex{};
+                    vertex.color = glm::vec3(1.0f);
+                    vertex.pos = positions[vertexIndex];
+
+                    if (vertexIndex < normals.size())
+                    {
+                        vertex.normal = normals[vertexIndex];
+                    }
+
+                    if (vertexIndex < texcoords.size())
+                    {
+                        vertex.texCoord = glm::vec2(texcoords[vertexIndex].x, 1.0f - texcoords[vertexIndex].y);
+                    }
+
+                    if (!uniqueVertices.contains(vertex))
+                    {
+                        uniqueVertices[vertex] = static_cast<uint32_t>(sceneObj->Mesh->Vertices.size());
+                        sceneObj->Mesh->Vertices.push_back(vertex);
+                    }
+
+                    sceneObj->Mesh->Indices.push_back(uniqueVertices[vertex]);
+                };
+
+                if (primitive.indicesAccessor.has_value())
+                {
+                    const auto& indexAccessor = gltf.accessors[*primitive.indicesAccessor];
+                    std::vector<uint32_t> indices(indexAccessor.count);
+                    fastgltf::copyFromAccessor<uint32_t>(gltf, indexAccessor, indices.data());
+
+                    for (uint32_t index : indices)
+                    {
+                        appendVertex(index);
+                    }
+                }
+                else
+                {
+                    for (uint32_t i = 0; i < static_cast<uint32_t>(positions.size()); ++i)
+                    {
+                        appendVertex(i);
+                    }
+                }
+
+                if (!sceneObj->Mesh->Vertices.empty() && !sceneObj->Mesh->Indices.empty())
+                {
+                    engine.addSceneObject(std::move(sceneObj));
+                }
+            }
+        }
+
+        for (const std::size_t childIndex : node.children)
+        {
+            loadNode(childIndex, nodeTransform);
+        }
+    };
+
+    for (const std::size_t rootNode : gltf.scenes[sceneIndex].nodeIndices)
+    {
+        loadNode(rootNode, glm::mat4(1.0f));
+    }
 }
 
 void loadCubes(m1::Engine &engine, const uint32_t numCubes)
@@ -234,4 +441,3 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 		}
 	}
 }
-

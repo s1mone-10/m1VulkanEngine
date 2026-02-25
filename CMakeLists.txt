@@ -21,6 +21,10 @@ endif()
 
 project(${NAME} VERSION 0.1.0) # build version
 
+if (NOT EXISTS "${PROJECT_SOURCE_DIR}/third_party/fastgltf/include/fastgltf/core.hpp")
+  message(FATAL_ERROR "fastgltf not found. Add it under third_party/fastgltf (see third_party/fastgltf/README.md).")
+endif()
+
 # 1. Set VULKAN_SDK_PATH in .env.cmake to target specific vulkan version
 if (DEFINED VULKAN_SDK_PATH)
   set(Vulkan_INCLUDE_DIRS "${VULKAN_SDK_PATH}/Include") # 1.1 Make sure this include path is correct
@@ -99,6 +103,8 @@ if (WIN32)
     ${PROJECT_SOURCE_DIR}/third_party
     ${Vulkan_INCLUDE_DIRS}
     ${TINYOBJ_PATH}
+    ${PROJECT_SOURCE_DIR}/third_party/fastgltf/include
+    ${PROJECT_SOURCE_DIR}/third_party/fastgltf/deps/simdjson/include
     ${STB_IMAGE_PATH}
     ${GLFW_INCLUDE_DIRS}
     ${GLM_PATH}
@@ -117,7 +123,10 @@ elseif (UNIX)
     target_include_directories(${PROJECT_NAME} PUBLIC
       ${PROJECT_SOURCE_DIR}/src
       ${TINYOBJ_PATH}
-    )
+      ${PROJECT_SOURCE_DIR}/third_party/fastgltf/include
+      ${PROJECT_SOURCE_DIR}/third_party/fastgltf/deps/simdjson/include
+      )
+
     target_link_libraries(${PROJECT_NAME} glfw ${Vulkan_LIBRARIES})
 endif()
 
