@@ -1,2 +1,7 @@
-# Optional set TINYOBJ_PATH to target specific version, otherwise defaults to external/tinyobjloader
-# set(TINYOBJ_PATH /Users/brendan/dev/tinyobjloader)
+# Deprecated.
+#
+# The project now resolves third-party dependencies with CMake FetchContent.
+# You should not need a local .env.cmake for dependency paths anymore.
+#
+# Keep this file only as a placeholder in case you want to define your own
+# local CMake cache/options in the future.
