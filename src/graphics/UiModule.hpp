@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../third_party//imgui//imgui_impl_glfw.h"
-#include "../third_party//imgui//imgui_impl_vulkan.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_vulkan.h"
 #include "Engine.hpp"
 
 namespace m1

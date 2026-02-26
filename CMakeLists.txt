@@ -1,126 +1,149 @@
-# taken from Brendan vulkan tutorial
-# https://github.com/blurrypiano/littleVulkanEngine/blob/main/CMakeLists.txt
+cmake_minimum_required(VERSION 3.21)
 
-include(./.env.cmake OPTIONAL RESULT_VARIABLE LOCAL_ENV) # include a local environment file for custom paths
-message(STATUS "Local .env.cmake: ${LOCAL_ENV}")
+# set the project name
+project(m1VulkanEngine VERSION 0.1.0 LANGUAGES C CXX)
 
-cmake_minimum_required(VERSION 3.11.0)
+# Set the C++ standard
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(NAME m1VulkanEngine) # set the application name
+include(FetchContent)
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 
-message(STATUS "C++ compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER}")
-message(STATUS "using ${CMAKE_GENERATOR}") # Display the CMake generator being used (e.g., "Visual Studio 16 2019", "MinGW Makefiles")
-if (CMAKE_GENERATOR STREQUAL "MinGW Makefiles") # Check if the generator is for MinGW Makefiles
-    if (NOT MINGW_PATH) # If using MinGW, ensure the path is set
-      message(FATAL_ERROR "MINGW_PATH not set in .env.cmake") # Halt the build if MINGW_PATH is not set
-    endif()
-    set(USE_MINGW "True") # Set a flag to indicate MinGW is being used
-    set(CMAKE_C_COMPILER ${MINGW_PATH}/bin/gcc.exe)
-    set(CMAKE_CXX_COMPILER  ${MINGW_PATH}/bin/g++.exe) # Explicitly set the C++ compiler for MinGW
-endif()
+message(STATUS "Configuring ${PROJECT_NAME} ${PROJECT_VERSION}")
 
-project(${NAME} VERSION 0.1.0) # build version
+# Core SDK dependency
+find_package(Vulkan REQUIRED)
 
-# 1. Set VULKAN_SDK_PATH in .env.cmake to target specific vulkan version
-if (DEFINED VULKAN_SDK_PATH)
-  set(Vulkan_INCLUDE_DIRS "${VULKAN_SDK_PATH}/Include") # 1.1 Make sure this include path is correct
-  set(Vulkan_LIBRARIES "${VULKAN_SDK_PATH}/Lib") # 1.2 Make sure lib path is correct
-  set(Vulkan_FOUND "True")
-else()
-  # If not using a custom path, find the system-installed Vulkan SDK.
-  find_package(Vulkan REQUIRED) # throws error if could not find Vulkan
-  message(STATUS "Found Vulkan: $ENV{VULKAN_SDK}")
-endif()
-if (NOT Vulkan_FOUND)
-	message(FATAL_ERROR "Could not find Vulkan library!")
-else()
-	message(STATUS "Using vulkan lib at: ${Vulkan_LIBRARIES}")
-endif()
+# Third-party dependencies
 
+# glfw
+FetchContent_Declare(
+  glfw
+  GIT_REPOSITORY https://github.com/glfw/glfw.git
+  GIT_TAG 3.4
+)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 
-# 2. Set GLFW_PATH in .env.cmake to target specific glfw
-if (DEFINED GLFW_PATH)
-  message(STATUS "Using GLFW path specified in .env")
-  set(GLFW_INCLUDE_DIRS "${GLFW_PATH}/include")
-  if (MSVC)
-    set(GLFW_LIB "${GLFW_PATH}/lib-vc2022") # 2.1 Update lib-vc2022 to use same version as your visual studio
-  elseif (CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
-    message(STATUS "USING MINGW")
-    set(GLFW_LIB "${GLFW_PATH}/lib-mingw-w64") # 2.1 make sure matches glfw mingw subdirectory
-  endif()
-else()
-  # If no custom path, use CMake's find_package to locate GLFW 3.3 or newer.
-  find_package(glfw3 3.3 REQUIRED)
-  set(GLFW_LIB glfw) # Use the target name provided by find_package for linking.
-  message(STATUS "Found GLFW")
-endif()
-if (NOT GLFW_LIB) # After attempting to find GLFW, check if it was successful.
-	message(FATAL_ERROR "Could not find glfw library!") # Halt the build if GLFW is not found.
-else()
-	message(STATUS "Using glfw lib at: ${GLFW_LIB}")
-endif()
+# glm
+FetchContent_Declare(
+  glm
+  GIT_REPOSITORY https://github.com/g-truc/glm.git
+  GIT_TAG 1.0.1
+)
+
+# tinyobjloader
+FetchContent_Declare(
+  tinyobjloader
+  GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
+  GIT_TAG v2.0.0rc13
+)
+set(TINYOBJLOADER_BUILD_TEST_LOADER OFF CACHE BOOL "" FORCE)
+set(TINYOBJLOADER_INSTALL OFF CACHE BOOL "" FORCE)
+
+# Vulkan Memory Allocator
+FetchContent_Declare(
+  vma
+  GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+  GIT_TAG v3.1.0
+)
+
+# stb
+FetchContent_Declare(
+  stb
+  GIT_REPOSITORY https://github.com/nothings/stb.git
+  GIT_TAG master
+)
+
+# fastgltf
+FetchContent_Declare(
+  fastgltf
+  GIT_REPOSITORY https://github.com/spnda/fastgltf.git
+  GIT_TAG v0.9.0
+)
+
+# simdjson (used by fastgltf)
+FetchContent_Declare(
+  simdjson
+  GIT_REPOSITORY https://github.com/simdjson/simdjson.git
+  GIT_TAG v3.13.0
+)
+set(SIMDJSON_DEVELOPER_MODE OFF CACHE BOOL "" FORCE)
+set(SIMDJSON_BUILD_STATIC ON CACHE BOOL "" FORCE)
+set(SIMDJSON_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+
+# imgui
+FetchContent_Declare(
+  imgui
+  GIT_REPOSITORY https://github.com/ocornut/imgui.git
+  GIT_TAG v1.92.6
+)
+
+FetchContent_MakeAvailable(glfw glm tinyobjloader vma stb fastgltf simdjson imgui)
+
+# Create a static library for ImGui because is not ship with its own CMakeLists.txt
+add_library(imgui STATIC
+  ${imgui_SOURCE_DIR}/imgui.cpp
+  ${imgui_SOURCE_DIR}/imgui_draw.cpp
+  ${imgui_SOURCE_DIR}/imgui_tables.cpp
+  ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+  # Backends for GLFW + Vulkan
+  ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+  ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+)
+target_include_directories(imgui PUBLIC
+  ${imgui_SOURCE_DIR}
+  ${imgui_SOURCE_DIR}/backends
+)
+target_link_libraries(imgui PUBLIC
+  glfw
+  Vulkan::Vulkan
+)
 
 # Find all .cpp files in the specified directories and its subdirectories
 file(GLOB_RECURSE SOURCES
-        ${PROJECT_SOURCE_DIR}/src/*.cpp
-        ${PROJECT_SOURCE_DIR}/third_party/*.cpp
+  ${PROJECT_SOURCE_DIR}/src/*.cpp
 )
 
-add_executable(${PROJECT_NAME} ${SOURCES}) # Create an executable target from the collected source files
+# Create an executable target from the collected source files
+add_executable(${PROJECT_NAME} ${SOURCES})
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/build")
 
 # define DEBUG when it's Debug
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG)
 endif()
 
-# Set the C++ standard for the target
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    CXX_STANDARD 23
-    CXX_STANDARD_REQUIRED ON
+# specify include directories to use when compiling
+target_include_directories(${PROJECT_NAME} PUBLIC
+  ${PROJECT_SOURCE_DIR}/src
+  ${stb_SOURCE_DIR}
+  ${vma_SOURCE_DIR}/include
 )
 
-if (WIN32)
-  message(STATUS "CREATING BUILD FOR WINDOWS")
+# specifies library to use when linking
+target_link_libraries(${PROJECT_NAME} PRIVATE
+  glfw
+  Vulkan::Vulkan
+  tinyobjloader
+  simdjson
+  imgui
+)
 
-  if (USE_MINGW) # If using MinGW on Windows, add its specific paths
-    target_include_directories(${PROJECT_NAME} PUBLIC
-      ${MINGW_PATH}/include
-    )
-    target_link_directories(${PROJECT_NAME} PUBLIC
-      ${MINGW_PATH}/lib
-    )
-  endif()
-
-  # Add all necessary include directories
-  target_include_directories(${PROJECT_NAME} PUBLIC
-    ${PROJECT_SOURCE_DIR}/src
-    ${PROJECT_SOURCE_DIR}/third_party
-    ${Vulkan_INCLUDE_DIRS}
-    ${TINYOBJ_PATH}
-    ${STB_IMAGE_PATH}
-    ${GLFW_INCLUDE_DIRS}
-    ${GLM_PATH}
-    ${VK_MEM_ALLOC_PATH}
-    )
-
-  # Add all necessary library directories for the linker
-  target_link_directories(${PROJECT_NAME} PUBLIC
-    ${Vulkan_LIBRARIES}
-    ${GLFW_LIB}
-  )
-
-  target_link_libraries(${PROJECT_NAME} glfw3 vulkan-1) # Link the executable against the GLFW and Vulkan libraries
-elseif (UNIX)
-    message(STATUS "CREATING BUILD FOR UNIX")
-    target_include_directories(${PROJECT_NAME} PUBLIC
-      ${PROJECT_SOURCE_DIR}/src
-      ${TINYOBJ_PATH}
-    )
-    target_link_libraries(${PROJECT_NAME} glfw ${Vulkan_LIBRARIES})
+if (TARGET glm::glm)
+  target_link_libraries(${PROJECT_NAME} PRIVATE glm::glm)
 endif()
 
+if (TARGET fastgltf::fastgltf)
+  target_link_libraries(${PROJECT_NAME} PRIVATE fastgltf::fastgltf)
+else()
+  target_include_directories(${PROJECT_NAME} PUBLIC ${fastgltf_SOURCE_DIR}/include)
+endif()
 
 ############## Build SHADERS #######################
 
@@ -130,12 +153,10 @@ file(MAKE_DIRECTORY ${PROJECT_SOURCE_DIR}/shaders/compiled)
 # taken from VBlancos vulkan tutorial
 # https://github.com/vblanco20-1/vulkan-guide/blob/all-chapters/CMakeLists.txt
 find_program(GLSL_VALIDATOR glslangValidator HINTS
-  ${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE} 
-  /usr/bin 
-  /usr/local/bin 
-  ${VULKAN_SDK_PATH}/Bin
-  ${VULKAN_SDK_PATH}/Bin32
-  $ENV{VULKAN_SDK}/Bin/ 
+  ${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE}
+  /usr/bin
+  /usr/local/bin
+  $ENV{VULKAN_SDK}/Bin/
   $ENV{VULKAN_SDK}/Bin32/
 )
 
@@ -151,11 +172,9 @@ foreach(GLSL ${GLSL_SOURCE_FILES})
   add_custom_command(
     OUTPUT ${SPIRV}
     COMMAND ${GLSL_VALIDATOR} -V ${GLSL} -o ${SPIRV}
-    DEPENDS ${GLSL})
+    DEPENDS ${GLSL}
+  )
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
-endforeach(GLSL)
+endforeach()
 
-add_custom_target(
-    Shaders
-    DEPENDS ${SPIRV_BINARY_FILES}
-)
+add_custom_target(Shaders DEPENDS ${SPIRV_BINARY_FILES})
