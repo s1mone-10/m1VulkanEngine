@@ -66,16 +66,6 @@ FetchContent_Declare(
   GIT_TAG v0.9.0
 )
 
-# simdjson (used by fastgltf)
-FetchContent_Declare(
-  simdjson
-  GIT_REPOSITORY https://github.com/simdjson/simdjson.git
-  GIT_TAG v3.13.0
-)
-set(SIMDJSON_DEVELOPER_MODE OFF CACHE BOOL "" FORCE)
-set(SIMDJSON_BUILD_STATIC ON CACHE BOOL "" FORCE)
-set(SIMDJSON_BUILD_SHARED OFF CACHE BOOL "" FORCE)
-
 # imgui
 FetchContent_Declare(
   imgui
@@ -83,7 +73,7 @@ FetchContent_Declare(
   GIT_TAG v1.92.6
 )
 
-FetchContent_MakeAvailable(glfw glm tinyobjloader vma stb fastgltf simdjson imgui)
+FetchContent_MakeAvailable(glfw glm tinyobjloader vma stb fastgltf imgui)
 
 # Create a static library for ImGui because is not ship with its own CMakeLists.txt
 add_library(imgui STATIC
@@ -131,7 +121,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
   glfw
   Vulkan::Vulkan
   tinyobjloader
-  simdjson
   imgui
 )
 
