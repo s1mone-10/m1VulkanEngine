@@ -12,9 +12,12 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
+#include "GltfReader.hpp"
+
 void loadScene(m1::Engine& engine);
 void loadObj(m1::Engine& engine, const std::string &path);
-void loadCubes(m1::Engine& engine, const uint32_t numCubes);
+void loadGltf(m1::Engine& engine, const std::string &path);
+void loadCubes(m1::Engine& engine, uint32_t numCubes);
 
 int main()
 {
@@ -57,6 +60,8 @@ void loadScene(m1::Engine& engine)
 
     loadCubes(engine, 3);
     //loadObj(engine, MODEL_PATH);
+
+	//loadGltf(engine, "../resources/DamagedHelmet.glb");
 }
 
 void loadObj(m1::Engine& engine, const std::string& path)
@@ -72,7 +77,8 @@ void loadObj(m1::Engine& engine, const std::string& path)
     }
 
     std::unordered_map<m1::Vertex, uint32_t> uniqueVertices{};
-    auto sceneObj = m1::SceneObject::createSceneObject();
+
+	std::shared_ptr<m1::Mesh> mesh = std::make_shared<m1::Mesh>();
 
     for (const auto& shape : shapes)
     {
@@ -114,15 +120,23 @@ void loadObj(m1::Engine& engine, const std::string& path)
 
             if (uniqueVertices.count(vertex) == 0)
             {
-                uniqueVertices[vertex] = static_cast<uint32_t>(sceneObj->Mesh->Vertices.size());
-                sceneObj->Mesh->Vertices.push_back(vertex);
+                uniqueVertices[vertex] = static_cast<uint32_t>(mesh->Vertices.size());
+                mesh->Vertices.push_back(vertex);
             }
 
-            sceneObj->Mesh->Indices.push_back(uniqueVertices[vertex]);
+            mesh->Indices.push_back(uniqueVertices[vertex]);
         }
     }
 
+	auto sceneObj = m1::SceneObject::createSceneObject();
+	sceneObj->setMesh(std::move(mesh));
     engine.addSceneObject(std::move(sceneObj));
+}
+
+void loadGltf(m1::Engine& engine, const std::string& path)
+{
+	m1::GltfReader reader;
+	reader.loadGltf(engine, path);
 }
 
 void loadCubes(m1::Engine &engine, const uint32_t numCubes)

@@ -20,12 +20,12 @@ namespace m1
 			return std::unique_ptr<SceneObject>(new SceneObject(currentId++));
 		}
 
-		void setMesh(std::unique_ptr<Mesh> mesh) { Mesh = std::move(mesh); }
+		void setMesh(std::shared_ptr<Mesh> mesh) { Mesh = std::move(mesh); }
 		void setTransform(const glm::mat4& transform) { Transform = transform; }
 
 		uint64_t Id;
 		glm::mat4 Transform{ 1.0f };
-		std::unique_ptr<Mesh> Mesh = nullptr;
+		std::shared_ptr<Mesh> Mesh = nullptr;
 		// Optional: which pipeline to use when drawing this object
 		std::optional<PipelineType> PipelineKey = std::nullopt;
 

@@ -48,6 +48,8 @@ namespace m1
     	void addMaterial(std::unique_ptr<Material> material);
     	void compile();
     	const EngineConfig& getConfig() const { return _config; }
+    	std::unique_ptr<Texture> createTexture(const TextureParams &params, void *data);
+    	std::unique_ptr<Image> createImage(const ImageParams &params, void *data);
 
 		// properties
 		void setUiEnabled(bool enabled);
@@ -87,7 +89,6 @@ namespace m1
 
     	void createDefaultTextures();
         std::unique_ptr<Texture> loadTexture(const std::string &filePath, VkFormat format);
-        std::unique_ptr<Texture> createTexture(const TextureParams &params, void *data);
 
         void processInput(float delta);
 

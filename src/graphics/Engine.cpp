@@ -1411,9 +1411,7 @@ namespace m1
 		stbi_uc *pixels = stbi_load(filePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
 		if (!pixels)
-		{
 			throw std::runtime_error("failed to load texture image!");
-		}
 
 		// create the texture
 		TextureParams params
@@ -1466,6 +1464,43 @@ namespace m1
 		generateMipmaps(textImage);
 
 		return texture;
+	}
+
+	std::unique_ptr<Image> Engine::createImage(const ImageParams& params, void* data)
+	{
+		/*
+		- Create a staging buffer and copy the image data to it
+		- Create the VkImage object
+		- Copy data from the staging buffer to the VkImage
+		*/
+
+		auto width = params.extent.width;
+		auto height = params.extent.height;
+
+		VkDeviceSize imageSize = width * height * 4; // 4 bytes per pixel (RGBA)
+
+		// Create a staging buffer to upload the texture data to GPU
+		Buffer stagingBuffer{ _device, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT };
+
+		// Copy texture data to the staging buffer
+		stagingBuffer.copyDataToBuffer(data);
+
+		auto image = std::make_unique<Image>(_device, params);
+
+		// Transition image layout to be optimal for receiving data
+		transitionImageLayout(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+
+		// Copy the texture data from the staging buffer to the image
+		copyBufferToImage(stagingBuffer, image->getVkImage(), width, height);
+
+		//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
+		// Transition image layout to be optimal for shader access
+		//transitionImageLayout(textImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+		// Generate mipmaps (also transitions the image to be optimal for shader access)
+		generateMipmaps(*image);
+
+		return image;
 	}
 
 	void Engine::processInput(float delta)
