@@ -24,7 +24,7 @@ namespace  m1
 	private:
 		fastgltf::Asset _asset;
 
-		std::vector<std::shared_ptr<Mesh>> meshes;
+		std::vector<std::unique_ptr<Mesh>> meshes;
 		// std::vector<std::shared_ptr<Node>> nodes;
 		// std::vector<AllocatedImage> images;
 		std::vector<std::shared_ptr<Material>> materials;

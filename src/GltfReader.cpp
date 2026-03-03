@@ -86,9 +86,8 @@ namespace m1
 
 			for (auto &mesh: meshes)
 			{
-				auto sceneObj = SceneObject::createSceneObject();
-				sceneObj->setMesh(mesh);
-				engine.addSceneObject(std::move(sceneObj));
+				auto sceneObj = engine.addSceneObject();
+				sceneObj->AddComponent(std::move(mesh));
 			}
 		}
 
@@ -200,11 +199,11 @@ namespace m1
 				                                                  indices[idx] = index;
 			                                                  });
 
-			std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
+			auto mesh = std::make_unique<Mesh>();
 			mesh->Vertices = std::move(vertices);
 			mesh->Indices = std::move(indices);
 
-			meshes.push_back(mesh);
+			meshes.push_back(std::move(mesh));
 		}
 
 		return true;

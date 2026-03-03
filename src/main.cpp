@@ -13,6 +13,7 @@
 #include <tiny_obj_loader.h>
 
 #include "GltfReader.hpp"
+#include "graphics/TransformComponent.hpp"
 
 void loadScene(m1::Engine& engine);
 void loadObj(m1::Engine& engine, const std::string &path);
@@ -78,7 +79,7 @@ void loadObj(m1::Engine& engine, const std::string& path)
 
     std::unordered_map<m1::Vertex, uint32_t> uniqueVertices{};
 
-	std::shared_ptr<m1::Mesh> mesh = std::make_shared<m1::Mesh>();
+    std::unique_ptr<m1::Mesh> mesh = std::make_unique<m1::Mesh>();
 
     for (const auto& shape : shapes)
     {
@@ -128,9 +129,8 @@ void loadObj(m1::Engine& engine, const std::string& path)
         }
     }
 
-	auto sceneObj = m1::SceneObject::createSceneObject();
-	sceneObj->setMesh(std::move(mesh));
-    engine.addSceneObject(std::move(sceneObj));
+    auto sceneObj = engine.addSceneObject();
+    sceneObj->AddComponent(std::move(mesh));
 }
 
 void loadGltf(m1::Engine& engine, const std::string& path)
@@ -181,21 +181,19 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	engine.addMaterial(std::move(material));
 
 	// floor
-	auto sceneObj = m1::SceneObject::createSceneObject();
+	auto sceneObj = engine.addSceneObject();
 	auto mesh = m1::Mesh::createQuad({0.5f, 0.5f, 0.5f});
-	sceneObj->setMesh(std::move(mesh));
-	engine.addSceneObject(std::move(sceneObj));
+	sceneObj->AddComponent(std::move(mesh));
 
 	// cube that represents the light source
-    sceneObj = m1::SceneObject::createSceneObject();
+	sceneObj = engine.addSceneObject();
 	sceneObj->IsAuxiliary = true;
 	mesh = m1::Mesh::createCube(glm::vec3(1.0f, 1.0f, 1.0f));
-    sceneObj->setMesh(std::move(mesh));
-    auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(5.2f, 5.2f, 6.2f));
-    transform = glm::scale(transform, glm::vec3(.1f));
-    sceneObj->setTransform(transform);
-	sceneObj->PipelineKey = m1::PipelineType::NoLight;
-    engine.addSceneObject(std::move(sceneObj));
+	mesh->PipelineKey = m1::PipelineType::NoLight;
+	sceneObj->AddComponent(std::move(mesh));
+	auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(5.2f, 5.2f, 6.2f));
+	transform = glm::scale(transform, glm::vec3(.1f));
+	sceneObj->AddComponent<m1::TransformComponent>(transform);
 
 	bool random = false;
 	if (random)
@@ -215,19 +213,17 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 
 		for(unsigned int i = 0; i < 10; i++)
 		{
-			sceneObj = m1::SceneObject::createSceneObject();
+			sceneObj = engine.addSceneObject();
 			mesh = m1::Mesh::createCube();
 			mesh->setMaterialName("container");
-			sceneObj->setMesh(std::move(mesh));
+			sceneObj->AddComponent(std::move(mesh));
 
 			transform = glm::translate(glm::mat4(1.0f), cubePositions[i]);
 			float angle = 20.0f * i;
 			transform = glm::rotate(transform, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
-			sceneObj->setTransform(transform);
-			engine.addSceneObject(std::move(sceneObj));
+			sceneObj->AddComponent<m1::TransformComponent>(transform);
 		}
-	}
-	else
+	} else
 	{
 		// cube grid
 		for (uint32_t i = 0; i < numCubes; i++)
@@ -236,13 +232,12 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 			{
 				for (uint32_t k = 0; k < numCubes; k++)
 				{
-					sceneObj = m1::SceneObject::createSceneObject();
+					sceneObj = engine.addSceneObject();
 					mesh = m1::Mesh::createCube();
 					mesh->setMaterialName("container");
-					sceneObj->setMesh(std::move(mesh));
+					sceneObj->AddComponent(std::move(mesh));
 					transform = glm::translate(glm::mat4(1.0f), glm::vec3(i* 2, j * 2, k * 2));
-					sceneObj->setTransform(transform);
-					engine.addSceneObject(std::move(sceneObj));
+					sceneObj->AddComponent<m1::TransformComponent>(transform);
 				}
 			}
 		}

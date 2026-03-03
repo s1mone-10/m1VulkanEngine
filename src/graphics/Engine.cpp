@@ -5,6 +5,7 @@
 #include "Utils.hpp"
 #include "geometry/Mesh.hpp"
 #include "geometry/Particle.hpp"
+#include "TransformComponent.hpp"
 
 //libs
 #include "glm_config.hpp"
@@ -76,9 +77,20 @@ namespace m1
 		mainLoop();
 	}
 
-	void Engine::addSceneObject(std::unique_ptr<SceneObject> obj)
+	SceneObject* Engine::addSceneObject(const std::string& name)
 	{
-		_sceneObjects.push_back(std::move(obj));
+		//std::unique_lock<std::shared_mutex> lk(entitiesMutex); // TODO loading from background thread?
+		static uint64_t currentId = 0; // TODO not thread safe
+
+		std::string objectId = name.empty() ? std::to_string(currentId++) : name;
+
+		// Create the entity
+		auto entity = std::make_unique<SceneObject>(objectId);
+		// Add to the vector
+		_sceneObjects.push_back(std::move(entity));
+
+		SceneObject* rawPtr = _sceneObjects.back().get();
+		return rawPtr;
 	}
 
 	void Engine::addMaterial(std::unique_ptr<Material> material)
@@ -286,9 +298,11 @@ namespace m1
 	void Engine::updateObjectUbo(const SceneObject &sceneObject)
 	{
 		auto objectUbo = _framesData[_currentFrame]->objectUbo;
-		objectUbo.model = sceneObject.Transform;
-		objectUbo.normalMatrix = glm::transpose(glm::inverse(sceneObject.Transform));
-
+		if (auto* modelTr = sceneObject.GetComponent<TransformComponent>())
+		{
+			objectUbo.model = modelTr->GetMatrix();
+			objectUbo.normalMatrix = glm::transpose(glm::inverse(modelTr->GetMatrix()));
+		}
 		_framesData[_currentFrame]->objectUboBuffer->copyDataToBuffer(&objectUbo);
 	}
 
@@ -334,7 +348,11 @@ namespace m1
 		{
 			//updateObjectUbo(*obj); // TODO: how to update the object ubo instead of using push constants?
 
-			auto objPipeLineType = obj->PipelineKey.value_or(DEFAULT_PIPELINE);
+			auto* mesh = obj->GetComponent<Mesh>();
+			if (!mesh)
+				continue;
+
+			auto objPipeLineType = mesh->PipelineKey.value_or(DEFAULT_PIPELINE);
 
 			// determine which pipeline to use for this object
 			if (objPipeLineType != currentPipelineType)
@@ -357,7 +375,7 @@ namespace m1
 			if (currentPipelineType != PipelineType::NoLight)
 			{
 				// gets the object material and bind the descriptor set if different from the current material
-				auto matName = obj->Mesh->getMaterialName();
+				auto matName = mesh->getMaterialName();
 				const Material& material = matName.empty() ? *_defaultMaterial : *_materials.at(matName);
 
 				if (material.name != _currentMaterialName)
@@ -368,16 +386,19 @@ namespace m1
 					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 1, 1, &descriptorSet, 1, &dynamicOffset);
 				}
 			}
+			auto modelMatrix = glm::mat4(1.0f);
+			if (auto* modelTr = obj->GetComponent<TransformComponent>())
+				modelMatrix = modelTr->GetMatrix();
 
 			// push constants
 			PushConstantData push
 			{
-				.model = obj->Transform,
-				.normalMatrix = glm::transpose(glm::inverse(obj->Transform))
+				.model = modelMatrix,
+				.normalMatrix = glm::transpose(glm::inverse(modelMatrix))
 			};
 			vkCmdPushConstants(commandBuffer, currentPipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantData), &push);
 
-			obj->Mesh->draw(commandBuffer);
+			mesh->draw(commandBuffer);
 		}
 	}
 
@@ -600,13 +621,20 @@ namespace m1
 		BBox bbox;
 		for (const auto& obj : _sceneObjects)
 		{
+			auto* mesh = obj->GetComponent<Mesh>();
+
 			// skip auxiliary objects
-			if (obj->IsAuxiliary)
+			if (obj->IsAuxiliary || !mesh)
 				continue;
 
-			for (const auto& vertex : obj->Mesh->Vertices)
+			for (const auto& vertex: mesh->Vertices)
 			{
-				glm::vec3 worldPos = glm::vec3(obj->Transform * glm::vec4(vertex.pos, 1.0f));
+				auto* transform = obj->GetComponent<TransformComponent>();
+
+				glm::vec3 worldPos = transform
+					                     ? glm::vec3(transform->GetMatrix() * glm::vec4(vertex.pos, 1.0f))
+					                     : glm::vec3(vertex.pos);
+
 				bbox.merge(worldPos);
 			}
 		}
@@ -853,16 +881,24 @@ namespace m1
 		// draw objects loop
 		for (auto &obj: _sceneObjects)
 		{
+			auto* mesh = obj->GetComponent<Mesh>();
+			if (!mesh)
+				continue;
+
+			auto modelMatrix = glm::mat4(1.0f);
+			if (auto* modelTr = obj->GetComponent<TransformComponent>())
+				modelMatrix = modelTr->GetMatrix();
+
 			// push constants
 			PushConstantData push
 			{
-				.model = obj->Transform,
-				.normalMatrix = glm::transpose(glm::inverse(obj->Transform))
+				.model = modelMatrix,
+				.normalMatrix = glm::transpose(glm::inverse(modelMatrix))
 			};
 			vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &push);
 
 			// draw the mesh
-			obj->Mesh->draw(commandBuffer);
+			mesh->draw(commandBuffer);
 		}
 
 		// end rendering
@@ -1285,9 +1321,10 @@ namespace m1
 
 	void Engine::compileSceneObjects()
 	{
-		for (auto &obj: _sceneObjects)
+		for (auto& obj: _sceneObjects)
 		{
-			obj->Mesh->compile(_device);
+			if (auto* mesh = obj->GetComponent<Mesh>())
+				mesh->compile(_device);
 		}
 	}
 

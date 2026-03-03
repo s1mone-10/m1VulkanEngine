@@ -15,52 +15,47 @@ namespace m1
 		Log::Get().Info("Creating mesh");
 	}
 
-	Mesh::~Mesh()
+	void Mesh::compile(const Device& device)
 	{
-		Log::Get().Info("Destroying mesh");
+		createVertexBuffer(device);
+		createIndexBuffer(device);
 	}
 
-    void Mesh::compile(const Device& device)
-    {
-        createVertexBuffer(device);
-        createIndexBuffer(device);
-    }
+	void Mesh::draw(VkCommandBuffer commandBuffer) const
+	{
+		// bind the vertex buffer
+		VkBuffer vertexBuffers[] = {_vertexBuffer->getVkBuffer()};
+		VkDeviceSize offsets[] = {0};
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
-    void Mesh::draw(VkCommandBuffer commandBuffer) const
-    {
-        // bind the vertex buffer
-        VkBuffer vertexBuffers[] = { _vertexBuffer->getVkBuffer() };
-        VkDeviceSize offsets[] = { 0 };
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+		// bind the index buffer
+		vkCmdBindIndexBuffer(commandBuffer, _indexBuffer->getVkBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-        // bind the index buffer
-        vkCmdBindIndexBuffer(commandBuffer, _indexBuffer->getVkBuffer(), 0, VK_INDEX_TYPE_UINT32);
+		// draw command
+		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(Indices.size()), 1, 0, 0, 0);
+	}
 
-        // draw command
-        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(Indices.size()), 1, 0, 0, 0);
-    }
+	void Mesh::createVertexBuffer(const Device& device)
+	{
+		VkDeviceSize size = sizeof(Vertices[0]) * Vertices.size();
 
-    void Mesh::createVertexBuffer(const Device& device)
-    {
-        VkDeviceSize size = sizeof(Vertices[0]) * Vertices.size();
-
-        // Create the actual vertex buffer with device local memory for better performance
+		// Create the actual vertex buffer with device local memory for better performance
         _vertexBuffer = std::make_unique<Buffer>(device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
-        // upload vertex data to buffer
-        Utils::uploadToDeviceBuffer(device, *_vertexBuffer, size, Vertices.data());
-    }
+		// upload vertex data to buffer
+		Utils::uploadToDeviceBuffer(device, *_vertexBuffer, size, Vertices.data());
+	}
 
-    void Mesh::createIndexBuffer(const Device& device)
-    {
-        VkDeviceSize size = sizeof(Indices[0]) * Indices.size();
+	void Mesh::createIndexBuffer(const Device& device)
+	{
+		VkDeviceSize size = sizeof(Indices[0]) * Indices.size();
 
-        // Create the actual index buffer with device local memory for better performance
+		// Create the actual index buffer with device local memory for better performance
         _indexBuffer = std::make_unique<Buffer>(device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
-        // upload indices data to buffer
-        Utils::uploadToDeviceBuffer(device, *_indexBuffer, size, Indices.data());
-    }
+		// upload indices data to buffer
+		Utils::uploadToDeviceBuffer(device, *_indexBuffer, size, Indices.data());
+	}
 
 	std::unique_ptr<Mesh> Mesh::createCube(const glm::vec3& color)
 	{
@@ -71,13 +66,13 @@ namespace m1
 		const glm::vec3 positions[8] =
 		{
 			{-0.5f, -0.5f, -0.5f}, // 0
-			{ 0.5f, -0.5f, -0.5f}, // 1
-			{ 0.5f,  0.5f, -0.5f}, // 2
-			{-0.5f,  0.5f, -0.5f}, // 3
-			{-0.5f, -0.5f,  0.5f}, // 4
-			{ 0.5f, -0.5f,  0.5f}, // 5
-			{ 0.5f,  0.5f,  0.5f}, // 6
-			{-0.5f,  0.5f,  0.5f}  // 7
+			{0.5f, -0.5f, -0.5f}, // 1
+			{0.5f, 0.5f, -0.5f}, // 2
+			{-0.5f, 0.5f, -0.5f}, // 3
+			{-0.5f, -0.5f, 0.5f}, // 4
+			{0.5f, -0.5f, 0.5f}, // 5
+			{0.5f, 0.5f, 0.5f}, // 6
+			{-0.5f, 0.5f, 0.5f} // 7
 		};
 		const glm::vec3 colors[8] =
 		{
@@ -93,17 +88,18 @@ namespace m1
 		};
 		// Each face has its own normal
 		const glm::vec3 normals[6] = {
-			{ 0, 1, 0}, // back
-			{ 0, -1, 0}, // front
-			{ 0, 0, -1}, // bottom
-			{ 0, 0, 1}, // top
+			{0, 1, 0}, // back
+			{0, -1, 0}, // front
+			{0, 0, -1}, // bottom
+			{0, 0, 1}, // top
 			{-1, 0, 0}, // left
-			{ 1, 0, 0}  // right
+			{1, 0, 0} // right
 		};
 
 		// 6 faces, 2 triangles per face, 3 vertices per triangle = 36 vertices
 		// We'll duplicate vertices for correct normals/texCoords
-		struct Face {
+		struct Face
+		{
 			int v[4]; // indices into positions/colors
 			int normalIdx;
 		};
@@ -114,7 +110,7 @@ namespace m1
 			{{3, 2, 1, 0}, 2}, // bottom
 			{{4, 5, 6, 7}, 3}, // top
 			{{3, 0, 4, 7}, 4}, // left
-			{{1, 2, 6, 5}, 5}  // right
+			{{1, 2, 6, 5}, 5} // right
 		};
 
 		for (int f = 0; f < 6; ++f)
@@ -151,9 +147,9 @@ namespace m1
 		const glm::vec3 positions[4] =
 		{
 			{-10.f, -10.f, -.8f}, // 0
-			{ 10.f, -10.f, -.8f}, // 1
-			{ 10.f,  10.f, -.8f}, // 2
-			{-10.f,  10.f, -.8f}, // 3
+			{10.f, -10.f, -.8f}, // 1
+			{10.f, 10.f, -.8f}, // 2
+			{-10.f, 10.f, -.8f}, // 3
 		};
 		const glm::vec3 colors[4] =
 		{
@@ -167,7 +163,7 @@ namespace m1
 			{0.0f, 1.0f}
 		};
 
-		const glm::vec3 normal = { 0, 0, 1};
+		const glm::vec3 normal = {0, 0, 1};
 
 		mesh->Vertices.push_back({positions[0], colors[0], normal, texCoords[0]});
 		mesh->Vertices.push_back({positions[1], colors[1], normal, texCoords[1]});

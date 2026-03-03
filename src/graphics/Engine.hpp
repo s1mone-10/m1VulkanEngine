@@ -44,22 +44,23 @@ namespace m1
         ~Engine();
 
         void run();
-        void addSceneObject(std::unique_ptr<SceneObject> obj);
-    	void addMaterial(std::unique_ptr<Material> material);
-    	void compile();
-    	const EngineConfig& getConfig() const { return _config; }
-    	std::unique_ptr<Texture> createTexture(const TextureParams &params, void *data);
-    	std::unique_ptr<Image> createImage(const ImageParams &params, void *data);
 
-		// properties
-		void setUiEnabled(bool enabled);
-		bool getUiEnabled() const;
-		void setMsaaEnabled(bool enabled);
-		bool getMsaaEnabled() const;
-		void setParticlesEnabled(bool enabled);
-		bool getParticlesEnabled() const;
-		void setShadowsEnabled(bool enabled);
-		bool getShadowsEnabled() const;
+        SceneObject* addSceneObject(const std::string& name = "");
+        void addMaterial(std::unique_ptr<Material> material);
+        void compile();
+        const EngineConfig& getConfig() const { return _config; }
+        std::unique_ptr<Texture> createTexture(const TextureParams& params, void* data);
+        std::unique_ptr<Image> createImage(const ImageParams& params, void* data);
+
+        // properties
+        void setUiEnabled(bool enabled);
+        bool getUiEnabled() const;
+        void setMsaaEnabled(bool enabled);
+        bool getMsaaEnabled() const;
+        void setParticlesEnabled(bool enabled);
+        bool getParticlesEnabled() const;
+        void setShadowsEnabled(bool enabled);
+        bool getShadowsEnabled() const;
 
     private:
         void mainLoop();
@@ -82,9 +83,9 @@ namespace m1
         void initLights();
         void updateFrameDescriptorSet();
         void updateMaterialDescriptorSets(const Material &material);
-    	void compileSceneObjects();
-    	void compileMaterials();
-        
+        void compileSceneObjects();
+        void compileMaterials();
+
         void copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height);
 
     	void createDefaultTextures();
