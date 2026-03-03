@@ -35,3 +35,10 @@ This is a personal project to learn Vulkan and moder C++.
 
 This project is still under development as I continue studying Vulkan.
 
+## Credits & Resources
+
+The following resources were used to develop this project:
+
+* [Khronos Vulkan Tutorial](https://docs.vulkan.org/tutorial/latest/00_Introduction.html)
+* [Vulkan Tutorial](https://vulkan-tutorial.com/)
+
