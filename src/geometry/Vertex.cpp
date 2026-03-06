@@ -44,6 +44,12 @@ namespace m1
         attr.offset = offsetof(Vertex, texCoord);
     	attributeDescriptions.push_back(attr);
 
-        return attributeDescriptions;
+	    attr.binding = 0;
+	    attr.location = 4;
+	    attr.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	    attr.offset = offsetof(Vertex, tangent);
+	    attributeDescriptions.push_back(attr);
+
+	    return attributeDescriptions;
     };
 }

@@ -22,19 +22,22 @@ namespace m1
 		DescriptorSetManager(DescriptorSetManager&&) = delete;
 		DescriptorSetManager& operator=(DescriptorSetManager&&) = delete;
 
-		std::vector<VkDescriptorSet> allocateFrameDescriptorSets(uint32_t count) const;
-		std::vector<VkDescriptorSet> allocateMaterialDescriptorSets(uint32_t count) const;
-		VkDescriptorSetLayout getFrameDescriptorSetLayout() const { return _descriptorSetLayout; }
-		VkDescriptorSetLayout getMaterialDescriptorSetLayout() const { return _materialDescriptorSetLayout; }
+		[[nodiscard]] std::vector<VkDescriptorSet> allocateFrameDescriptorSets(uint32_t count) const;
+		[[nodiscard]] std::vector<VkDescriptorSet> allocateMaterialDescriptorSets(uint32_t count) const;
+		[[nodiscard]] VkDescriptorSetLayout getFrameDescriptorSetLayout() const { return _descriptorSetLayout; }
+		[[nodiscard]] VkDescriptorSetLayout getMaterialDescriptorSetLayout() const { return _materialDescriptorSetLayout; }
+		[[nodiscard]] VkDescriptorSetLayout getMaterialPbrDescriptorSetLayout() const {	return _materialPbrDescriptorSetLayout;	}
 
 	private:
 		const Device& _device;
 		VkDescriptorSetLayout _descriptorSetLayout = VK_NULL_HANDLE;
 		VkDescriptorSetLayout _materialDescriptorSetLayout = VK_NULL_HANDLE;
+		VkDescriptorSetLayout _materialPbrDescriptorSetLayout = VK_NULL_HANDLE;
 		VkDescriptorPool _descriptorPool;
 
 		void createFrameDescriptorSetLayout();
 		void createMaterialDescriptorSetLayout();
+		void createMaterialPbrDescriptorSetLayout();
 		void createDescriptorPool();
 	};
 }

@@ -936,6 +936,27 @@ namespace m1
 		};
     	_graphicsPipelines.emplace(PipelineType::PhongLighting, PipelineFactory::createGraphicsPipeline(_device, phongPipelineInfo));
 
+		// PbrLighting
+		std::array pbrSetLayouts =
+		{
+			_descriptorSetManager->getFrameDescriptorSetLayout(), // set 0
+			_descriptorSetManager->getMaterialPbrDescriptorSetLayout(), // set 1
+		};
+
+		GraphicsPipelineConfig pbrPipelineInfo
+		{
+			.swapChain = *_swapChain,
+			.vertShaderPath = R"(..\shaders\compiled\pbr.vert.spv)",
+			.fragShaderPath = R"(..\shaders\compiled\pbr.frag.spv)",
+			.vertexBindingDescription = Vertex::getBindingDescription(),
+			.vertexAttributeDescriptions = Vertex::getAttributeDescriptions(),
+			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+			.setLayoutCount = pbrSetLayouts.size(),
+			.pSetLayouts = pbrSetLayouts.data(),
+		};
+		_graphicsPipelines.emplace(PipelineType::PbrLighting,
+		                           PipelineFactory::createGraphicsPipeline(_device, pbrPipelineInfo));
+
 		// Particles
 		std::array particlesSetLayouts = {_descriptorSetManager->getFrameDescriptorSetLayout()};
 		GraphicsPipelineConfig particlesPipelineInfo

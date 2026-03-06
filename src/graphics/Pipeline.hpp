@@ -20,6 +20,7 @@ namespace m1
 		NoLight,
 		PhongLighting,
 		ShadowMapping,
+		PbrLighting,
 		Particles
 	};
 

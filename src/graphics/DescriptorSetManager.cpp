@@ -14,8 +14,18 @@ namespace m1
 {
 	DescriptorSetManager::DescriptorSetManager(const Device& device) : _device(device)
     {
-		createFrameDescriptorSetLayout();
-        createDescriptorPool();
+	    // DescriptorSet is a blueprint for the pipeline to know which resources are going to be accessed by the shaders
+
+	    // create different sets based on update frequency
+	    // set = 0 -> Ubo, Ssbo (per frame/object update)
+	    // set = 1 -> Material
+
+	    // Most frequently updated resources of each set must be first in binding order for performance optimization
+
+	    createFrameDescriptorSetLayout();
+	    createMaterialDescriptorSetLayout();
+	    createMaterialPbrDescriptorSetLayout();
+	    createDescriptorPool();
     }
 
     DescriptorSetManager::~DescriptorSetManager()
@@ -25,18 +35,13 @@ namespace m1
 
         vkDestroyDescriptorSetLayout(_device.getVkDevice(), _descriptorSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(_device.getVkDevice(), _materialDescriptorSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(_device.getVkDevice(), _materialPbrDescriptorSetLayout, nullptr);
         Log::Get().Info("Descriptor destroyed");
     }
 
     void DescriptorSetManager::createFrameDescriptorSetLayout()
     {
-	    // Blueprint for the pipeline to know which resources are going to be accessed by the shaders
-
-		// create different sets based on update frequency
-		// set = 0 -> Ubo, Ssbo (per frame/object update)
-		// set = 1 -> Material
-
-	    // Most frequently updated UBO first in binding order for performance optimization
+	    // Most frequently updated resources of each set must be first in binding order for performance optimization
 
 	    // Object Uniform buffer layout binding
 	    VkDescriptorSetLayoutBinding objectUboLayoutBinding
@@ -118,16 +123,10 @@ namespace m1
 
 	    // Create the DescriptorSet
 	    VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_descriptorSetLayout));
-
-		createMaterialDescriptorSetLayout();
     }
 
 	void DescriptorSetManager::createMaterialDescriptorSetLayout()
     {
-	    // Blueprint for the pipeline to know which resources are going to be accessed by the shaders
-
-	    // Most frequently updated UBO first in binding order for performance optimization
-
 		// Materials DynUbo
 		VkDescriptorSetLayoutBinding materialsDynUboLayoutBinding
 		{
@@ -172,15 +171,95 @@ namespace m1
 	    };
 
 	    // Create the DescriptorSet
-	    VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_materialDescriptorSetLayout));
+		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_materialDescriptorSetLayout));
     }
 
-    void DescriptorSetManager::createDescriptorPool()
-    {
-	    // Pool sizes
-	    std::array<VkDescriptorPoolSize, 4> poolSizes{};
-	    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT * 3); // *3 => frame, object and lights UBO
+	void DescriptorSetManager::createMaterialPbrDescriptorSetLayout()
+	{
+		// Materials DynUbo
+		VkDescriptorSetLayoutBinding materialsDynUboLayoutBinding
+		{
+			.binding = 0,
+			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
+		// Albedo Map Sampler
+		VkDescriptorSetLayoutBinding albedoSamplerLayoutBinding
+		{
+			.binding = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.pImmutableSamplers = nullptr
+		};
+		// Normal Map Sampler
+		VkDescriptorSetLayoutBinding normalSamplerLayoutBinding
+		{
+			.binding = 2,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
+		// MetallicRoughness Map Sampler
+		VkDescriptorSetLayoutBinding metallicRoughnessSamplerLayoutBinding
+		{
+			.binding = 3,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
+		// Ambient Occlusion Map Sampler
+		VkDescriptorSetLayoutBinding ambOcclusionSamplerLayoutBinding
+		{
+			.binding = 4,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
+		// Emissive Map Sampler
+		VkDescriptorSetLayoutBinding emissiveSamplerLayoutBinding
+		{
+			.binding = 5,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
+		// DescriptorSet Info
+		std::array bindings =
+		{
+			materialsDynUboLayoutBinding, albedoSamplerLayoutBinding, normalSamplerLayoutBinding,
+			metallicRoughnessSamplerLayoutBinding, ambOcclusionSamplerLayoutBinding, emissiveSamplerLayoutBinding
+		};
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+			.bindingCount = static_cast<uint32_t>(bindings.size()),
+			.pBindings = bindings.data()
+		};
+
+		// Create the DescriptorSet
+		VK_CHECK(
+			vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_materialPbrDescriptorSetLayout));
+	}
+
+	void DescriptorSetManager::createDescriptorPool()
+	{
+		// Pool sizes
+		std::array<VkDescriptorPoolSize, 4> poolSizes{};
+		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		poolSizes[0].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT * 3); // *3 => frame, object and lights UBO
 		poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 		poolSizes[1].descriptorCount = static_cast<uint32_t>(Engine::FRAMES_IN_FLIGHT); // materials dyn ubo (each buffer contains all materials data)
         poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
