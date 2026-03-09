@@ -5,22 +5,11 @@
 #include <stb_image.h>
 
 #include "graphics/Engine.hpp"
+#include "graphics/Sampler.hpp"
 #include "graphics/SceneObject.hpp"
-
-enum MaterialUniformFlags : std::uint32_t
-{
-	None = 0 << 0,
-	HasBaseColorTexture = 1 << 0,
-};
-
-struct MaterialUniforms
-{
-	fastgltf::math::fvec4 baseColorFactor;
-	float alphaCutoff = 0.f;
-	std::uint32_t flags = 0;
-
-	fastgltf::math::fvec2 padding;
-};
+#include "graphics/Material.hpp"
+#include "graphics/Texture.hpp"
+#include "graphics/Image.hpp"
 
 namespace m1
 {
@@ -58,7 +47,7 @@ namespace m1
 					fastgltf::Options::GenerateMeshIndices;
 
 			auto gltfFile = fastgltf::MappedGltfFile::FromPath(path);
-			if (!bool(gltfFile))
+			if (!static_cast<bool>(gltfFile))
 			{
 				std::cerr << "Failed to open glTF file: " << fastgltf::getErrorMessage(gltfFile.error()) << '\n';
 				return false;
@@ -73,15 +62,14 @@ namespace m1
 
 			_asset = std::move(asset.get());
 
-			// We load images first.
 			// load samplers
 			loadSamplers(engine);
 
-
-			// TODO load sampler, texture. gltf use PBR
+			// load images
 			for (auto &image: _asset.images)
 				loadImage(image, engine);
 
+			// load materials
 			for (auto &material: _asset.materials)
 				loadMaterial(material, engine);
 
@@ -89,16 +77,17 @@ namespace m1
 			for (auto &mesh: _asset.meshes)
 				loadMesh(mesh);
 
-			for (auto &mesh: meshes)
+			// add meshes and material to the engine
+			for (auto& mesh: meshes)
 			{
 				auto sceneObj = SceneObject::createSceneObject();
-				sceneObj->setMesh(mesh);
+				sceneObj->setMesh(std::move(mesh));
 				engine.addSceneObject(std::move(sceneObj));
 			}
 
-			for (auto& material: materials)
+			for (auto& pippo: materials)
 			{
-				engine.addMaterial(std::move(material));
+				engine.addMaterial(std::move(pippo));
 			}
 		}
 
@@ -140,6 +129,7 @@ namespace m1
 					return VK_SAMPLER_MIPMAP_MODE_LINEAR;
 			}
 		};
+
 		for (fastgltf::Sampler& sampler: _asset.samplers)
 		{
 			VkSamplerCreateInfo samplerCreateInfo = {.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO, .pNext = nullptr};
@@ -151,16 +141,13 @@ namespace m1
 
 			samplerCreateInfo.mipmapMode = extract_mipmap_mode(sampler.minFilter.value_or(fastgltf::Filter::Nearest));
 
-			VkSampler mySampler;
-			vkCreateSampler(engine.getDevice().getVkDevice(), &samplerCreateInfo, nullptr, &mySampler);
-
-			samplers.push_back(mySampler);
+			samplers.push_back(std::make_shared<Sampler>(engine.getDevice(), &samplerCreateInfo));
 		}
 	}
 
-	bool GltfReader::loadMesh(fastgltf::Mesh &gltfMesh)
+	bool GltfReader::loadMesh(const fastgltf::Mesh& gltfMesh)
 	{
-		for (const auto &primitive: gltfMesh.primitives)
+		for (const auto& primitive: gltfMesh.primitives)
 		{
 			if (primitive.type != fastgltf::PrimitiveType::Triangles)
 				continue;
@@ -171,7 +158,7 @@ namespace m1
 			// A mesh primitive is required to hold the POSITION attribute.
 			assert(primitive.indicesAccessor.has_value()); // we should always have indices
 
-			auto &positionAccessor = _asset.accessors[position->accessorIndex];
+			auto& positionAccessor = _asset.accessors[position->accessorIndex];
 			if (!positionAccessor.bufferViewIndex.has_value())
 				continue;
 			std::vector<Vertex> vertices(positionAccessor.count);
@@ -211,7 +198,7 @@ namespace m1
 			auto normal = primitive.findAttribute("NORMAL");
 			if (normal != primitive.attributes.end())
 			{
-				const auto &normalAccessor = _asset.accessors[normal->accessorIndex];
+				const auto& normalAccessor = _asset.accessors[normal->accessorIndex];
 				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(_asset, normalAccessor,
 				                                                          [&](fastgltf::math::fvec3 nor,
 				                                                              std::size_t idx)
@@ -227,7 +214,7 @@ namespace m1
 			if (texCoord != primitive.attributes.end())
 			{
 				// Tex coord
-				auto &texCoordAccessor = _asset.accessors[texCoord->accessorIndex];
+				auto& texCoordAccessor = _asset.accessors[texCoord->accessorIndex];
 
 				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec2>(_asset, texCoordAccessor,
 				                                                          [&](fastgltf::math::fvec2 uv, std::size_t idx)
@@ -241,7 +228,7 @@ namespace m1
 			auto color = primitive.findAttribute("COLOR_0");
 			if (color != primitive.attributes.end())
 			{
-				const auto &colorAccessor = _asset.accessors[color->accessorIndex];
+				const auto& colorAccessor = _asset.accessors[color->accessorIndex];
 				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec4>(_asset, colorAccessor,
 				                                                          [&](fastgltf::math::fvec4 col,
 				                                                              std::size_t idx)
@@ -252,7 +239,7 @@ namespace m1
 			}
 
 			// Indices
-			auto &indexAccessor = _asset.accessors[primitive.indicesAccessor.value()];
+			auto& indexAccessor = _asset.accessors[primitive.indicesAccessor.value()];
 			if (!indexAccessor.bufferViewIndex.has_value())
 				return false;
 
@@ -263,11 +250,11 @@ namespace m1
 				                                                  indices[idx] = index;
 			                                                  });
 
-			std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
+			auto mesh = std::make_unique<Mesh>();
 			mesh->Vertices = std::move(vertices);
 			mesh->Indices = std::move(indices);
 
-			meshes.push_back(mesh);
+			meshes.push_back(std::move(mesh));
 		}
 
 		return true;
@@ -408,6 +395,7 @@ namespace m1
 		}
 
 		materials.push_back(std::move(myMaterial));
+
 		return true;
 	}
 

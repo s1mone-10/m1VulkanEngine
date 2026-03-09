@@ -5,6 +5,7 @@
 #include "Utils.hpp"
 #include "geometry/Mesh.hpp"
 #include "geometry/Particle.hpp"
+#include "Sampler.hpp"
 
 //libs
 #include "glm_config.hpp"
@@ -51,6 +52,9 @@ namespace m1
 		vkDeviceWaitIdle(_device.getVkDevice());
 
 		_gui.reset(); // destroy first
+
+		// destroy texture, image and samplers
+		_materials.clear();
 
 		// Command buffers are implicitly destroyed when the command pool is destroyed
 
@@ -789,11 +793,10 @@ namespace m1
 		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
 		// create the sampler
-		VkSampler shadowSampler{};
-		VK_CHECK(vkCreateSampler(_device.getVkDevice(), &samplerInfo, nullptr, &shadowSampler));
+		auto shadowSampler = std::make_unique<Sampler>(_device, &samplerInfo);
 
 		// create the shadow map texture
-		_shadowMap = std::make_unique<Texture>(_device, std::move(shadowMapImage), shadowSampler);
+		_shadowMap = std::make_unique<Texture>(_device, std::move(shadowMapImage), std::move(shadowSampler));
 	}
 
 	void Engine::recordShadowMappingPass(VkCommandBuffer commandBuffer) const
@@ -1109,7 +1112,7 @@ namespace m1
 		// ShadowMap info (used to define the sampler)
 	    VkDescriptorImageInfo shadowMapImageInfo
 		{
-			.sampler = _shadowMap->getSampler(),
+			.sampler = _shadowMap->getSampler().getVkSampler(),
 			.imageView = _shadowMap->getImage().getVkImageView(),
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 		};
@@ -1257,7 +1260,7 @@ namespace m1
 			// diffuse Texture Image Info
 			VkDescriptorImageInfo diffuseImageInfo
 			{
-				.sampler = material.baseColorMap->getSampler(),
+				.sampler = material.baseColorMap->getSampler().getVkSampler(),
 				.imageView = material.baseColorMap->getImage().getVkImageView(),
 				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 			};
@@ -1277,7 +1280,7 @@ namespace m1
 			// specular Texture Image Info
 			VkDescriptorImageInfo specularImageInfo
 			{
-				.sampler = material.specularMap->getSampler(),
+				.sampler = material.specularMap->getSampler().getVkSampler(),
 				.imageView = material.specularMap->getImage().getVkImageView(),
 				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 			};

@@ -4,6 +4,7 @@
 
 #include "Buffer.hpp"
 #include "Device.hpp"
+#include "Sampler.hpp"
 #include "Utils.hpp"
 #include "log/Log.hpp"
 
@@ -14,12 +15,6 @@ namespace m1
     {
         createTextureImage(params);
         createSampler();
-    }
-
-    Texture::~Texture()
-    {
-        Log::Get().Info("Destroying texture");
-        vkDestroySampler(_device.getVkDevice(), _sampler, nullptr);
     }
 
     void Texture::createTextureImage(const TextureParams& textureParams)
@@ -62,8 +57,8 @@ namespace m1
         samplerInfo.minLod = 0.0f;
         samplerInfo.maxLod = VK_LOD_CLAMP_NONE; // all available mipmap levels will be sampled
 
-        // Create sampler
-        VK_CHECK(vkCreateSampler(_device.getVkDevice(), &samplerInfo, nullptr, &_sampler));
+    	// Create sampler
+    	_sampler = std::make_shared<Sampler>(_device, &samplerInfo);
     }
     
 } // namespace m1

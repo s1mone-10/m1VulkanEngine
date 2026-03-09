@@ -4,6 +4,7 @@
 #include "geometry/Vertex.hpp"
 #include "geometry/Mesh.hpp"
 #include "graphics/Material.hpp"
+#include "GltfReader.hpp"
 
 //libs
 #define GLFW_INCLUDE_VULKAN
@@ -11,8 +12,6 @@
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
-
-#include "GltfReader.hpp"
 
 void loadScene(m1::Engine& engine);
 void loadObj(m1::Engine& engine, const std::string &path);

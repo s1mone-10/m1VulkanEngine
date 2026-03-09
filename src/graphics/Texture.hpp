@@ -9,6 +9,7 @@
 namespace m1
 {
     class Device;   // Forward declaration
+	class Sampler;
 
 	struct TextureParams
 	{
@@ -21,17 +22,19 @@ namespace m1
     {
     public:
         Texture(const Device& device, const TextureParams& params);
-        Texture(const Device& device, std::shared_ptr<Image> image, VkSampler sampler) :
-    		_device(device), _image(std::move(image)), _sampler(sampler) {}
+        Texture(const Device& device, std::shared_ptr<Image> image, std::shared_ptr<Sampler> sampler) :
+    		_device(device), _image(std::move(image)), _sampler(std::move(sampler)) {}
 
-        ~Texture();
+        ~Texture() = default; // nothing to destroy, is just a container of Image and Sampler
 
         // Non-copyable
         Texture(const Texture&) = delete;
         Texture& operator=(const Texture&) = delete;
+    	Texture(Texture&&) = delete;
+    	Texture& operator=(Texture&&) = delete;
 
         Image& getImage() const { return *_image; }
-        VkSampler getSampler() const { return _sampler; }
+        Sampler& getSampler() const { return *_sampler; }
     	VkExtent2D getExtent() const { return _image->getExtent();}
         uint32_t getWidth() const { return _image->getWidth(); }
         uint32_t getHeight() const { return _image->getHeight(); }
@@ -42,7 +45,7 @@ namespace m1
 
         const Device& _device;
         std::shared_ptr<Image> _image;
-        VkSampler _sampler;
+        std::shared_ptr<Sampler> _sampler;
     };
     
 } // namespace m1
