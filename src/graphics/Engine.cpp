@@ -1257,8 +1257,8 @@ namespace m1
 			// diffuse Texture Image Info
 			VkDescriptorImageInfo diffuseImageInfo
 			{
-				.sampler = material.diffuseMap->getSampler(),
-				.imageView = material.diffuseMap->getImage().getVkImageView(),
+				.sampler = material.baseColorMap->getSampler(),
+				.imageView = material.baseColorMap->getImage().getVkImageView(),
 				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 			};
 
@@ -1352,7 +1352,7 @@ namespace m1
 
 		// set materials properties and update descriptorSet
 		_defaultMaterial->uboIndex = 0;
-		_defaultMaterial->diffuseMap = _whiteDiffuseMap;
+		_defaultMaterial->baseColorMap = _whiteDiffuseMap;
 		_defaultMaterial->specularMap = _whiteSpecularMap;
 		_defaultMaterial->descriptorSet = descriptorSets[0];
 		updateMaterialDescriptorSets(*_defaultMaterial);
@@ -1364,10 +1364,13 @@ namespace m1
 			material->uboIndex = index;
 
 			// load texture
-			if (!material->diffuseTexturePath.empty())
-				material->diffuseMap = loadTexture(material->diffuseTexturePath, VK_FORMAT_R8G8B8A8_SRGB);
-			else
-				material->diffuseMap = _whiteDiffuseMap;
+			if (!material->baseColorMap)
+			{
+				if (!material->diffuseTexturePath.empty())
+					material->baseColorMap = loadTexture(material->diffuseTexturePath, VK_FORMAT_R8G8B8A8_SRGB);
+				else
+					material->baseColorMap = _whiteDiffuseMap;
+			}
 
 			if (!material->specularTexturePath.empty())
 				// UNORM format because generally specular map is a grayscale mask/intensity, not a color
@@ -1379,6 +1382,28 @@ namespace m1
 			material->descriptorSet = descriptorSets[index++];
 			updateMaterialDescriptorSets(*material);
 		}
+	}
+
+	void Engine::copyDataToImage(const void* data, uint32_t width, uint32_t height, VkDeviceSize imageSize, const Image* image)
+	{
+		// Create a staging buffer to upload the texture data to GPU
+		Buffer stagingBuffer{_device, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT};
+
+		// Copy texture data to the staging buffer
+		stagingBuffer.copyDataToBuffer(data);
+
+		// Transition image layout to be optimal for receiving data
+		transitionImageLayout(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+
+		// Copy the texture data from the staging buffer to the image
+		copyBufferToImage(stagingBuffer, image->getVkImage(), width, height);
+
+		//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
+		// Transition image layout to be optimal for shader access
+		//transitionImageLayout(textImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+		// Generate mipmaps (also transitions the image to be optimal for shader access)
+		generateMipmaps(*image);
 	}
 
 	void Engine::copyBufferToImage(const Buffer &srcBuffer, VkImage image, uint32_t width, uint32_t height)
@@ -1450,76 +1475,31 @@ namespace m1
 
 	std::unique_ptr<Texture> Engine::createTexture(const TextureParams& params, void* data)
 	{
-		/*
-		- Create a staging buffer and copy the image data to it
-		- Create the VkImage object
-		- Copy data from the staging buffer to the VkImage
-		*/
-
 		auto width = params.extent.width;
 		auto height = params.extent.height;
-
 		VkDeviceSize imageSize = width * height * 4; // 4 bytes per pixel (RGBA)
 
-		// Create a staging buffer to upload the texture data to GPU
-        Buffer stagingBuffer{ _device, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT };
-
-		// Copy texture data to the staging buffer
-		stagingBuffer.copyDataToBuffer(data);
-
+		// create the texture object
 		auto texture = std::make_unique<Texture>(_device, params);
 
+		// copy data to the texture's image
 		Image& textImage = texture->getImage();
-
-		// Transition image layout to be optimal for receiving data
-        transitionImageLayout(textImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
-
-		// Copy the texture data from the staging buffer to the image
-        copyBufferToImage(stagingBuffer, textImage.getVkImage(), width, height);
-
-		//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
-		// Transition image layout to be optimal for shader access
-		//transitionImageLayout(textImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-		// Generate mipmaps (also transitions the image to be optimal for shader access)
-		generateMipmaps(textImage);
+		copyDataToImage(data, width, height, imageSize, &textImage);
 
 		return texture;
 	}
 
-	std::unique_ptr<Image> Engine::createImage(const ImageParams& params, void* data)
+	std::shared_ptr<Image> Engine::createImage(const ImageParams& params, void* data)
 	{
-		/*
-		- Create a staging buffer and copy the image data to it
-		- Create the VkImage object
-		- Copy data from the staging buffer to the VkImage
-		*/
-
 		auto width = params.extent.width;
 		auto height = params.extent.height;
-
 		VkDeviceSize imageSize = width * height * 4; // 4 bytes per pixel (RGBA)
 
-		// Create a staging buffer to upload the texture data to GPU
-		Buffer stagingBuffer{ _device, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT };
-
-		// Copy texture data to the staging buffer
-		stagingBuffer.copyDataToBuffer(data);
-
+		// create the image object
 		auto image = std::make_unique<Image>(_device, params);
 
-		// Transition image layout to be optimal for receiving data
-		transitionImageLayout(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
-
-		// Copy the texture data from the staging buffer to the image
-		copyBufferToImage(stagingBuffer, image->getVkImage(), width, height);
-
-		//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
-		// Transition image layout to be optimal for shader access
-		//transitionImageLayout(textImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-		// Generate mipmaps (also transitions the image to be optimal for shader access)
-		generateMipmaps(*image);
+		// copy data to the image
+		copyDataToImage(data, width, height, imageSize, image.get());
 
 		return image;
 	}
@@ -1555,7 +1535,8 @@ namespace m1
 		}
 	}
 
-	void Engine::transitionImageLayout(const Image &image, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask) const
+	void Engine::transitionImageLayout(const Image& image, VkImageLayout oldLayout, VkImageLayout newLayout,
+	                                   VkImageAspectFlags aspectMask) const
 	{
 		VkCommandBuffer commandBuffer = _device.getGraphicsQueue().beginOneTimeCommand();
 

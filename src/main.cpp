@@ -61,7 +61,7 @@ void loadScene(m1::Engine& engine)
     loadCubes(engine, 3);
     //loadObj(engine, MODEL_PATH);
 
-	//loadGltf(engine, "../resources/DamagedHelmet.glb");
+    loadGltf(engine, "../resources/DamagedHelmet.glb");
 }
 
 void loadObj(m1::Engine& engine, const std::string& path)
@@ -146,7 +146,7 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	// Shiny material (high specular, moderate diffuse)
 	engine.addMaterial(std::make_unique<m1::Material>(
 		"shiny",
-		glm::vec3(0.7f, 0.0f, 0.0f),
+		glm::vec4(0.7f, 0.0f, 0.0f, 1.0f),
 		glm::vec3(0.5f, 0.5f, 0.5f),
 		glm::vec3(0.7f, 0.0f, 0.0f),
 		32.0f,
@@ -156,7 +156,7 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	// Matte material (low specular, high diffuse)
 	engine.addMaterial(std::make_unique<m1::Material>(
 		"matte",
-		glm::vec3(0.8f, 0.8f, 0.8f),
+		glm::vec4(0.8f, 0.8f, 0.8f, 1.0f),
 		glm::vec3(0.1f, 0.1f, 0.1f),
 		glm::vec3(0.1f, 0.1f, 0.1f),
 		1.0f,
@@ -166,7 +166,7 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	// Emissive material (very high specular and diffuse for glow effect)
 	engine.addMaterial(std::make_unique<m1::Material>(
 		"emissive",
-		glm::vec3(5.0f, 5.0f, 5.0f),
+		glm::vec4(5.0f, 5.0f, 5.0f, 1.0f),
 		glm::vec3(5.0f, 5.0f, 5.0f),
 		glm::vec3(1.0f, 1.0f, 1.0f),
 		64.0f,
@@ -174,7 +174,7 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	));
 
 	// container texture
-	glm::vec3 white(1.0f, 1.0f, 1.0f);
+	glm::vec4 white(1.0f);
 	auto material = std::make_unique<m1::Material>("container", white,white,white);
 	material->diffuseTexturePath = "../resources/container.png";
 	material->specularTexturePath = "../resources/container_specular.png";

@@ -37,6 +37,8 @@ namespace m1
             if (glfwGetKey(_glfwWindow, key) == GLFW_PRESS)
                 return key;
         }
+
+        return GLFW_KEY_UNKNOWN;
     }
 
     void Window::InitWindow()

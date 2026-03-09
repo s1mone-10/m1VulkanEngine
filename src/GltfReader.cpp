@@ -35,7 +35,8 @@ namespace m1
 		if constexpr (std::is_same_v<std::filesystem::path::value_type, wchar_t>)
 		{
 			std::wcout << "Loading " << path << '\n';
-		} else
+		}
+		else
 		{
 			std::cout << "Loading " << path << '\n';
 		}
@@ -73,12 +74,16 @@ namespace m1
 			_asset = std::move(asset.get());
 
 			// We load images first.
+			// load samplers
+			loadSamplers(engine);
+
+
 			// TODO load sampler, texture. gltf use PBR
 			for (auto &image: _asset.images)
 				loadImage(image, engine);
 
 			for (auto &material: _asset.materials)
-				loadMaterial(material);
+				loadMaterial(material, engine);
 
 			// TODO node and node transformation??
 			for (auto &mesh: _asset.meshes)
@@ -90,9 +95,67 @@ namespace m1
 				sceneObj->setMesh(mesh);
 				engine.addSceneObject(std::move(sceneObj));
 			}
+
+			for (auto& material: materials)
+			{
+				engine.addMaterial(std::move(material));
+			}
 		}
 
 		return true;
+	}
+
+	void GltfReader::loadSamplers(Engine& engine)
+	{
+		auto extract_filter = [&](fastgltf::Filter filter)
+		{
+			switch (filter)
+			{
+				// nearest samplers
+				case fastgltf::Filter::Nearest:
+				case fastgltf::Filter::NearestMipMapNearest:
+				case fastgltf::Filter::NearestMipMapLinear:
+					return VK_FILTER_NEAREST;
+
+				// linear samplers
+				case fastgltf::Filter::Linear:
+				case fastgltf::Filter::LinearMipMapNearest:
+				case fastgltf::Filter::LinearMipMapLinear:
+				default:
+					return VK_FILTER_LINEAR;
+			}
+		};
+
+		auto extract_mipmap_mode = [&](fastgltf::Filter filter)
+		{
+			switch (filter)
+			{
+				case fastgltf::Filter::NearestMipMapNearest:
+				case fastgltf::Filter::LinearMipMapNearest:
+					return VK_SAMPLER_MIPMAP_MODE_NEAREST;
+
+				case fastgltf::Filter::NearestMipMapLinear:
+				case fastgltf::Filter::LinearMipMapLinear:
+				default:
+					return VK_SAMPLER_MIPMAP_MODE_LINEAR;
+			}
+		};
+		for (fastgltf::Sampler& sampler: _asset.samplers)
+		{
+			VkSamplerCreateInfo samplerCreateInfo = {.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO, .pNext = nullptr};
+			samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
+			samplerCreateInfo.minLod = 0;
+
+			samplerCreateInfo.magFilter = extract_filter(sampler.magFilter.value_or(fastgltf::Filter::Nearest));
+			samplerCreateInfo.minFilter = extract_filter(sampler.minFilter.value_or(fastgltf::Filter::Nearest));
+
+			samplerCreateInfo.mipmapMode = extract_mipmap_mode(sampler.minFilter.value_or(fastgltf::Filter::Nearest));
+
+			VkSampler mySampler;
+			vkCreateSampler(engine.getDevice().getVkDevice(), &samplerCreateInfo, nullptr, &mySampler);
+
+			samplers.push_back(mySampler);
+		}
 	}
 
 	bool GltfReader::loadMesh(fastgltf::Mesh &gltfMesh)
@@ -210,8 +273,22 @@ namespace m1
 		return true;
 	}
 
-	bool GltfReader::loadImage(fastgltf::Image &image, Engine &engine)
+	bool GltfReader::loadImage(fastgltf::Image& image, Engine& engine)
 	{
+		auto createImage = [&](unsigned char* data, int width, int height)
+		{
+			ImageParams params
+			{
+				.extent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
+				.format = VK_FORMAT_R8G8B8A8_UNORM,
+				.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+				.mipLevels = 1
+			};
+			return engine.createImage(params, data);
+		};
+
+		// TODO use KTX2 library?
+
 		std::visit(fastgltf::visitor{
 			           [](auto &arg) {},
 			           [&](fastgltf::sources::URI &filePath)
@@ -224,13 +301,7 @@ namespace m1
 				           // Thanks C++.
 				           unsigned char *data = stbi_load(path.c_str(), &width, &height, &nrChannels, 4);
 
-				           TextureParams params
-				           {
-					           .extent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
-					           .format = VK_FORMAT_R8G8B8A8_UNORM
-				           };
-				           auto texture = engine.createTexture(params, data);
-				           textures.push_back(std::move(texture));
+				           images.push_back(std::move(createImage(data, width, height)));
 
 				           stbi_image_free(data);
 			           },
@@ -241,12 +312,7 @@ namespace m1
 					           reinterpret_cast<const stbi_uc *>(vector.bytes.data()),
 					           static_cast<int>(vector.bytes.size()), &width, &height, &nrChannels, 4);
 
-				           TextureParams params
-				           {
-					           .extent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
-					           .format = VK_FORMAT_R8G8B8A8_UNORM
-				           };
-				           auto texture = engine.createTexture(params, data);
+				           images.push_back(std::move(createImage(data, width, height)));
 
 				           stbi_image_free(data);
 			           },
@@ -269,15 +335,7 @@ namespace m1
 							                      static_cast<int>(bufferView.byteLength), &width, &height, &nrChannels,
 							                      4);
 
-						                      TextureParams params
-						                      {
-							                      .extent = {
-								                      static_cast<uint32_t>(width), static_cast<uint32_t>(height)
-							                      },
-							                      .format = VK_FORMAT_R8G8B8A8_UNORM
-						                      };
-						                      auto texture = engine.createTexture(params, data);
-						                      textures.push_back(std::move(texture));
+						                      images.push_back(std::move(createImage(data, width, height)));
 
 						                      stbi_image_free(data);
 					                      }
@@ -288,24 +346,71 @@ namespace m1
 		return true;
 	}
 
-	bool GltfReader::loadMaterial(fastgltf::Material &material)
+	bool GltfReader::loadMaterial(fastgltf::Material& material, Engine& engine)
 	{
 		auto myMaterial = std::make_unique<Material>(material.name.c_str());
 
-		materials.push_back(std::move(myMaterial));
+		auto& pbrData = material.pbrData;
+		myMaterial->baseColor.r = pbrData.baseColorFactor[0];
+		myMaterial->baseColor.g = pbrData.baseColorFactor[1];
+		myMaterial->baseColor.b = pbrData.baseColorFactor[2];
+		myMaterial->baseColor.a = pbrData.baseColorFactor[3];
 
-		// MaterialUniforms uniforms = {};
-		// uniforms.alphaCutoff = material.alphaCutoff;
-		//
-		// uniforms.baseColorFactor = material.pbrData.baseColorFactor;
-		// if (material.pbrData.baseColorTexture.has_value())
+		myMaterial->metallicFactor = pbrData.metallicFactor;
+		myMaterial->roughnessFactor = pbrData.roughnessFactor;
+
+		// TODO
+		// MaterialPass passType = MaterialPass::MainColor;
+		// if (material.alphaMode == fastgltf::AlphaMode::Blend)
 		// {
-		// 	uniforms.flags |= MaterialUniformFlags::HasBaseColorTexture;
+		// 	passType = MaterialPass::Transparent;
 		// }
-		//
-		// viewer->materials.emplace_back(uniforms);
+
+		// grab textures
+		if (pbrData.baseColorTexture.has_value())
+		{
+			auto texture = _asset.textures[pbrData.baseColorTexture.value().textureIndex];
+			size_t imgIndex = texture.imageIndex.value();
+			size_t samplerIndex = texture.samplerIndex.value();
+			myMaterial->baseColorMap = std::make_unique<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
+		}
+
+		if (pbrData.metallicRoughnessTexture.has_value())
+		{
+			auto texture = _asset.textures[pbrData.metallicRoughnessTexture.value().textureIndex];
+			size_t imgIndex = texture.imageIndex.value();
+			size_t samplerIndex = texture.samplerIndex.value();
+			myMaterial->metallicRoughnessMap = std::make_unique<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
+		}
+
+		if (material.normalTexture.has_value())
+		{
+			auto texture = _asset.textures[material.normalTexture.value().textureIndex];
+			size_t imgIndex = texture.imageIndex.value();
+			size_t samplerIndex = texture.samplerIndex.value();
+			myMaterial->normalMap = std::make_unique<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
+		}
+
+		if (material.occlusionTexture.has_value())
+		{
+			auto texture = _asset.textures[material.occlusionTexture.value().textureIndex];
+			size_t imgIndex = texture.imageIndex.value();
+			size_t samplerIndex = texture.samplerIndex.value();
+			myMaterial->occlusionMap = std::make_unique<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
+		}
+
+		if (material.emissiveTexture.has_value())
+		{
+			auto texture = _asset.textures[material.emissiveTexture.value().textureIndex];
+			size_t imgIndex = texture.imageIndex.value();
+			size_t samplerIndex = texture.samplerIndex.value();
+			myMaterial->occlusionMap = std::make_unique<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
+		}
+
+		materials.push_back(std::move(myMaterial));
 		return true;
 	}
+
 
 	//
 	// bool loadCamera(Viewer* viewer, fastgltf::Camera& camera) {

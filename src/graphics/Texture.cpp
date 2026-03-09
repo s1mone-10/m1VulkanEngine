@@ -24,7 +24,9 @@ namespace m1
 
     void Texture::createTextureImage(const TextureParams& textureParams)
     {
-        auto mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(textureParams.extent.width, textureParams.extent.height)))) + 1;
+        uint32_t mipLevels = 1;
+        if (textureParams.mipmaps)
+            mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(textureParams.extent.width, textureParams.extent.height)))) + 1;
 
         ImageParams imageParams
         {

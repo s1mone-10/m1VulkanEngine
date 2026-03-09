@@ -14,13 +14,14 @@ namespace m1
 	{
 		VkExtent2D extent;
 		VkFormat format;
+		bool mipmaps;
 	};
 
     class Texture
     {
     public:
         Texture(const Device& device, const TextureParams& params);
-        Texture(const Device& device, std::unique_ptr<Image> image, VkSampler sampler) :
+        Texture(const Device& device, std::shared_ptr<Image> image, VkSampler sampler) :
     		_device(device), _image(std::move(image)), _sampler(sampler) {}
 
         ~Texture();
@@ -40,7 +41,7 @@ namespace m1
         void createSampler();
 
         const Device& _device;
-        std::unique_ptr<Image> _image;
+        std::shared_ptr<Image> _image;
         VkSampler _sampler;
     };
     

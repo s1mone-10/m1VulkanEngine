@@ -44,7 +44,7 @@ namespace m1
 	{
 		MaterialUbo(const Material& material)
 		{
-			diffuseColor = material.diffuseColor;
+			diffuseColor = material.baseColor;
 			specularColor = material.specularColor;
 			ambientColor = material.ambientColor;
 			shininess = material.shininess;

@@ -49,17 +49,18 @@ namespace m1
     	void compile();
     	const EngineConfig& getConfig() const { return _config; }
     	std::unique_ptr<Texture> createTexture(const TextureParams &params, void *data);
-    	std::unique_ptr<Image> createImage(const ImageParams &params, void *data);
+        std::shared_ptr<Image> createImage(const ImageParams& params, void* data);
+        Device& getDevice() { return _device; };
 
-		// properties
-		void setUiEnabled(bool enabled);
-		bool getUiEnabled() const;
-		void setMsaaEnabled(bool enabled);
-		bool getMsaaEnabled() const;
-		void setParticlesEnabled(bool enabled);
-		bool getParticlesEnabled() const;
-		void setShadowsEnabled(bool enabled);
-		bool getShadowsEnabled() const;
+        // properties
+        void setUiEnabled(bool enabled);
+        bool getUiEnabled() const;
+        void setMsaaEnabled(bool enabled);
+        bool getMsaaEnabled() const;
+        void setParticlesEnabled(bool enabled);
+        bool getParticlesEnabled() const;
+        void setShadowsEnabled(bool enabled);
+        bool getShadowsEnabled() const;
 
     private:
         void mainLoop();
@@ -86,8 +87,9 @@ namespace m1
     	void compileMaterials();
         
         void copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height);
+        void copyDataToImage(const void* data, uint32_t width, uint32_t height, VkDeviceSize imageSize, const Image* image);
 
-    	void createDefaultTextures();
+        void createDefaultTextures();
         std::unique_ptr<Texture> loadTexture(const std::string &filePath, VkFormat format);
 
         void processInput(float delta);
