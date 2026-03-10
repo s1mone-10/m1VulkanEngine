@@ -42,13 +42,9 @@ namespace m1
 
 	struct MaterialUbo
 	{
-		MaterialUbo(const Material& material)
+		explicit MaterialUbo(const Material& material) : diffuseColor(material.baseColor), specularColor(material.specularColor),
+			ambientColor(material.ambientColor), shininess(material.shininess), opacity(material.opacity)
 		{
-			diffuseColor = material.baseColor;
-			specularColor = material.specularColor;
-			ambientColor = material.ambientColor;
-			shininess = material.shininess;
-			opacity = material.opacity;
 		}
 
 		float shininess;
@@ -56,6 +52,17 @@ namespace m1
 		glm::vec3 diffuseColor;
 		glm::vec3 specularColor;
 		glm::vec3 ambientColor;
+	};
+
+	struct MaterialPbrUbo
+	{
+		explicit MaterialPbrUbo(const Material& material) : baseColor(material.baseColor), metallicFactor(material.metallicFactor),
+			roughnessFactor(material.roughnessFactor), emissiveFactor(material.emissiveFactor) {}
+
+		glm::vec4 baseColor;
+		float metallicFactor;
+	    float roughnessFactor;
+	    float emissiveFactor;
 	};
 
 	class Buffer

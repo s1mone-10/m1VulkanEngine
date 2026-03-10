@@ -40,6 +40,7 @@ namespace m1
     	std::unique_ptr<Buffer> particleSSboBuffer;
 
         std::unique_ptr<Buffer> materialDynUboBuffer; // contains data of all materials
+        std::unique_ptr<Buffer> materialPbrDynUboBuffer;
 
     	// descriptor set
     	VkDescriptorSet descriptorSet = VK_NULL_HANDLE;

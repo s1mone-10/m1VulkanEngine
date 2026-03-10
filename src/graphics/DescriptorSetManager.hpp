@@ -23,7 +23,7 @@ namespace m1
 		DescriptorSetManager& operator=(DescriptorSetManager&&) = delete;
 
 		[[nodiscard]] std::vector<VkDescriptorSet> allocateFrameDescriptorSets(uint32_t count) const;
-		[[nodiscard]] std::vector<VkDescriptorSet> allocateMaterialDescriptorSets(uint32_t count) const;
+		[[nodiscard]] std::vector<VkDescriptorSet> allocateMaterialDescriptorSets(uint32_t count, VkDescriptorSetLayout layout) const;
 		[[nodiscard]] VkDescriptorSetLayout getFrameDescriptorSetLayout() const { return _descriptorSetLayout; }
 		[[nodiscard]] VkDescriptorSetLayout getMaterialDescriptorSetLayout() const { return _materialDescriptorSetLayout; }
 		[[nodiscard]] VkDescriptorSetLayout getMaterialPbrDescriptorSetLayout() const {	return _materialPbrDescriptorSetLayout;	}

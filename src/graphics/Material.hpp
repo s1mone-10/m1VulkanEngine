@@ -32,7 +32,7 @@ namespace m1
 	    glm::vec3 specularColor;
 	    glm::vec3 ambientColor;
 	    float shininess;
-	    float opacity;
+	    float opacity; // TODO: cos'e'? c'e' a in base color
 	    std::string diffuseTexturePath;
 	    std::string specularTexturePath;
 
@@ -48,6 +48,8 @@ namespace m1
 	    std::shared_ptr<Texture> metallicRoughnessMap;
 	    std::shared_ptr<Texture> normalMap;
 	    std::shared_ptr<Texture> occlusionMap;
+	    std::shared_ptr<Texture> emissiveMap;
 	    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+	    VkDescriptorSet descriptorSetPbr = VK_NULL_HANDLE;
     };
 }

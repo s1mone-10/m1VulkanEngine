@@ -152,6 +152,8 @@ namespace m1
 			if (primitive.type != fastgltf::PrimitiveType::Triangles)
 				continue;
 
+			auto mesh = std::make_unique<Mesh>();
+
 			// Position
 			auto position = primitive.findAttribute("POSITION");
 			assert(position != primitive.attributes.end());
@@ -170,42 +172,26 @@ namespace m1
 					                                                          pos.x(), pos.y(), pos.z());
 			                                                          });
 
-			// TODO
+			// Material
 			std::size_t baseColorTexcoordIndex = 0;
-			// if (primitive.materialIndex.has_value())
-			// {
-			// 	primitive.materialUniformsIndex = it->materialIndex.value() + 1; // Adjust for default material
-			// 	auto& material = viewer->asset.materials[it->materialIndex.value()];
-			//
-			// 	auto& baseColorTexture = material.pbrData.baseColorTexture;
-			// 	if (baseColorTexture.has_value()) {
-			// 		auto& texture = viewer->asset.textures[baseColorTexture->textureIndex];
-			// 		if (!texture.imageIndex.has_value())
-			// 			return false;
-			// 		primitive.albedoTexture = viewer->textures[texture.imageIndex.value()].texture;
-			//
-			// 		if (baseColorTexture->transform && baseColorTexture->transform->texCoordIndex.has_value()) {
-			// 			baseColorTexcoordIndex = baseColorTexture->transform->texCoordIndex.value();
-			// 		} else {
-			// 			baseColorTexcoordIndex = material.pbrData.baseColorTexture->texCoordIndex;
-			// 		}
-			// 	}
-			// } else {
-			// 	primitive.materialUniformsIndex = 0;
-			// }
-
-			// Normal
-			auto normal = primitive.findAttribute("NORMAL");
-			if (normal != primitive.attributes.end())
+			if (primitive.materialIndex.has_value())
 			{
-				const auto& normalAccessor = _asset.accessors[normal->accessorIndex];
-				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(_asset, normalAccessor,
-				                                                          [&](fastgltf::math::fvec3 nor,
-				                                                              std::size_t idx)
-				                                                          {
-					                                                          vertices[idx].normal = glm::vec3(
-						                                                          nor.x(), nor.y(), nor.z());
-				                                                          });
+				auto matIndex = primitive.materialIndex.value();
+				mesh->setMaterialName(materials[matIndex]->name);
+				auto& gltfMaterial = _asset.materials[matIndex];
+
+				auto& baseColorTexture = gltfMaterial.pbrData.baseColorTexture;
+				if (baseColorTexture.has_value())
+				{
+					auto& texture = _asset.textures[baseColorTexture->textureIndex];
+					if (!texture.imageIndex.has_value())
+						return false;
+
+					if (baseColorTexture->transform && baseColorTexture->transform->texCoordIndex.has_value())
+						baseColorTexcoordIndex = baseColorTexture->transform->texCoordIndex.value();
+					else
+						baseColorTexcoordIndex = gltfMaterial.pbrData.baseColorTexture->texCoordIndex;
+				}
 			}
 
 			// TexCoord
@@ -213,15 +199,29 @@ namespace m1
 			auto texCoord = primitive.findAttribute(texcoordAttribute);
 			if (texCoord != primitive.attributes.end())
 			{
-				// Tex coord
 				auto& texCoordAccessor = _asset.accessors[texCoord->accessorIndex];
 
 				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec2>(_asset, texCoordAccessor,
-				                                                          [&](fastgltf::math::fvec2 uv, std::size_t idx)
-				                                                          {
-					                                                          vertices[idx].texCoord = glm::vec2(
-						                                                          uv.x(), uv.y());
-				                                                          });
+					[&](fastgltf::math::fvec2 uv, std::size_t idx)
+					{
+						vertices[idx].texCoord = glm::vec2(
+							uv.x(), uv.y());
+					});
+
+			}
+
+			// Normal
+			auto normal = primitive.findAttribute("NORMAL");
+			if (normal != primitive.attributes.end())
+			{
+				const auto& normalAccessor = _asset.accessors[normal->accessorIndex];
+				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(_asset, normalAccessor,
+					[&](fastgltf::math::fvec3 nor,
+				std::size_t idx)
+					{
+						vertices[idx].normal = glm::vec3(
+							nor.x(), nor.y(), nor.z());
+					});
 			}
 
 			// vertex colors
@@ -250,7 +250,6 @@ namespace m1
 				                                                  indices[idx] = index;
 			                                                  });
 
-			auto mesh = std::make_unique<Mesh>();
 			mesh->Vertices = std::move(vertices);
 			mesh->Indices = std::move(indices);
 
@@ -333,11 +332,11 @@ namespace m1
 		return true;
 	}
 
-	bool GltfReader::loadMaterial(fastgltf::Material& material, Engine& engine)
+	bool GltfReader::loadMaterial(fastgltf::Material& gltfMaterial, Engine& engine)
 	{
-		auto myMaterial = std::make_unique<Material>(material.name.c_str());
+		auto myMaterial = std::make_unique<Material>(gltfMaterial.name.c_str());
 
-		auto& pbrData = material.pbrData;
+		auto& pbrData = gltfMaterial.pbrData;
 		myMaterial->baseColor.r = pbrData.baseColorFactor[0];
 		myMaterial->baseColor.g = pbrData.baseColorFactor[1];
 		myMaterial->baseColor.b = pbrData.baseColorFactor[2];
@@ -345,6 +344,7 @@ namespace m1
 
 		myMaterial->metallicFactor = pbrData.metallicFactor;
 		myMaterial->roughnessFactor = pbrData.roughnessFactor;
+		myMaterial->emissiveFactor = 1.f; // gltfMaterial.emissiveFactor; TODO is a vec3
 
 		// TODO
 		// MaterialPass passType = MaterialPass::MainColor;
@@ -370,132 +370,32 @@ namespace m1
 			myMaterial->metallicRoughnessMap = std::make_unique<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
 		}
 
-		if (material.normalTexture.has_value())
+		if (gltfMaterial.normalTexture.has_value())
 		{
-			auto texture = _asset.textures[material.normalTexture.value().textureIndex];
+			auto texture = _asset.textures[gltfMaterial.normalTexture.value().textureIndex];
 			size_t imgIndex = texture.imageIndex.value();
 			size_t samplerIndex = texture.samplerIndex.value();
 			myMaterial->normalMap = std::make_unique<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
 		}
 
-		if (material.occlusionTexture.has_value())
+		if (gltfMaterial.occlusionTexture.has_value())
 		{
-			auto texture = _asset.textures[material.occlusionTexture.value().textureIndex];
+			auto texture = _asset.textures[gltfMaterial.occlusionTexture.value().textureIndex];
 			size_t imgIndex = texture.imageIndex.value();
 			size_t samplerIndex = texture.samplerIndex.value();
 			myMaterial->occlusionMap = std::make_unique<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
 		}
 
-		if (material.emissiveTexture.has_value())
+		if (gltfMaterial.emissiveTexture.has_value())
 		{
-			auto texture = _asset.textures[material.emissiveTexture.value().textureIndex];
+			auto texture = _asset.textures[gltfMaterial.emissiveTexture.value().textureIndex];
 			size_t imgIndex = texture.imageIndex.value();
 			size_t samplerIndex = texture.samplerIndex.value();
-			myMaterial->occlusionMap = std::make_unique<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
+			myMaterial->emissiveMap = std::make_unique<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
 		}
 
 		materials.push_back(std::move(myMaterial));
 
 		return true;
 	}
-
-
-	//
-	// bool loadCamera(Viewer* viewer, fastgltf::Camera& camera) {
-	// 	// The following matrix math is for the projection matrices as defined by the glTF spec:
-	// 	// https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#projection-matrices
-	// 	std::visit(fastgltf::visitor {
-	// 		[&](fastgltf::Camera::Perspective& perspective) {
-	// 			fastgltf::math::fmat4x4 mat(0.0f);
-	//
-	// 			assert(viewer->windowDimensions[0] != 0 && viewer->windowDimensions[1] != 0);
-	// 			auto aspectRatio = perspective.aspectRatio.value_or(
-	// 				static_cast<float>(viewer->windowDimensions[0]) / static_cast<float>(viewer->windowDimensions[1]));
-	// 			mat[0][0] = 1.f / (aspectRatio * tan(0.5f * perspective.yfov));
-	// 			mat[1][1] = 1.f / (tan(0.5f * perspective.yfov));
-	// 			mat[2][3] = -1;
-	//
-	// 			if (perspective.zfar.has_value()) {
-	// 				// Finite projection matrix
-	// 				mat[2][2] = (*perspective.zfar + perspective.znear) / (perspective.znear - *perspective.zfar);
-	// 				mat[3][2] = (2 * *perspective.zfar * perspective.znear) / (perspective.znear - *perspective.zfar);
-	// 			} else {
-	// 				// Infinite projection matrix
-	// 				mat[2][2] = -1;
-	// 				mat[3][2] = -2 * perspective.znear;
-	// 			}
-	// 			viewer->cameras.emplace_back(mat);
-	// 		},
-	// 		[&](fastgltf::Camera::Orthographic& orthographic) {
-	// 			fastgltf::math::fmat4x4 mat(1.0f);
-	// 			mat[0][0] = 1.f / orthographic.xmag;
-	// 			mat[1][1] = 1.f / orthographic.ymag;
-	// 			mat[2][2] = 2.f / (orthographic.znear - orthographic.zfar);
-	// 			mat[3][2] = (orthographic.zfar + orthographic.znear) / (orthographic.znear - orthographic.zfar);
-	// 			viewer->cameras.emplace_back(mat);
-	// 		},
-	// 	}, camera.camera);
-	// 	return true;
-	// }
-	//
-	// void drawMesh(Viewer* viewer, std::size_t meshIndex, fastgltf::math::fmat4x4 matrix) {
-	// 	auto& mesh = viewer->meshes[meshIndex];
-	//
-	// 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, mesh.drawsBuffer);
-	//
-	// 	glUniformMatrix4fv(viewer->modelMatrixUniform, 1, GL_FALSE, &matrix[0][0]);
-	//
-	// 	for (auto i = 0U; i < mesh.primitives.size(); ++i) {
-	// 		auto& prim = mesh.primitives[i];
-	// 		auto& gltfPrimitive = viewer->asset.meshes[meshIndex].primitives[i];
-	//
-	// 		std::size_t materialIndex;
-	// 		auto& mappings = gltfPrimitive.mappings;
-	// 		if (!mappings.empty() && mappings[viewer->materialVariant].has_value()) {
-	// 			materialIndex = mappings[viewer->materialVariant].value() + 1; // Adjust for default material
-	// 		} else {
-	// 			materialIndex = prim.materialUniformsIndex;
-	// 		}
-	//
-	// 		auto& material = viewer->materialBuffers[materialIndex];
-	// 		glBindTextureUnit(0, prim.albedoTexture);
-	// 		glBindBufferBase(GL_UNIFORM_BUFFER, 0, material);
-	// 		glBindVertexArray(prim.vertexArray);
-	//
-	// 		// Update texture transform uniforms
-	// 		glUniform2f(viewer->uvOffsetUniform, 0, 0);
-	// 		glUniform2f(viewer->uvScaleUniform, 1.f, 1.f);
-	// 		glUniform1f(viewer->uvRotationUniform, 0);
-	// 		if (materialIndex != 0) {
-	// 			auto& gltfMaterial = viewer->asset.materials[materialIndex - 1];
-	// 			if (gltfMaterial.pbrData.baseColorTexture.has_value() && gltfMaterial.pbrData.baseColorTexture->transform) {
-	// 				auto& transform = gltfMaterial.pbrData.baseColorTexture->transform;
-	// 				glUniform2f(viewer->uvOffsetUniform, transform->uvOffset[0], transform->uvOffset[1]);
-	// 				glUniform2f(viewer->uvScaleUniform, transform->uvScale[0], transform->uvScale[1]);
-	// 				glUniform1f(viewer->uvRotationUniform, static_cast<float>(transform->rotation));
-	// 			}
-	// 		}
-	//
-	// 		glDrawElementsIndirect(prim.primitiveType, prim.indexType,
-	// 							   reinterpret_cast<const void*>(i * sizeof(Primitive)));
-	// 	}
-	// }
-	//
-	// void updateCameraNodes(Viewer* viewer, std::vector<fastgltf::Node*>& cameraNodes, std::size_t nodeIndex) {
-	// 	// This function recursively traverses the node hierarchy starting with the node at nodeIndex
-	// 	// to find any nodes holding cameras.
-	// 	auto& node = viewer->asset.nodes[nodeIndex];
-	//
-	// 	if (node.cameraIndex.has_value()) {
-	// 		if (node.name.empty()) {
-	// 			// Always have a non-empty string for the ImGui UI
-	// 			node.name = std::string("Camera ") + std::to_string(cameraNodes.size());
-	// 		}
-	// 		cameraNodes.emplace_back(&node);
-	// 	}
-	//
-	// 	for (auto& child : node.children) {
-	// 		updateCameraNodes(viewer, cameraNodes, child);
-	// 	}
-	// }
 }

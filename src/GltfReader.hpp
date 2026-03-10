@@ -28,6 +28,6 @@ namespace  m1
 		void loadSamplers(Engine& engine);
 		bool loadMesh(const fastgltf::Mesh& gltfMesh);
 		bool loadImage(fastgltf::Image& image, Engine& engine);
-		bool loadMaterial(fastgltf::Material& material, Engine& engine);
+		bool loadMaterial(fastgltf::Material& gltfMaterial, Engine& engine);
 	};
 }

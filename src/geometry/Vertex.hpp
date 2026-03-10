@@ -13,7 +13,7 @@ namespace m1
 	struct Vertex
 	{
 		glm::vec3 pos;
-		glm::vec3 color;
+		glm::vec3 color = glm::vec3(1.0f); // default to don't affect the final color if not set
 		glm::vec3 normal;
 		glm::vec2 texCoord;
 		glm::vec4 tangent;

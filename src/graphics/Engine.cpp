@@ -35,6 +35,7 @@ namespace m1
 		createPipelines();
 
 		_materialUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialUbo));
+		_materialPbrUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialPbrUbo));
 		createFramesResources();
 		createDefaultTextures();
 		initLights();
@@ -338,7 +339,11 @@ namespace m1
 		{
 			//updateObjectUbo(*obj); // TODO: how to update the object ubo instead of using push constants?
 
-			auto objPipeLineType = obj->PipelineKey.value_or(DEFAULT_PIPELINE);
+			auto defaultPipeline = _config.lightingType == LightingType::BlinnPhong
+				                       ? PipelineType::PhongLighting
+				                       : PipelineType::PbrLighting;
+
+			auto objPipeLineType = obj->PipelineKey.value_or(defaultPipeline);
 
 			// determine which pipeline to use for this object
 			if (objPipeLineType != currentPipelineType)
@@ -367,8 +372,13 @@ namespace m1
 				if (material.name != _currentMaterialName)
 				{
 					_currentMaterialName = matName;
-					uint32_t dynamicOffset = material.uboIndex * _materialUboAlignment;
-					VkDescriptorSet descriptorSet = material.descriptorSet;
+					uint32_t dynamicOffset = material.uboIndex * (currentPipelineType == PipelineType::PbrLighting
+						                                              ? _materialPbrUboAlignment
+						                                              : _materialPbrUboAlignment);
+
+					VkDescriptorSet descriptorSet = currentPipelineType == PipelineType::PbrLighting
+						                                ? material.descriptorSet
+						                                : material.descriptorSetPbr;
 					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 1, 1, &descriptorSet, 1, &dynamicOffset);
 				}
 			}
@@ -1304,6 +1314,137 @@ namespace m1
 
 			vkUpdateDescriptorSets(_device.getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()),
 								   descriptorWrites.data(), 0, nullptr);
+
+			// ===== PBR =====
+
+			// MaterialPbrUbo Info
+			VkDescriptorBufferInfo materialPbrDynUboInfo
+			{
+				.buffer = frameResources->materialPbrDynUboBuffer->getVkBuffer(),
+				.offset = 0,
+				.range = _materialPbrUboAlignment
+			};
+
+			// Material Descriptor Write
+			VkWriteDescriptorSet materialPbrDynUboWrite
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = material.descriptorSetPbr,
+				.dstBinding = 0,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+				.pBufferInfo = &materialPbrDynUboInfo
+			};
+
+			// base color Texture Image Info
+			VkDescriptorImageInfo baseColorImageInfo
+			{
+				.sampler = material.baseColorMap->getSampler().getVkSampler(),
+				.imageView = material.baseColorMap->getImage().getVkImageView(),
+				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+			};
+
+			// base color Texture Descriptor Write
+			VkWriteDescriptorSet baseColorDescriptorWrite
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = material.descriptorSetPbr,
+				.dstBinding = 1,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &baseColorImageInfo
+			};
+
+			// normal Texture Image Info
+			VkDescriptorImageInfo normalImageInfo
+			{
+				.sampler = material.normalMap->getSampler().getVkSampler(),
+				.imageView = material.normalMap->getImage().getVkImageView(),
+				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+			};
+
+			// normal Texture Descriptor Write
+			VkWriteDescriptorSet normalDescriptorWrite
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = material.descriptorSetPbr,
+				.dstBinding = 2,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &normalImageInfo
+			};
+
+			// metallic roughness Texture Image Info
+			VkDescriptorImageInfo metallicRoughnessImageInfo
+			{
+				.sampler = material.metallicRoughnessMap->getSampler().getVkSampler(),
+				.imageView = material.metallicRoughnessMap->getImage().getVkImageView(),
+				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+			};
+
+			// metallic roughness Texture Descriptor Write
+			VkWriteDescriptorSet metallicRoughnessDescriptorWrite
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = material.descriptorSetPbr,
+				.dstBinding = 3,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &metallicRoughnessImageInfo
+			};
+
+			// normal Texture Image Info
+			VkDescriptorImageInfo aoImageInfo
+			{
+				.sampler = material.occlusionMap->getSampler().getVkSampler(),
+				.imageView = material.occlusionMap->getImage().getVkImageView(),
+				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+			};
+
+			// normal Texture Descriptor Write
+			VkWriteDescriptorSet aoDescriptorWrite
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = material.descriptorSetPbr,
+				.dstBinding = 4,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &aoImageInfo
+			};
+
+			// normal Texture Image Info
+			VkDescriptorImageInfo emissiveImageInfo
+			{
+				.sampler = material.emissiveMap->getSampler().getVkSampler(),
+				.imageView = material.emissiveMap->getImage().getVkImageView(),
+				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+			};
+
+			// normal Texture Descriptor Write
+			VkWriteDescriptorSet emissiveDescriptorWrite
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = material.descriptorSetPbr,
+				.dstBinding = 5,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &emissiveImageInfo
+			};
+
+			std::array descriptorPbrWrites =
+			{
+				materialPbrDynUboWrite, baseColorDescriptorWrite, normalDescriptorWrite, metallicRoughnessDescriptorWrite,
+				aoDescriptorWrite, emissiveDescriptorWrite
+			};
+
+			vkUpdateDescriptorSets(_device.getVkDevice(), descriptorPbrWrites.size(),
+				descriptorPbrWrites.data(), 0, nullptr);
 		}
 	}
 
@@ -1329,17 +1470,24 @@ namespace m1
 
 		// Init a material ubo array
 		std::vector<MaterialUbo> materialUbos;
+		std::vector<MaterialPbrUbo> materialPbrUbos;
 		materialUbos.emplace_back(*_defaultMaterial);
+		materialPbrUbos.emplace_back(*_defaultMaterial);
 
 		for (const auto& material: _materials | std::views::values)
 		{
 			materialUbos.emplace_back(*material);
+			materialPbrUbos.emplace_back(*material);
 		}
 
 		// Create the material dynamic ubo buffers, one for each frame in flight
 		size_t materialUboSize = materialCount * _materialUboAlignment;
+		size_t materialPbrUboSize = materialCount * _materialPbrUboAlignment;
 		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 		{
+			// TODO fare func interna per non duplicare codice
+			// === Bling-Phong ===
+
 			// create material dyn buffer
 			auto materialDynUboBuffer = std::make_unique<Buffer>(_device, materialUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
@@ -1348,16 +1496,39 @@ namespace m1
 
 			// assign the buffer to the frame resource
 			_framesData[i]->materialDynUboBuffer = std::move(materialDynUboBuffer);
+
+			// === PBR ===
+
+			// create material dyn buffer
+			auto materialPbrDynUboBuffer = std::make_unique<Buffer>(_device, materialPbrUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+
+			// copy material ubos array to the dynamic buffer
+			Utils::uploadToDeviceBuffer(_device, *materialPbrDynUboBuffer, materialPbrUboSize, materialPbrUbos.data());
+
+			// assign the buffer to the frame resource
+			_framesData[i]->materialPbrDynUboBuffer = std::move(materialPbrDynUboBuffer);
 		}
 
 		// allocate one descriptor set for each material
-		auto descriptorSets = _descriptorSetManager->allocateMaterialDescriptorSets(materialCount);
+		auto descriptorSets = _descriptorSetManager->allocateMaterialDescriptorSets(materialCount,
+			_descriptorSetManager->getMaterialDescriptorSetLayout());
+
+		auto descriptorPbrSets = _descriptorSetManager->allocateMaterialDescriptorSets(materialCount,
+			_descriptorSetManager->getMaterialPbrDescriptorSetLayout());
 
 		// set materials properties and update descriptorSet
 		_defaultMaterial->uboIndex = 0;
 		_defaultMaterial->baseColorMap = _whiteDiffuseMap;
 		_defaultMaterial->specularMap = _whiteSpecularMap;
+
+		// TODO set defaults
+		_defaultMaterial->normalMap = _whiteDiffuseMap;
+		_defaultMaterial->metallicRoughnessMap = _whiteDiffuseMap;
+		_defaultMaterial->emissiveMap = _whiteDiffuseMap;
+		_defaultMaterial->occlusionMap = _whiteDiffuseMap;
+
 		_defaultMaterial->descriptorSet = descriptorSets[0];
+		_defaultMaterial->descriptorSetPbr = descriptorPbrSets[0];
 		updateMaterialDescriptorSets(*_defaultMaterial);
 
 		uint32_t index = 1; // index 0 is for the default material
@@ -1375,14 +1546,21 @@ namespace m1
 					material->baseColorMap = _whiteDiffuseMap;
 			}
 
-			if (!material->specularTexturePath.empty())
-				// UNORM format because generally specular map is a grayscale mask/intensity, not a color
-				material->specularMap = loadTexture(material->specularTexturePath, VK_FORMAT_R8G8B8A8_UNORM);
-			else
-				material->specularMap = _whiteSpecularMap;
+			if (!material->specularMap)
+			{
+				if (!material->specularTexturePath.empty())
+					// UNORM format because generally specular map is a grayscale mask/intensity, not a color
+						material->specularMap = loadTexture(material->specularTexturePath, VK_FORMAT_R8G8B8A8_UNORM);
+				else
+					material->specularMap = _whiteSpecularMap;
+			}
+
+			// TODO set default map for normal and others
 
 			// update the material descriptor set
-			material->descriptorSet = descriptorSets[index++];
+			material->descriptorSet = descriptorSets[index];
+			material->descriptorSetPbr = descriptorPbrSets[index];
+			index++;
 			updateMaterialDescriptorSets(*material);
 		}
 	}

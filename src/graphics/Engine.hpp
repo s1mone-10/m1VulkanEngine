@@ -24,19 +24,26 @@ namespace m1
     class SceneObject;
     class UiModule;
 
+	enum class LightingType
+	{
+		BlinnPhong,
+		Pbr,
+	};
+
 	struct EngineConfig
 	{
 		bool msaaEnabled = true;
 		bool shadowsEnabled = true;
 		bool particlesEnabled = true;
 		bool uiEnabled = true;
+		LightingType lightingType = LightingType::Pbr;
 	};
 
     class Engine
     {
     public:
         static constexpr int FRAMES_IN_FLIGHT = 2;
-    	static constexpr auto DEFAULT_PIPELINE = PipelineType::PhongLighting;
+    	static constexpr auto DEFAULT_PIPELINE = PipelineType::PbrLighting;
         static constexpr int PARTICLES_COUNT = 8192;
         static constexpr auto DEFAULT_MATERIAL_NAME = "Default";
 
@@ -122,6 +129,7 @@ namespace m1
 
 		std::unique_ptr<DescriptorSetManager> _descriptorSetManager;
     	VkDeviceSize _materialUboAlignment = -1;
+    	VkDeviceSize _materialPbrUboAlignment = -1;
 
         std::vector<std::unique_ptr<SceneObject>> _sceneObjects{};
     	BBox _bbox;

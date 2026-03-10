@@ -195,6 +195,7 @@ namespace m1
 			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
 			.pImmutableSamplers = nullptr
 		};
+
 		// Normal Map Sampler
 		VkDescriptorSetLayoutBinding normalSamplerLayoutBinding
 		{
@@ -295,17 +296,17 @@ namespace m1
 		return descriptorSets;
 	}
 
-	std::vector<VkDescriptorSet> DescriptorSetManager::allocateMaterialDescriptorSets(uint32_t count) const
+	std::vector<VkDescriptorSet> DescriptorSetManager::allocateMaterialDescriptorSets(uint32_t count, VkDescriptorSetLayout layout) const
 	{
 		// TODO I should probably use a pool with VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT for materials
 
 		// Material Allocate Info
-		std::vector<VkDescriptorSetLayout> materialLayouts(count, _materialDescriptorSetLayout);
+		std::vector materialLayouts(count, layout);
 		VkDescriptorSetAllocateInfo materialAllocInfo
 		{
 			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
 			.descriptorPool = _descriptorPool,
-			.descriptorSetCount = (count),
+			.descriptorSetCount = count,
 			.pSetLayouts = materialLayouts.data()
 		};
 
