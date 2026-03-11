@@ -166,11 +166,11 @@ namespace m1
 			std::vector<Vertex> vertices(positionAccessor.count);
 
 			fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(_asset, positionAccessor,
-			                                                          [&](fastgltf::math::fvec3 pos, std::size_t idx)
-			                                                          {
-				                                                          vertices[idx].pos = glm::vec3(
-					                                                          pos.x(), pos.y(), pos.z());
-			                                                          });
+				[&](fastgltf::math::fvec3 pos, std::size_t idx)
+				{
+					vertices[idx].pos = glm::vec3(
+						pos.x(), pos.y(), pos.z());
+				});
 
 			// Material
 			std::size_t baseColorTexcoordIndex = 0;
@@ -204,8 +204,7 @@ namespace m1
 				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec2>(_asset, texCoordAccessor,
 					[&](fastgltf::math::fvec2 uv, std::size_t idx)
 					{
-						vertices[idx].texCoord = glm::vec2(
-							uv.x(), uv.y());
+						vertices[idx].texCoord = glm::vec2(uv.x(), uv.y());
 					});
 
 			}
@@ -216,11 +215,22 @@ namespace m1
 			{
 				const auto& normalAccessor = _asset.accessors[normal->accessorIndex];
 				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(_asset, normalAccessor,
-					[&](fastgltf::math::fvec3 nor,
-				std::size_t idx)
+					[&](fastgltf::math::fvec3 nor, std::size_t idx)
 					{
 						vertices[idx].normal = glm::vec3(
 							nor.x(), nor.y(), nor.z());
+					});
+			}
+
+			// Tangents
+			auto tangent = primitive.findAttribute("TANGENT");
+			if (tangent != primitive.attributes.end())
+			{
+				const auto& tangentAccessor = _asset.accessors[tangent->accessorIndex];
+				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec4>(_asset, tangentAccessor,
+					[&](fastgltf::math::fvec4 tan, std::size_t idx)
+					{
+						vertices[idx].tangent = glm::vec4(tan.x(), tan.y(), tan.z(), tan.w());
 					});
 			}
 
@@ -230,12 +240,10 @@ namespace m1
 			{
 				const auto& colorAccessor = _asset.accessors[color->accessorIndex];
 				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec4>(_asset, colorAccessor,
-				                                                          [&](fastgltf::math::fvec4 col,
-				                                                              std::size_t idx)
-				                                                          {
-					                                                          vertices[idx].color = glm::vec3(
-						                                                          col.x(), col.y(), col.z());
-				                                                          });
+					[&](fastgltf::math::fvec4 col, std::size_t idx)
+					{
+						vertices[idx].color = glm::vec3(col.x(), col.y(), col.z());
+					});
 			}
 
 			// Indices
@@ -245,10 +253,10 @@ namespace m1
 
 			std::vector<uint32_t> indices(indexAccessor.count);
 			fastgltf::iterateAccessorWithIndex<std::uint32_t>(_asset, indexAccessor,
-			                                                  [&](std::uint32_t index, std::size_t idx)
-			                                                  {
-				                                                  indices[idx] = index;
-			                                                  });
+				[&](std::uint32_t index, std::size_t idx)
+				{
+					indices[idx] = index;
+				});
 
 			mesh->Vertices = std::move(vertices);
 			mesh->Indices = std::move(indices);
@@ -268,7 +276,7 @@ namespace m1
 				.extent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
 				.format = VK_FORMAT_R8G8B8A8_UNORM,
 				.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-				.mipLevels = 1
+				.mipLevels = 1 // TODO
 			};
 			return engine.createImage(params, data);
 		};
@@ -344,7 +352,8 @@ namespace m1
 
 		myMaterial->metallicFactor = pbrData.metallicFactor;
 		myMaterial->roughnessFactor = pbrData.roughnessFactor;
-		myMaterial->emissiveFactor = 1.f; // gltfMaterial.emissiveFactor; TODO is a vec3
+		myMaterial->emissiveFactor = glm::vec3(gltfMaterial.emissiveFactor.x(), gltfMaterial.emissiveFactor.y(),
+			gltfMaterial.emissiveFactor.z());
 
 		// TODO
 		// MaterialPass passType = MaterialPass::MainColor;

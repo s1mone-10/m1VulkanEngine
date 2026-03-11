@@ -43,7 +43,6 @@ namespace m1
     {
     public:
         static constexpr int FRAMES_IN_FLIGHT = 2;
-    	static constexpr auto DEFAULT_PIPELINE = PipelineType::PbrLighting;
         static constexpr int PARTICLES_COUNT = 8192;
         static constexpr auto DEFAULT_MATERIAL_NAME = "Default";
 

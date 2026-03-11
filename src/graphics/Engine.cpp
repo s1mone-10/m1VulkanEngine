@@ -319,7 +319,9 @@ namespace m1
 
 	void Engine::drawObjectsLoop(VkCommandBuffer commandBuffer)
 	{
-		auto currentPipelineType = DEFAULT_PIPELINE;
+		auto defaultPipeline = _config.lightingType == LightingType::BlinnPhong ? PipelineType::PhongLighting : PipelineType::PbrLighting;
+
+		auto currentPipelineType = defaultPipeline;
 
 		// bind default pipeline
 		Pipeline* currentPipeline = _graphicsPipelines.at(currentPipelineType).get();
@@ -330,7 +332,7 @@ namespace m1
     	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 0, 1, &descriptorSet0, 0, nullptr);
 
 		// bind default material descriptor set
-		VkDescriptorSet descriptorSetMat = _defaultMaterial->descriptorSet;
+		VkDescriptorSet descriptorSetMat = _defaultMaterial->descriptorSetPbr;
 		uint32_t dynOff = 0;
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 1, 1, &descriptorSetMat, 1, &dynOff);
 		_currentMaterialName = DEFAULT_MATERIAL_NAME;
@@ -338,10 +340,6 @@ namespace m1
 		for (auto &obj: _sceneObjects)
 		{
 			//updateObjectUbo(*obj); // TODO: how to update the object ubo instead of using push constants?
-
-			auto defaultPipeline = _config.lightingType == LightingType::BlinnPhong
-				                       ? PipelineType::PhongLighting
-				                       : PipelineType::PbrLighting;
 
 			auto objPipeLineType = obj->PipelineKey.value_or(defaultPipeline);
 
@@ -374,11 +372,11 @@ namespace m1
 					_currentMaterialName = matName;
 					uint32_t dynamicOffset = material.uboIndex * (currentPipelineType == PipelineType::PbrLighting
 						                                              ? _materialPbrUboAlignment
-						                                              : _materialPbrUboAlignment);
+						                                              : _materialUboAlignment);
 
 					VkDescriptorSet descriptorSet = currentPipelineType == PipelineType::PbrLighting
-						                                ? material.descriptorSet
-						                                : material.descriptorSetPbr;
+						                                ? material.descriptorSetPbr
+						                                : material.descriptorSet;
 					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 1, 1, &descriptorSet, 1, &dynamicOffset);
 				}
 			}
@@ -967,8 +965,7 @@ namespace m1
 			.setLayoutCount = pbrSetLayouts.size(),
 			.pSetLayouts = pbrSetLayouts.data(),
 		};
-		_graphicsPipelines.emplace(PipelineType::PbrLighting,
-		                           PipelineFactory::createGraphicsPipeline(_device, pbrPipelineInfo));
+		_graphicsPipelines.emplace(PipelineType::PbrLighting, PipelineFactory::createGraphicsPipeline(_device, pbrPipelineInfo));
 
 		// Particles
 		std::array particlesSetLayouts = {_descriptorSetManager->getFrameDescriptorSetLayout()};
@@ -1094,11 +1091,11 @@ namespace m1
 
 		// Directional light (like sunlight)
 		_lightsUbo.lights[1].posDir = glm::vec4(-0.5f, 1.0f, -0.8f, 0.0f); // w=0 => dir light
-		_lightsUbo.lights[1].color = glm::vec4(1.0f, 1.0f, 1.0f, 0.2f);
+		_lightsUbo.lights[1].color = glm::vec4(1.0f, 1.0f, 1.0f, 4.f);
 
 		// Point light
 		_lightsUbo.lights[0].posDir = glm::vec4(5.2f, 5.2f, 6.2f, 1.0f); // w=1 => point light
-		_lightsUbo.lights[0].color = glm::vec4(1.0f, 1.0f, 1.0f, 0.4f);
+		_lightsUbo.lights[0].color = glm::vec4(1.0f, 1.0f, 1.0f, 1.4f);
 		_lightsUbo.lights[0].attenuation = glm::vec4(1.0f, 0.09f, 0.032f, 0.0f);
 
 		// Create the lights ubo with device local memory for better performance

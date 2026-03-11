@@ -43,7 +43,9 @@ layout(set = 0, binding = 5) uniform sampler2D shadowMap;
 // Material ubo
 layout (set = 1, binding = 0) uniform MaterialUbo {
     vec4 baseColor;
-    int normalTextureSet;
+    vec4 emissiveFactor;
+    float metallicFactor;
+    float roughnessFactor;
 } material;
 
 // pbr maps samplers
@@ -100,40 +102,39 @@ float calculateShadow(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, vec2 t
 
 void main(){
 
-    vec3 N = normalize(fragNormalWorld);
+    // TODO optimizaion?: don't transform the normal but light variable in tangent space in the vertex shader (see learnOpengl)
+    // Sample normal map and convert from [0,1] to [-1,1] range
+    vec3 N = texture(normalMap, fragTextCoord).xyz * 2.0 - 1.0;
+    // Transform normal from tangent space to world space
+    N = normalize(N * TBN);
 
-    // Apply normal mapping if texture is available
-    if (material.normalTextureSet >= 0) {
-        // TODO optimizaion?: don't transform the normal but light variable in tangen space in the vertex shader (see learnOpengl)
-
-        // Sample normal map and convert from [0,1] to [-1,1] range
-        N = texture(normalMap, fragTextCoord).xyz * 2.0 - 1.0;
-
-        // Transform normal from tangent space to world space
-        N = normalize(N * TBN);
-    }
+    N = fragNormalWorld; // TODO remove after fixing tanggent space (vertex.tangent not initialized)
 
     // === LIGHTING SETUP ===
     // Calculate view direction (fragment to camera)
     vec3 V = normalize(frameUbo.camPos.xyz - fragPosWorld);
 
     // Calculate reflection vector for environment mapping
-    vec3 R = reflect(-V, N);// TODO
+    //vec3 R = reflect(-V, N);// TODO environmet mapping
 
     // get the base color by multiply texture, vertex and material colors
     // Use white (1,1,1) as default so missing texture / vertex / material color does not affect the result
     vec4 baseColor = texture(albedoMap, fragTextCoord) * vec4(fragColor, 1) * material.baseColor;
 
+    // glTF metallic-roughness texture packs metallic in B, roughness in G (linear space)
+    vec4 metallicRoughness = texture(metallicRoughnessMap, fragTextCoord);
+    float metallic = clamp(metallicRoughness.b * material.metallicFactor, 0.0, 1.0);
+    float roughness = clamp(metallicRoughness.g * material.roughnessFactor, 0.0, 1.0);
+
+    // ambient occlusion
+    float ao = texture(aoMap, fragTextCoord).r;
+
+    // emissive color
+    vec3 emissive = texture(emissiveMap, fragTextCoord).rgb * material.emissiveFactor.rgb;
+
     // TODO is true for gltf now?
     //Note that the albedo textures that come from artists are generally authored in sRGB space which is why we first convert them to linear space before using albedo in our lighting calculations.
     //vec3 albedo     = pow(texture(albedoMap, TexCoords).rgb, 2.2);
-
-    // TODO
-    float metallic = 0.5f;
-    float ao = 0;
-    float emissive = 0;
-    float roughness = 0.5f;
-
 
     // === PBR MATERIAL SETUP ===
     // Calculate F0 (reflectance at normal incidence)

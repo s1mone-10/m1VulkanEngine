@@ -57,12 +57,12 @@ namespace m1
 	struct MaterialPbrUbo
 	{
 		explicit MaterialPbrUbo(const Material& material) : baseColor(material.baseColor), metallicFactor(material.metallicFactor),
-			roughnessFactor(material.roughnessFactor), emissiveFactor(material.emissiveFactor) {}
+			roughnessFactor(material.roughnessFactor), emissiveFactor(glm::vec4(material.emissiveFactor, 1.0f)) {}
 
 		glm::vec4 baseColor;
+		glm::vec4 emissiveFactor;
 		float metallicFactor;
 	    float roughnessFactor;
-	    float emissiveFactor;
 	};
 
 	class Buffer

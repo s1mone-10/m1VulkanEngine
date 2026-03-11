@@ -251,8 +251,7 @@ namespace m1
 		};
 
 		// Create the DescriptorSet
-		VK_CHECK(
-			vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_materialPbrDescriptorSetLayout));
+		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_materialPbrDescriptorSetLayout));
 	}
 
 	void DescriptorSetManager::createDescriptorPool()
