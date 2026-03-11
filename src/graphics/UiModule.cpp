@@ -61,6 +61,13 @@ namespace m1
 			_engine.setShadowsEnabled(shadowsEnabled);
 		}
 
+		int lightingMode = _engine.getLightingType() == LightingType::BlinnPhong ? 0 : 1;
+		const char* lightingItems[] = {"Blinn-Phong", "PBR"};
+		if (ImGui::Combo("Lighting model", &lightingMode, lightingItems, IM_ARRAYSIZE(lightingItems)))
+		{
+			_engine.setLightingType(lightingMode == 0 ? LightingType::BlinnPhong : LightingType::Pbr);
+		}
+
 		ImGui::TextUnformatted("Note: shadow toggle is config-only right now.");
 		ImGui::End();
 

@@ -332,7 +332,9 @@ namespace m1
     	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 0, 1, &descriptorSet0, 0, nullptr);
 
 		// bind default material descriptor set
-		VkDescriptorSet descriptorSetMat = _defaultMaterial->descriptorSetPbr;
+		VkDescriptorSet descriptorSetMat = currentPipelineType == PipelineType::PbrLighting
+			? _defaultMaterial->descriptorSetPbr
+			: _defaultMaterial->descriptorSet;
 		uint32_t dynOff = 0;
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 1, 1, &descriptorSetMat, 1, &dynOff);
 		_currentMaterialName = DEFAULT_MATERIAL_NAME;
@@ -1518,11 +1520,15 @@ namespace m1
 		_defaultMaterial->baseColorMap = _whiteDiffuseMap;
 		_defaultMaterial->specularMap = _whiteSpecularMap;
 
-		// TODO set defaults
-		_defaultMaterial->normalMap = _whiteDiffuseMap;
-		_defaultMaterial->metallicRoughnessMap = _whiteDiffuseMap;
-		_defaultMaterial->emissiveMap = _whiteDiffuseMap;
+		_defaultMaterial->normalMap = _defaultNormalMap;
+		_defaultMaterial->metallicRoughnessMap = _defaultMetallicRoughnessMap;
+		_defaultMaterial->emissiveMap = _blackMap;
 		_defaultMaterial->occlusionMap = _whiteDiffuseMap;
+
+		if (_config.lightingType == LightingType::Pbr)
+			_defaultMaterial->syncPbrFromBlinnPhong();
+		else
+			_defaultMaterial->syncBlinnPhongFromPbr();
 
 		_defaultMaterial->descriptorSet = descriptorSets[0];
 		_defaultMaterial->descriptorSetPbr = descriptorPbrSets[0];
@@ -1552,7 +1558,23 @@ namespace m1
 					material->specularMap = _whiteSpecularMap;
 			}
 
-			// TODO set default map for normal and others
+			if (!material->normalMap)
+				material->normalMap = _defaultNormalMap;
+
+			if (!material->metallicRoughnessMap)
+				material->metallicRoughnessMap = _defaultMetallicRoughnessMap;
+
+			if (!material->occlusionMap)
+				material->occlusionMap = _whiteDiffuseMap;
+
+			if (!material->emissiveMap)
+				material->emissiveMap = _blackMap;
+
+			// keep material params coherent when switching light model at runtime
+			if (_config.lightingType == LightingType::Pbr)
+				material->syncPbrFromBlinnPhong();
+			else
+				material->syncBlinnPhongFromPbr();
 
 			// update the material descriptor set
 			material->descriptorSet = descriptorSets[index];
@@ -1616,6 +1638,9 @@ namespace m1
 	void Engine::createDefaultTextures()
 	{
 		uint8_t whitePixel[4] = { 255, 255, 255, 255 };
+		uint8_t blackPixel[4] = { 0, 0, 0, 255 };
+		uint8_t flatNormalPixel[4] = { 128, 128, 255, 255 };
+		uint8_t defaultMetallicRoughnessPixel[4] = { 255, 255, 0, 255 }; // roughness=1, metallic=0
 
 		TextureParams params
 		{
@@ -1623,9 +1648,12 @@ namespace m1
 			.format = VK_FORMAT_R8G8B8A8_SRGB
 		};
 		_whiteDiffuseMap = createTexture(params, &whitePixel);
+		_blackMap = createTexture(params, &blackPixel);
 
 		params.format = VK_FORMAT_R8G8B8A8_UNORM;
 		_whiteSpecularMap = createTexture(params, &whitePixel);
+		_defaultNormalMap = createTexture(params, &flatNormalPixel);
+		_defaultMetallicRoughnessMap = createTexture(params, &defaultMetallicRoughnessPixel);
 	}
 
 	std::unique_ptr<Texture> Engine::loadTexture(const std::string& filePath, VkFormat format)

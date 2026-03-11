@@ -9,6 +9,8 @@ namespace m1
 {
     struct Material
     {
+		static constexpr float DIELECTRIC_F0 = 0.04f;
+
 	    // Constructor
 	    explicit Material(const std::string& name,
 		    const glm::vec4& baseColor = glm::vec4(1.0f),
@@ -54,5 +56,26 @@ namespace m1
 	    std::shared_ptr<Texture> emissiveMap;
 	    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
 	    VkDescriptorSet descriptorSetPbr = VK_NULL_HANDLE;
+
+		void syncPbrFromBlinnPhong()
+		{
+			const float specularIntensity = glm::clamp((specularColor.r + specularColor.g + specularColor.b) / 3.0f, 0.0f, 1.0f);
+
+			metallicFactor = glm::clamp((specularIntensity - DIELECTRIC_F0) / (1.0f - DIELECTRIC_F0), 0.0f, 1.0f);
+
+			// map Blinn-Phong shininess [1..256] -> roughness [1..0.05] (high shininess => low roughness)
+			const float normalizedShininess = glm::clamp((shininess - 1.0f) / 255.0f, 0.0f, 1.0f);
+			roughnessFactor = glm::clamp(1.0f - normalizedShininess, 0.05f, 1.0f);
+		}
+
+		void syncBlinnPhongFromPbr()
+		{
+			specularColor = glm::mix(glm::vec3(DIELECTRIC_F0), baseColor.rgb, metallicFactor);
+
+			// inverse mapping roughness [1..0.05] -> shininess [1..256]
+			const float clampedRoughness = glm::clamp(roughnessFactor, 0.05f, 1.0f);
+			const float normalizedShininess = 1.0f - clampedRoughness;
+			shininess = glm::mix(1.0f, 256.0f, normalizedShininess);
+		}
     };
 }

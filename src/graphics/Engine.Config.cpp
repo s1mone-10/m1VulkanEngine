@@ -1,5 +1,7 @@
 #include "Engine.hpp"
 
+#include <ranges>
+
 namespace m1
 {
 	void Engine::setMsaaEnabled(bool enabled)
@@ -27,6 +29,28 @@ namespace m1
 	}
 
 	bool Engine::getShadowsEnabled() const { return _config.shadowsEnabled;}
+
+	void Engine::setLightingType(LightingType lightingType)
+	{
+		if (_config.lightingType == lightingType) return;
+
+		_config.lightingType = lightingType;
+
+		if (_config.lightingType == LightingType::Pbr)
+		{
+			_defaultMaterial->syncPbrFromBlinnPhong();
+			for (auto& material : _materials | std::views::values)
+				material->syncPbrFromBlinnPhong();
+		}
+		else
+		{
+			_defaultMaterial->syncBlinnPhongFromPbr();
+			for (auto& material : _materials | std::views::values)
+				material->syncBlinnPhongFromPbr();
+		}
+	}
+
+	LightingType Engine::getLightingType() const { return _config.lightingType;}
 
 	void Engine::setUiEnabled(bool enabled)
 	{
