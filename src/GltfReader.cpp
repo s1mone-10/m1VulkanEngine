@@ -71,22 +71,16 @@ namespace m1
 			for (auto &material: _asset.materials)
 				loadMaterial(material, engine);
 
-			// TODO node and node transformation??
+			// load meshes
 			for (auto &mesh: _asset.meshes)
-				loadMesh(mesh);
+				meshes.push_back(loadMesh(mesh));
 
-			// add meshes and material to the engine
-			for (auto& mesh: meshes)
-			{
-				auto sceneObj = SceneObject::createSceneObject();
-				sceneObj->setMesh(std::move(mesh));
-				engine.addSceneObject(std::move(sceneObj));
-			}
+			// load nodes
+			for (auto& node : _asset.nodes)
+				loadNode(node, engine);
 
-			for (auto& pippo: materials)
-			{
-				engine.addMaterial(std::move(pippo));
-			}
+			for (auto& mat: materials)
+				engine.addMaterial(std::move(mat));
 		}
 
 		return true;
@@ -143,20 +137,55 @@ namespace m1
 		}
 	}
 
-	bool GltfReader::loadMesh(const fastgltf::Mesh& gltfMesh)
+	void GltfReader::loadNode(const fastgltf::Node& gltfNode, Engine& engine)
 	{
-		for (const auto& primitive: gltfMesh.primitives)
+		// get transformation
+		auto matrix = fastgltf::getTransformMatrix(gltfNode);
+		glm::mat4 transform = glm::mat4(1.0f);
+		for (int column = 0; column < 4; ++column)
+			for (int row = 0; row < 4; ++row)
+				transform[column][row] = matrix[column][row];
+
+		// assign mesh
+		if (gltfNode.meshIndex.has_value())
 		{
-			if (primitive.type != fastgltf::PrimitiveType::Triangles)
+			auto nodeMeshes = meshes[gltfNode.meshIndex.value()];
+
+			for (auto& m: nodeMeshes)
+			{
+				auto sceneObj = SceneObject::createSceneObject();
+				sceneObj->setMesh(m);
+				sceneObj->setTransform(transform);
+				engine.addSceneObject(std::move(sceneObj));
+			}
+		}
+
+		// load children
+		if (gltfNode.children.size() > 0)
+		{
+			for (const auto& childIndex: gltfNode.children)
+			{
+				loadNode(_asset.nodes[childIndex], engine);
+			}
+		}
+	}
+
+	std::vector<std::shared_ptr<Mesh>> GltfReader::loadMesh(const fastgltf::Mesh& gltfMesh)
+	{
+		std::vector<std::shared_ptr<Mesh>> primitives;
+
+		for (const auto& gltfPrimitive: gltfMesh.primitives)
+		{
+			if (gltfPrimitive.type != fastgltf::PrimitiveType::Triangles)
 				continue;
 
 			auto mesh = std::make_unique<Mesh>();
 
 			// Position
-			auto position = primitive.findAttribute("POSITION");
-			assert(position != primitive.attributes.end());
+			auto position = gltfPrimitive.findAttribute("POSITION");
+			assert(position != gltfPrimitive.attributes.end());
 			// A mesh primitive is required to hold the POSITION attribute.
-			assert(primitive.indicesAccessor.has_value()); // we should always have indices
+			assert(gltfPrimitive.indicesAccessor.has_value()); // we should always have indices
 
 			auto& positionAccessor = _asset.accessors[position->accessorIndex];
 			if (!positionAccessor.bufferViewIndex.has_value())
@@ -172,9 +201,9 @@ namespace m1
 
 			// Material
 			std::size_t baseColorTexcoordIndex = 0;
-			if (primitive.materialIndex.has_value())
+			if (gltfPrimitive.materialIndex.has_value())
 			{
-				auto matIndex = primitive.materialIndex.value();
+				auto matIndex = gltfPrimitive.materialIndex.value();
 				mesh->setMaterialName(materials[matIndex]->name);
 				auto& gltfMaterial = _asset.materials[matIndex];
 
@@ -183,7 +212,7 @@ namespace m1
 				{
 					auto& texture = _asset.textures[baseColorTexture->textureIndex];
 					if (!texture.imageIndex.has_value())
-						return false;
+						continue;
 
 					if (baseColorTexture->transform && baseColorTexture->transform->texCoordIndex.has_value())
 						baseColorTexcoordIndex = baseColorTexture->transform->texCoordIndex.value();
@@ -194,8 +223,8 @@ namespace m1
 
 			// TexCoord
 			auto texcoordAttribute = std::string("TEXCOORD_") + std::to_string(baseColorTexcoordIndex);
-			auto texCoord = primitive.findAttribute(texcoordAttribute);
-			if (texCoord != primitive.attributes.end())
+			auto texCoord = gltfPrimitive.findAttribute(texcoordAttribute);
+			if (texCoord != gltfPrimitive.attributes.end())
 			{
 				auto& texCoordAccessor = _asset.accessors[texCoord->accessorIndex];
 
@@ -208,8 +237,8 @@ namespace m1
 			}
 
 			// Normal
-			auto normal = primitive.findAttribute("NORMAL");
-			if (normal != primitive.attributes.end())
+			auto normal = gltfPrimitive.findAttribute("NORMAL");
+			if (normal != gltfPrimitive.attributes.end())
 			{
 				const auto& normalAccessor = _asset.accessors[normal->accessorIndex];
 				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(_asset, normalAccessor,
@@ -221,8 +250,8 @@ namespace m1
 			}
 
 			// Tangents
-			auto tangent = primitive.findAttribute("TANGENT");
-			if (tangent != primitive.attributes.end())
+			auto tangent = gltfPrimitive.findAttribute("TANGENT");
+			if (tangent != gltfPrimitive.attributes.end())
 			{
 				const auto& tangentAccessor = _asset.accessors[tangent->accessorIndex];
 				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec4>(_asset, tangentAccessor,
@@ -233,8 +262,8 @@ namespace m1
 			}
 
 			// vertex colors
-			auto color = primitive.findAttribute("COLOR_0");
-			if (color != primitive.attributes.end())
+			auto color = gltfPrimitive.findAttribute("COLOR_0");
+			if (color != gltfPrimitive.attributes.end())
 			{
 				const auto& colorAccessor = _asset.accessors[color->accessorIndex];
 				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec4>(_asset, colorAccessor,
@@ -245,9 +274,9 @@ namespace m1
 			}
 
 			// Indices
-			auto& indexAccessor = _asset.accessors[primitive.indicesAccessor.value()];
+			auto& indexAccessor = _asset.accessors[gltfPrimitive.indicesAccessor.value()];
 			if (!indexAccessor.bufferViewIndex.has_value())
-				return false;
+				continue;
 
 			std::vector<uint32_t> indices(indexAccessor.count);
 			fastgltf::iterateAccessorWithIndex<std::uint32_t>(_asset, indexAccessor,
@@ -259,10 +288,10 @@ namespace m1
 			mesh->Vertices = std::move(vertices);
 			mesh->Indices = std::move(indices);
 
-			meshes.push_back(std::move(mesh));
+			primitives.push_back(std::move(mesh));
 		}
 
-		return true;
+		return primitives;
 	}
 
 	std::shared_ptr<Image> GltfReader::loadImage(fastgltf::Image& image, Engine& engine, VkFormat format)
