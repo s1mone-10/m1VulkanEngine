@@ -1624,8 +1624,8 @@ namespace m1
 	{
 		uint8_t whitePixel[4] = { 255, 255, 255, 255 };
 		uint8_t blackPixel[4] = { 0, 0, 0, 255 };
-		uint8_t flatNormalPixel[4] = { 0, 0, 255, 255 };
-		uint8_t defaultMetallicRoughnessPixel[4] = { 0, 255, 255, 255 };
+		uint8_t flatNormalPixel[4] = { 128, 128, 255, 255 }; // (0.5, 0.5, 1.0, 1.0). Use 0.5 because normal is converted from [0, 1] to [-1, 1] range in the shader
+		uint8_t defaultMetallicRoughnessPixel[4] = { 0, 255, 0, 255 }; // (unused, roughness=1.0, metallic=0.0, alpha=1.0)
 
 		TextureParams params
 		{
@@ -1737,8 +1737,10 @@ namespace m1
 	}
 
 
-	void Engine::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask)
+	void Engine::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout,
+		VkImageLayout newLayout, VkImageAspectFlags aspectMask)
 	{
+
 		/*
 		In Vulkan, an image layout describes how the GPU should treat the memory of an image (texture, framebuffer, etc.).
 		A layout transition is changing an image from one layout to another, so the GPU knows how to access it correctly.
@@ -1844,7 +1846,9 @@ namespace m1
 		{
 			Log::Get().Warning("Failed to create mip levels. Texture image format does not support linear blitting!");
 
-            transitionImageLayout(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+			transitionImageLayout(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				VK_IMAGE_ASPECT_COLOR_BIT);
+
 			return;
 		}
 
