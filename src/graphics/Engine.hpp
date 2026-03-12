@@ -67,6 +67,8 @@ namespace m1
         bool getParticlesEnabled() const;
         void setShadowsEnabled(bool enabled);
         bool getShadowsEnabled() const;
+        void setLightingType(LightingType lightingType);
+        LightingType getLightingType() const;
 
     private:
         void mainLoop();
@@ -134,8 +136,11 @@ namespace m1
     	BBox _bbox;
     	std::unordered_map<std::string, std::unique_ptr<Material>> _materials{};
     	std::unique_ptr<Material> _defaultMaterial = std::make_unique<Material>(DEFAULT_MATERIAL_NAME);
-    	std::shared_ptr<Texture> _whiteDiffuseMap;
-    	std::shared_ptr<Texture> _whiteSpecularMap;
+    	std::shared_ptr<Texture> _whiteMapSRGB;
+    	std::shared_ptr<Texture> _whiteMapUnorm;
+    	std::shared_ptr<Texture> _defaultNormalMap;
+    	std::shared_ptr<Texture> _defaultMetallicRoughnessMap;
+    	std::shared_ptr<Texture> _blackMapSRGB;
     	std::string _currentMaterialName;
         uint32_t _currentFrame = 0;
 

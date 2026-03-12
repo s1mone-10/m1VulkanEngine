@@ -28,7 +28,8 @@ int main()
 		.msaaEnabled = true,
 		.shadowsEnabled = true,
 		.particlesEnabled = false,
-		.uiEnabled = false,
+		.uiEnabled = true,
+		.lightingType = m1::LightingType::Pbr
 	};
     m1::Engine engine{engineConfig};
 
@@ -144,37 +145,31 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 
 	// Shiny material (high specular, moderate diffuse)
 	engine.addMaterial(std::make_unique<m1::Material>(
-		"shiny",
+		"shiny", 32.0f,
 		glm::vec4(0.7f, 0.0f, 0.0f, 1.0f),
 		glm::vec3(0.5f, 0.5f, 0.5f),
-		glm::vec3(0.7f, 0.0f, 0.0f),
-		32.0f,
-		1.0f
+		glm::vec3(0.7f, 0.0f, 0.0f)
 	));
 
 	// Matte material (low specular, high diffuse)
 	engine.addMaterial(std::make_unique<m1::Material>(
-		"matte",
+		"matte", 1.0f,
 		glm::vec4(0.8f, 0.8f, 0.8f, 1.0f),
 		glm::vec3(0.1f, 0.1f, 0.1f),
-		glm::vec3(0.1f, 0.1f, 0.1f),
-		1.0f,
-		1.0f
+		glm::vec3(0.1f, 0.1f, 0.1f)
 	));
 
 	// Emissive material (very high specular and diffuse for glow effect)
 	engine.addMaterial(std::make_unique<m1::Material>(
-		"emissive",
+		"emissive", 64.0f,
 		glm::vec4(5.0f, 5.0f, 5.0f, 1.0f),
 		glm::vec3(5.0f, 5.0f, 5.0f),
-		glm::vec3(1.0f, 1.0f, 1.0f),
-		64.0f,
-		1.0f
+		glm::vec3(1.0f, 1.0f, 1.0f)
 	));
 
 	// container texture
 	glm::vec4 white(1.0f);
-	auto material = std::make_unique<m1::Material>("container", white,white,white);
+	auto material = std::make_unique<m1::Material>("container", 64.0f, white,white,white);
 	material->diffuseTexturePath = "../resources/container.png";
 	material->specularTexturePath = "../resources/container_specular.png";
 	engine.addMaterial(std::move(material));

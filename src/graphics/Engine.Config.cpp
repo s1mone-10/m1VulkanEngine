@@ -1,5 +1,7 @@
 #include "Engine.hpp"
 
+#include <ranges>
+
 namespace m1
 {
 	void Engine::setMsaaEnabled(bool enabled)
@@ -14,24 +16,19 @@ namespace m1
 
 	bool Engine::getMsaaEnabled() const { return _config.msaaEnabled;}
 
-	void Engine::setParticlesEnabled(bool enabled)
-	{
-		_config.particlesEnabled = enabled;
-	}
+	void Engine::setParticlesEnabled(bool enabled) { _config.particlesEnabled = enabled; }
 
 	bool Engine::getParticlesEnabled() const { return _config.particlesEnabled;}
 
-	void Engine::setShadowsEnabled(bool enabled)
-	{
-		_config.shadowsEnabled = enabled;
-	}
+	void Engine::setShadowsEnabled(bool enabled) { _config.shadowsEnabled = enabled; }
 
 	bool Engine::getShadowsEnabled() const { return _config.shadowsEnabled;}
 
-	void Engine::setUiEnabled(bool enabled)
-	{
-		_config.uiEnabled = enabled;
-	}
+	void Engine::setLightingType(LightingType lightingType)	{ _config.lightingType = lightingType; }
 
-	bool Engine::getUiEnabled() const { return _config.uiEnabled;}
+	LightingType Engine::getLightingType() const { return _config.lightingType;}
+
+	void Engine::setUiEnabled(bool enabled) { _config.uiEnabled = enabled; }
+
+	bool Engine::getUiEnabled() const { return _config.uiEnabled; }
 }

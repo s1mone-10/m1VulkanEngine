@@ -4,38 +4,78 @@
 
 #include <string>
 #include "glm_config.hpp"
+#include "Pipeline.hpp"
 
 namespace m1
 {
     struct Material
     {
-	    // Constructor
+		static constexpr float DIELECTRIC_F0 = 0.04f;
+
+	    // Blinn-Phong properties constructor
 	    explicit Material(const std::string& name,
+			float shininess,
 		    const glm::vec4& baseColor = glm::vec4(1.0f),
 		    const glm::vec3& specularColor = glm::vec3(1.0f),
 		    const glm::vec3& ambientColor = glm::vec3(1.0f),
-		    float shininess = 32.0f,
-		    float opacity = 1.0f,
 		    const std::string& diffuseTexturePath = "",
-		    const std::string& specularTexturePath = "",
-    		const glm::vec3& emissiveFactor = glm::vec3(1.0f)) :
+		    const std::string& specularTexturePath = "") :
     			name(name),
 		    	baseColor(baseColor),
 		    	specularColor(specularColor),
 		    	ambientColor(ambientColor),
-    			emissiveFactor(emissiveFactor),
 		    	shininess(shininess),
-		    	opacity(opacity),
 		    	diffuseTexturePath(diffuseTexturePath),
-		    	specularTexturePath(specularTexturePath), metallicFactor(1), roughnessFactor(1) {}
+		    	specularTexturePath(specularTexturePath), metallicFactor(1), roughnessFactor(1)
+	    {
+	    	// extract pbr properties (code from AI not verified)
+	    	const float specularIntensity = glm::clamp((specularColor.r + specularColor.g + specularColor.b) / 3.0f, 0.0f, 1.0f);
+
+	    	metallicFactor = glm::clamp((specularIntensity - DIELECTRIC_F0) / (1.0f - DIELECTRIC_F0), 0.0f, 1.0f);
+
+	    	// map Blinn-Phong shininess [1..256] -> roughness [1..0.05] (high shininess => low roughness)
+	    	const float normalizedShininess = glm::clamp((shininess - 1.0f) / 255.0f, 0.0f, 1.0f);
+	    	roughnessFactor = glm::clamp(1.0f - normalizedShininess, 0.05f, 1.0f);
+	    }
+
+    	// Physical-based rendering properties constructor
+    	explicit Material(const std::string& name,
+			const glm::vec4& baseColor = glm::vec4(1.0f),
+			float metallicFactor = 1,
+			float roughnessFactor = 1,
+			const glm::vec3& emissiveFactor = glm::vec3(1.0f)
+			) :
+				name(name),
+				baseColor(baseColor),
+    			metallicFactor(metallicFactor),
+				roughnessFactor(roughnessFactor),
+    			emissiveFactor(emissiveFactor)
+	    {
+	    	// extract blinn-phong properties (code from AI not verified)
+	    	specularColor = glm::mix(glm::vec3(DIELECTRIC_F0), glm::vec3(baseColor), metallicFactor);
+
+	    	ambientColor = glm::vec3(baseColor) * 0.1f; // simple ambient approximation
+
+	    	// inverse mapping roughness [1..0.05] -> shininess [1..256]
+	    	const float clampedRoughness = glm::clamp(roughnessFactor, 0.05f, 1.0f);
+	    	const float normalizedShininess = 1.0f - clampedRoughness;
+	    	shininess = glm::mix(1.0f, 256.0f, normalizedShininess);
+	    }
+
+		VkDescriptorSet getDescriptorSet(PipelineType pipeLineType) const
+		{
+			return pipeLineType == PipelineType::PbrLighting ? descriptorSetPbr : descriptorSet;
+		}
 
 		// Properties
 	    std::string name;
 	    glm::vec4 baseColor; // used both in phong and PBR
+
+    	// Blinn-phong properties
 	    glm::vec3 specularColor;
 	    glm::vec3 ambientColor;
 	    float shininess;
-	    float opacity; // TODO: cos'e'? c'e' a in base color
+	    float opacity = 1; // TODO: cos'e'? c'e' a in base color
 	    std::string diffuseTexturePath;
 	    std::string specularTexturePath;
 

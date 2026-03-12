@@ -332,7 +332,7 @@ namespace m1
     	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 0, 1, &descriptorSet0, 0, nullptr);
 
 		// bind default material descriptor set
-		VkDescriptorSet descriptorSetMat = _defaultMaterial->descriptorSetPbr;
+		VkDescriptorSet descriptorSetMat = _defaultMaterial->getDescriptorSet(currentPipelineType);
 		uint32_t dynOff = 0;
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 1, 1, &descriptorSetMat, 1, &dynOff);
 		_currentMaterialName = DEFAULT_MATERIAL_NAME;
@@ -374,9 +374,7 @@ namespace m1
 						                                              ? _materialPbrUboAlignment
 						                                              : _materialUboAlignment);
 
-					VkDescriptorSet descriptorSet = currentPipelineType == PipelineType::PbrLighting
-						                                ? material.descriptorSetPbr
-						                                : material.descriptorSet;
+					VkDescriptorSet descriptorSet = material.getDescriptorSet(currentPipelineType);
 					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 1, 1, &descriptorSet, 1, &dynamicOffset);
 				}
 			}
@@ -1515,14 +1513,13 @@ namespace m1
 
 		// set materials properties and update descriptorSet
 		_defaultMaterial->uboIndex = 0;
-		_defaultMaterial->baseColorMap = _whiteDiffuseMap;
-		_defaultMaterial->specularMap = _whiteSpecularMap;
+		_defaultMaterial->baseColorMap = _whiteMapSRGB;
+		_defaultMaterial->specularMap = _whiteMapUnorm;
 
-		// TODO set defaults
-		_defaultMaterial->normalMap = _whiteDiffuseMap;
-		_defaultMaterial->metallicRoughnessMap = _whiteDiffuseMap;
-		_defaultMaterial->emissiveMap = _whiteDiffuseMap;
-		_defaultMaterial->occlusionMap = _whiteDiffuseMap;
+		_defaultMaterial->normalMap = _defaultNormalMap;
+		_defaultMaterial->metallicRoughnessMap = _defaultMetallicRoughnessMap;
+		_defaultMaterial->emissiveMap = _blackMapSRGB;
+		_defaultMaterial->occlusionMap = _whiteMapSRGB;
 
 		_defaultMaterial->descriptorSet = descriptorSets[0];
 		_defaultMaterial->descriptorSetPbr = descriptorPbrSets[0];
@@ -1540,7 +1537,7 @@ namespace m1
 				if (!material->diffuseTexturePath.empty())
 					material->baseColorMap = loadTexture(material->diffuseTexturePath, VK_FORMAT_R8G8B8A8_SRGB);
 				else
-					material->baseColorMap = _whiteDiffuseMap;
+					material->baseColorMap = _whiteMapSRGB;
 			}
 
 			if (!material->specularMap)
@@ -1549,10 +1546,20 @@ namespace m1
 					// UNORM format because generally specular map is a grayscale mask/intensity, not a color
 						material->specularMap = loadTexture(material->specularTexturePath, VK_FORMAT_R8G8B8A8_UNORM);
 				else
-					material->specularMap = _whiteSpecularMap;
+					material->specularMap = _whiteMapUnorm;
 			}
 
-			// TODO set default map for normal and others
+			if (!material->normalMap)
+				material->normalMap = _defaultNormalMap;
+
+			if (!material->metallicRoughnessMap)
+				material->metallicRoughnessMap = _defaultMetallicRoughnessMap;
+
+			if (!material->occlusionMap)
+				material->occlusionMap = _whiteMapSRGB;
+
+			if (!material->emissiveMap)
+				material->emissiveMap = _blackMapSRGB;
 
 			// update the material descriptor set
 			material->descriptorSet = descriptorSets[index];
@@ -1616,16 +1623,22 @@ namespace m1
 	void Engine::createDefaultTextures()
 	{
 		uint8_t whitePixel[4] = { 255, 255, 255, 255 };
+		uint8_t blackPixel[4] = { 0, 0, 0, 255 };
+		uint8_t flatNormalPixel[4] = { 0, 0, 255, 255 };
+		uint8_t defaultMetallicRoughnessPixel[4] = { 0, 255, 255, 255 };
 
 		TextureParams params
 		{
 			.extent = {1, 1},
 			.format = VK_FORMAT_R8G8B8A8_SRGB
 		};
-		_whiteDiffuseMap = createTexture(params, &whitePixel);
+		_whiteMapSRGB = createTexture(params, &whitePixel);
+		_blackMapSRGB = createTexture(params, &blackPixel);
 
 		params.format = VK_FORMAT_R8G8B8A8_UNORM;
-		_whiteSpecularMap = createTexture(params, &whitePixel);
+		_whiteMapUnorm = createTexture(params, &whitePixel);
+		_defaultNormalMap = createTexture(params, &flatNormalPixel);
+		_defaultMetallicRoughnessMap = createTexture(params, &defaultMetallicRoughnessPixel);
 	}
 
 	std::unique_ptr<Texture> Engine::loadTexture(const std::string& filePath, VkFormat format)

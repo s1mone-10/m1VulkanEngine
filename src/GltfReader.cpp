@@ -274,7 +274,7 @@ namespace m1
 			ImageParams params
 			{
 				.extent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
-				.format = VK_FORMAT_R8G8B8A8_UNORM,
+				.format = VK_FORMAT_R8G8B8A8_UNORM, // TODO
 				.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 				.mipLevels = 1 // TODO
 			};
