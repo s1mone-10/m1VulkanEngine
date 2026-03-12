@@ -15,7 +15,6 @@ namespace m1
 	{
 		VkExtent2D extent;
 		VkFormat format;
-		bool mipmaps;
 	};
 
     class Texture
@@ -32,6 +31,8 @@ namespace m1
         Texture& operator=(const Texture&) = delete;
     	Texture(Texture&&) = delete;
     	Texture& operator=(Texture&&) = delete;
+
+    	static uint32_t computeMipLevels(uint32_t width, uint32_t height);
 
         Image& getImage() const { return *_image; }
         Sampler& getSampler() const { return *_sampler; }

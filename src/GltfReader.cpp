@@ -65,11 +65,9 @@ namespace m1
 			// load samplers
 			loadSamplers(engine);
 
-			// load images
-			for (auto &image: _asset.images)
-				loadImage(image, engine);
-
-			// load materials
+			// load materials and textures
+			images.resize(_asset.images.size());
+			textures.resize(_asset.textures.size());
 			for (auto &material: _asset.materials)
 				loadMaterial(material, engine);
 
@@ -267,21 +265,25 @@ namespace m1
 		return true;
 	}
 
-	bool GltfReader::loadImage(fastgltf::Image& image, Engine& engine)
+	std::shared_ptr<Image> GltfReader::loadImage(fastgltf::Image& image, Engine& engine, VkFormat format)
 	{
+		std::shared_ptr<Image> myImage;
+
 		auto createImage = [&](unsigned char* data, int width, int height)
 		{
+			uint32_t w = static_cast<uint32_t>(width);
+			uint32_t h = static_cast<uint32_t>(height);
 			ImageParams params
 			{
-				.extent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
-				.format = VK_FORMAT_R8G8B8A8_UNORM, // TODO
+				.extent = {w, h},
+				.format = format,
 				.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-				.mipLevels = 1 // TODO
+				.mipLevels = Texture::computeMipLevels(w, h)
 			};
-			return engine.createImage(params, data);
+			myImage = std::move(engine.createImage(params, data));
 		};
 
-		// TODO use KTX2 library?
+		// TODO use KTX2 library? it should also contains mipLevels and image format
 
 		std::visit(fastgltf::visitor{
 			           [](auto &arg) {},
@@ -295,8 +297,7 @@ namespace m1
 				           // Thanks C++.
 				           unsigned char *data = stbi_load(path.c_str(), &width, &height, &nrChannels, 4);
 
-				           images.push_back(std::move(createImage(data, width, height)));
-
+				           createImage(data, width, height);
 				           stbi_image_free(data);
 			           },
 			           [&](fastgltf::sources::Array &vector)
@@ -306,8 +307,7 @@ namespace m1
 					           reinterpret_cast<const stbi_uc *>(vector.bytes.data()),
 					           static_cast<int>(vector.bytes.size()), &width, &height, &nrChannels, 4);
 
-				           images.push_back(std::move(createImage(data, width, height)));
-
+				           createImage(data, width, height);
 				           stbi_image_free(data);
 			           },
 			           [&](fastgltf::sources::BufferView &view)
@@ -329,15 +329,34 @@ namespace m1
 							                      static_cast<int>(bufferView.byteLength), &width, &height, &nrChannels,
 							                      4);
 
-						                      images.push_back(std::move(createImage(data, width, height)));
-
+						                      createImage(data, width, height);
 						                      stbi_image_free(data);
 					                      }
 				                      }, buffer.data);
 			           },
 		           }, image.data);
 
-		return true;
+		return myImage;
+	}
+
+	std::shared_ptr<Texture> GltfReader::loadTexture(Engine& engine, const fastgltf::TextureInfo& textureInfo, VkFormat format)
+	{
+		// Check if the texture is already loaded
+		if (textures[textureInfo.textureIndex] != nullptr)
+			return textures[textureInfo.textureIndex];
+
+		// get image and sampler indices
+		auto texture = _asset.textures[textureInfo.textureIndex];
+		size_t imgIndex = texture.imageIndex.value();
+		size_t samplerIndex = texture.samplerIndex.value();
+
+		// load the image if missing
+		if (images[imgIndex] == nullptr)
+			images[imgIndex] = loadImage(_asset.images[imgIndex], engine, format);
+
+		// create the texture
+		textures[textureInfo.textureIndex] = std::make_shared<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
+		return textures[textureInfo.textureIndex];
 	}
 
 	bool GltfReader::loadMaterial(fastgltf::Material& gltfMaterial, Engine& engine)
@@ -364,44 +383,19 @@ namespace m1
 
 		// grab textures
 		if (pbrData.baseColorTexture.has_value())
-		{
-			auto texture = _asset.textures[pbrData.baseColorTexture.value().textureIndex];
-			size_t imgIndex = texture.imageIndex.value();
-			size_t samplerIndex = texture.samplerIndex.value();
-			myMaterial->baseColorMap = std::make_unique<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
-		}
+			myMaterial->baseColorMap = loadTexture(engine, pbrData.baseColorTexture.value(), VK_FORMAT_R8G8B8A8_SRGB);
 
 		if (pbrData.metallicRoughnessTexture.has_value())
-		{
-			auto texture = _asset.textures[pbrData.metallicRoughnessTexture.value().textureIndex];
-			size_t imgIndex = texture.imageIndex.value();
-			size_t samplerIndex = texture.samplerIndex.value();
-			myMaterial->metallicRoughnessMap = std::make_unique<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
-		}
+			myMaterial->metallicRoughnessMap = loadTexture(engine, pbrData.metallicRoughnessTexture.value(), VK_FORMAT_R8G8B8A8_UNORM);
 
 		if (gltfMaterial.normalTexture.has_value())
-		{
-			auto texture = _asset.textures[gltfMaterial.normalTexture.value().textureIndex];
-			size_t imgIndex = texture.imageIndex.value();
-			size_t samplerIndex = texture.samplerIndex.value();
-			myMaterial->normalMap = std::make_unique<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
-		}
+			myMaterial->normalMap = loadTexture(engine, gltfMaterial.normalTexture.value(), VK_FORMAT_R8G8B8A8_UNORM);
 
 		if (gltfMaterial.occlusionTexture.has_value())
-		{
-			auto texture = _asset.textures[gltfMaterial.occlusionTexture.value().textureIndex];
-			size_t imgIndex = texture.imageIndex.value();
-			size_t samplerIndex = texture.samplerIndex.value();
-			myMaterial->occlusionMap = std::make_unique<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
-		}
+			myMaterial->occlusionMap = loadTexture(engine, gltfMaterial.occlusionTexture.value(), VK_FORMAT_R8G8B8A8_UNORM);
 
 		if (gltfMaterial.emissiveTexture.has_value())
-		{
-			auto texture = _asset.textures[gltfMaterial.emissiveTexture.value().textureIndex];
-			size_t imgIndex = texture.imageIndex.value();
-			size_t samplerIndex = texture.samplerIndex.value();
-			myMaterial->emissiveMap = std::make_unique<Texture>(engine.getDevice(), images[imgIndex], samplers[samplerIndex]);
-		}
+			myMaterial->emissiveMap = loadTexture(engine, gltfMaterial.emissiveTexture.value(), VK_FORMAT_R8G8B8A8_SRGB);
 
 		materials.push_back(std::move(myMaterial));
 

@@ -19,9 +19,7 @@ namespace m1
 
     void Texture::createTextureImage(const TextureParams& textureParams)
     {
-        uint32_t mipLevels = 1;
-        if (textureParams.mipmaps)
-            mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(textureParams.extent.width, textureParams.extent.height)))) + 1;
+    	uint32_t mipLevels = computeMipLevels(textureParams.extent.width, textureParams.extent.height);
 
         ImageParams imageParams
         {
@@ -59,6 +57,11 @@ namespace m1
 
     	// Create sampler
     	_sampler = std::make_shared<Sampler>(_device, &samplerInfo);
+    }
+
+	uint32_t Texture::computeMipLevels(uint32_t width, uint32_t height)
+    {
+    	return static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
     }
     
 } // namespace m1
