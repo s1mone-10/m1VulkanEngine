@@ -38,7 +38,6 @@ layout(set = 0, binding = 5) uniform sampler2D shadowMap;
 // Material ubo
 layout (set = 1, binding = 0) uniform MaterialUbo {
     float shininess;
-    float opacity;
     vec3 diffuseColor;
     vec3 specularColor;
     vec3 ambientColor;

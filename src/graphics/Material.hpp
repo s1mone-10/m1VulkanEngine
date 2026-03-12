@@ -75,7 +75,6 @@ namespace m1
 	    glm::vec3 specularColor;
 	    glm::vec3 ambientColor;
 	    float shininess;
-	    float opacity = 1; // TODO: cos'e'? c'e' a in base color
 	    std::string diffuseTexturePath;
 	    std::string specularTexturePath;
 

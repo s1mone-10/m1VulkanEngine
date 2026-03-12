@@ -43,12 +43,11 @@ namespace m1
 	struct MaterialUbo
 	{
 		explicit MaterialUbo(const Material& material) : diffuseColor(material.baseColor), specularColor(material.specularColor),
-			ambientColor(material.ambientColor), shininess(material.shininess), opacity(material.opacity)
+			ambientColor(material.ambientColor), shininess(material.shininess)
 		{
 		}
 
 		float shininess;
-		float opacity;
 		glm::vec3 diffuseColor;
 		glm::vec3 specularColor;
 		glm::vec3 ambientColor;
