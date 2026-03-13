@@ -4,6 +4,9 @@
 #include "imgui_impl_vulkan.h"
 #include "Engine.hpp"
 
+#include <array>
+#include <string>
+
 namespace m1
 {
 	class UiModule
@@ -25,6 +28,8 @@ namespace m1
 		Engine& _engine;
 		const Device& _device;
 		VkDescriptorPool _descriptorPool;
+		std::array<char, 512> _importPathBuffer{};
+		std::string _importStatus;
 
 		void createDescriptorPool();
 		void initImGui(const Window &window, const SwapChain &swapChain);

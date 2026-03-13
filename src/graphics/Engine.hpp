@@ -18,6 +18,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <filesystem>
 
 namespace m1
 {
@@ -53,6 +54,7 @@ namespace m1
         void addSceneObject(std::unique_ptr<SceneObject> obj);
     	void addMaterial(std::unique_ptr<Material> material);
     	void compile();
+		bool importGltfFile(const std::filesystem::path& path);
     	const EngineConfig& getConfig() const { return _config; }
     	std::unique_ptr<Texture> createTexture(const TextureParams &params, void *data);
         std::shared_ptr<Image> createImage(const ImageParams& params, void* data);
