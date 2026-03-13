@@ -45,9 +45,9 @@ void main() {
     fragNormalWorld = normalize(push.normalMatrix * normal);
     fragPosLightSpace = frameUbo.lightViewProjMatrix * vec4(fragPosWorld, 1.0);
 
-    vec3 T = normalize(vec3(push.model * tangent));
-    //vec3 B = normalize(vec3(model * vec4(aBitangent, 0.0)));
-    vec3 N = normalize(vec3(push.model * vec4(normal, 0.0)));// TODO compute this N or use fragNormalWorld that use the normalMatrix?
-    vec3 B = normalize(cross(N, T)) * tangent.w;// Bitangent (w = handedness) // TODO handness?
-    TBN = mat3(T, B, N);
+    // compute TBN matrix for normal mapping
+    vec3 T = normalize(vec3(push.normalMatrix * tangent.xyz));
+    vec3 N = fragNormalWorld;
+    vec3 B = normalize(cross(N, T)) * tangent.w; // Bitangent (w = handedness)
+    TBN = mat3(T, B, N); // TODO must be computed in fragment shader?
 }

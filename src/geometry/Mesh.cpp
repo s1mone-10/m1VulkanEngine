@@ -22,6 +22,7 @@ namespace m1
 
     void Mesh::compile(const Device& device)
     {
+		computeTangents();
         createVertexBuffer(device);
         createIndexBuffer(device);
     }
@@ -61,6 +62,64 @@ namespace m1
         // upload indices data to buffer
         Utils::uploadToDeviceBuffer(device, *_indexBuffer, size, Indices.data());
     }
+
+	void Mesh::computeTangents()
+	{
+		if (Vertices.empty() || Vertices[0].tangent != glm::vec4(0.0f))
+			return; // already computed
+
+		std::vector<glm::vec3> tempBitangents(Vertices.size(), glm::vec3(0.0f));
+		std::vector<glm::vec3> tempTangents(Vertices.size(), glm::vec3(0.0f));
+
+		for (size_t i = 0; i < Indices.size(); i += 3)
+		{
+			unsigned
+						t1 = Indices[i],
+						t2 = Indices[i+1],
+						t3 = Indices[i+2];
+			Vertex
+						&v1 = Vertices[t1],
+						&v2 = Vertices[t2],
+						&v3 = Vertices[t3];
+
+			glm::vec3
+						edge1 = v2.pos - v1.pos,
+						edge2 = v3.pos - v1.pos;
+
+			glm::vec2
+						delta1 = v2.texCoord - v1.texCoord,
+						delta2 = v3.texCoord - v1.texCoord;
+
+			float r = 1.0f / (delta1.x * delta2.y - delta1.y * delta2.x);
+
+			glm::vec3 tangent = (edge1 * delta2.y - edge2 * delta1.y) * r;
+			glm::vec3 bitangent = (edge2 * delta1.x - edge1 * delta2.x) * r;
+
+			tempTangents[t1] += tangent;
+			tempTangents[t2] += tangent;
+			tempTangents[t3] += tangent;
+
+			tempBitangents[t1] += bitangent;
+			tempBitangents[t2] += bitangent;
+			tempBitangents[t3] += bitangent;
+		}
+
+		for (size_t i = 0; i < Vertices.size(); i++)
+		{
+			auto& v = Vertices[i];
+			glm::vec3 t = tempTangents[i];
+			glm::vec3 b = tempBitangents[i];
+			glm::vec3 n = v.normal;
+
+			// Gram-Schmidt orthogonalize
+			glm::vec3 orthoT = glm::normalize(t - n * glm::dot(n, t));
+
+			// Calculate handedness
+			float w = (glm::dot(glm::cross(n, orthoT), b) < 0.0f) ? -1.0f : 1.0f;
+
+			v.tangent = glm::vec4(orthoT, -w);
+		}
+	}
 
 	std::unique_ptr<Mesh> Mesh::createCube(const glm::vec3& color)
 	{

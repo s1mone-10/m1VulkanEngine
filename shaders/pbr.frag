@@ -97,7 +97,7 @@ vec3 FresnelSchlick(float cosTheta, vec3 F0)
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-vec3 calculateLight(Light light, vec3 N, vec3 baseColor, vec3 V, vec3 F0, float roughness, vec2 texelSize);
+vec3 calculateLight(Light light, vec3 N, vec3 baseColor, vec3 V, vec3 F0, float metallic, float roughness, vec2 texelSize);
 float calculateShadow(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, vec2 texelSize);
 
 void main(){
@@ -106,9 +106,7 @@ void main(){
     // Sample normal map and convert from [0,1] to [-1,1] range
     vec3 N = texture(normalMap, fragTextCoord).xyz * 2.0 - 1.0;
     // Transform normal from tangent space to world space
-    N = normalize(N * TBN);
-
-    N = fragNormalWorld; // TODO remove after fixing tanggent space (vertex.tangent not initialized)
+    N = normalize(TBN * N);
 
     // === LIGHTING SETUP ===
     // Calculate view direction (fragment to camera)
@@ -149,7 +147,7 @@ void main(){
 
     // light loop to accumulate radiance from each light source
     for (int i = 0; i < lightsUbo.numLights; i++) {
-        Lo += calculateLight(lightsUbo.lights[i], N, baseColor.rgb, V, F0, roughness, texelSize);
+        Lo += calculateLight(lightsUbo.lights[i], N, baseColor.rgb, V, F0, metallic, roughness, texelSize);
     }
 
     // Add simple ambient lighting (should be replaced with IBL in production)
@@ -161,15 +159,11 @@ void main(){
     // Apply Reinhard tone mapping to compress HDR (high dynamic range) values to LDR (low dynamic range - monitor - [0,1])
     color = color / (color + vec3(1.0));
 
-    // TODO why?
-    // Apply gamma correction for sRGB display (inverse gamma)
-    // color = pow(color, float3(1.0 / ubo.gamma, 1.0 / ubo.gamma, 1.0 / ubo.gamma));
-
     // Output final color with original alpha
     outColor = vec4(color, baseColor.a);
 }
 
-vec3 calculateLight(Light light, vec3 N, vec3 baseColor, vec3 V, vec3 F0, float roughness, vec2 texelSize) {
+vec3 calculateLight(Light light, vec3 N, vec3 baseColor, vec3 V, vec3 F0, float metallic, float roughness, vec2 texelSize) {
     // Light direction
     vec3 L = (light.posDir.w == 0.0)
     ? normalize(-light.posDir.xyz)// directional
@@ -217,8 +211,7 @@ vec3 calculateLight(Light light, vec3 N, vec3 baseColor, vec3 V, vec3 F0, float 
     vec3 kS = F;// Specular contribution
     vec3 kD = vec3(1.0) - kS;// Diffuse contribution (energy conservation)
 
-    float metallic = 0.5f;// TODO get from texture or material
-    kD *= 1.0 - metallic;// Metals have no diffuse reflection
+    kD *= 1.0 - metallic; // Metals have no diffuse reflection
 
     // === RADIANCE ACCUMULATION ===
     // Combine diffuse (Lambertian) and specular (Cook-Torrance) terms

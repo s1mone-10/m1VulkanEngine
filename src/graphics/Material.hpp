@@ -10,8 +10,11 @@ namespace m1
 {
     struct Material
     {
+    private:
 		static constexpr float DIELECTRIC_F0 = 0.04f;
+    	inline static uint32_t nameSuffix;
 
+    public:
 	    // Blinn-Phong properties constructor
 	    explicit Material(const std::string& name,
 			float shininess,
@@ -28,6 +31,9 @@ namespace m1
 		    	diffuseTexturePath(diffuseTexturePath),
 		    	specularTexturePath(specularTexturePath), metallicFactor(1), roughnessFactor(1)
 	    {
+	    	if (name.empty())
+	    		this->name = "Material_" + std::to_string(nameSuffix++);
+
 	    	// extract pbr properties (code from AI not verified)
 	    	const float specularIntensity = glm::clamp((specularColor.r + specularColor.g + specularColor.b) / 3.0f, 0.0f, 1.0f);
 
@@ -51,6 +57,9 @@ namespace m1
 				roughnessFactor(roughnessFactor),
     			emissiveFactor(emissiveFactor)
 	    {
+	    	if (name.empty())
+	    		this->name = "Material_" + std::to_string(nameSuffix++);
+
 	    	// extract blinn-phong properties (code from AI not verified)
 	    	specularColor = glm::mix(glm::vec3(DIELECTRIC_F0), glm::vec3(baseColor), metallicFactor);
 

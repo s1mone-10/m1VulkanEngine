@@ -34,6 +34,7 @@ namespace m1
 	private:
 		void createVertexBuffer(const Device& device);
 		void createIndexBuffer(const Device& device);
+		void computeTangents();
 
 		std::unique_ptr<Buffer> _vertexBuffer;
 		std::unique_ptr<Buffer> _indexBuffer;

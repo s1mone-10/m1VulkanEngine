@@ -141,7 +141,7 @@ namespace m1
 	{
 		// get transformation
 		auto matrix = fastgltf::getTransformMatrix(gltfNode);
-		glm::mat4 transform = glm::mat4(1.0f);
+		auto transform = glm::mat4(1.0f);
 		for (int column = 0; column < 4; ++column)
 			for (int row = 0; row < 4; ++row)
 				transform[column][row] = matrix[column][row];
@@ -161,7 +161,7 @@ namespace m1
 		}
 
 		// load children
-		if (gltfNode.children.size() > 0)
+		if (!gltfNode.children.empty())
 		{
 			for (const auto& childIndex: gltfNode.children)
 			{

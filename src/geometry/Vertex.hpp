@@ -12,11 +12,11 @@ namespace m1
 {
 	struct Vertex
 	{
-		glm::vec3 pos;
+		glm::vec3 pos{};
 		glm::vec3 color = glm::vec3(1.0f); // default to don't affect the final color if not set
-		glm::vec3 normal;
-		glm::vec2 texCoord;
-		glm::vec4 tangent;
+		glm::vec3 normal{};
+		glm::vec2 texCoord{};
+		glm::vec4 tangent{}; // Tangent vector for normal mapping (w component = handedness)
 
 		static VkVertexInputBindingDescription getBindingDescription();
 		static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions();
