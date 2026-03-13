@@ -3,6 +3,8 @@
 #include "Queue.hpp"
 #include "Utils.hpp"
 
+#include <cstring>
+
 static void check_vk_result(VkResult err)
 {
 	if (err < 0)
@@ -21,6 +23,8 @@ namespace m1
 	UiModule::UiModule(Engine& engine, const Device& device, const Window& window, const SwapChain& swapChain)
 		: _engine(engine), _device(device)
 	{
+		std::strncpy(_importPathBuffer.data(), "../resources/DamagedHelmet.glb", _importPathBuffer.size() - 1);
+
 		createDescriptorPool();
 		initImGui(window, swapChain);
 	}
@@ -66,6 +70,27 @@ namespace m1
 		if (ImGui::Combo("Lighting model", &lightingMode, lightingItems, IM_ARRAYSIZE(lightingItems)))
 		{
 			_engine.setLightingType(lightingMode == 0 ? LightingType::BlinnPhong : LightingType::Pbr);
+		}
+
+		ImGui::Separator();
+		ImGui::TextUnformatted("Import glTF model");
+		ImGui::InputText("Path", _importPathBuffer.data(), _importPathBuffer.size());
+
+		if (ImGui::Button("Import glTF"))
+		{
+			if (_engine.importGltfFile(_importPathBuffer.data()))
+			{
+				_importStatus = std::format("Imported {}", _importPathBuffer.data());
+			}
+			else
+			{
+				_importStatus = std::format("Failed to import {}", _importPathBuffer.data());
+			}
+		}
+
+		if (!_importStatus.empty())
+		{
+			ImGui::TextWrapped("%s", _importStatus.c_str());
 		}
 
 		ImGui::TextUnformatted("Note: shadow toggle is config-only right now.");

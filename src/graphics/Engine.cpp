@@ -10,6 +10,7 @@
 //libs
 #include "glm_config.hpp"
 #include "UiModule.hpp"
+#include "GltfReader.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -96,6 +97,20 @@ namespace m1
 		compileMaterials();
 		compileSceneObjects();
 		_bbox = computeSceneBBox();
+	}
+
+	bool Engine::importGltfFile(const std::filesystem::path& path)
+	{
+		vkDeviceWaitIdle(_device.getVkDevice());
+
+		GltfReader reader;
+		if (!reader.loadGltf(*this, path))
+		{
+			return false;
+		}
+
+		compile();
+		return true;
 	}
 
 	int _frameCount = 0;
