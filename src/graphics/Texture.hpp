@@ -34,6 +34,12 @@ namespace m1
 
     	static uint32_t computeMipLevels(uint32_t width, uint32_t height);
 
+    	static VkImageUsageFlags getImageUsageFlags()
+	    {
+    		// source (for creating mipmaps) and destination for data transfer, sampled for shader read
+		    return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	    }
+
         Image& getImage() const { return *_image; }
         Sampler& getSampler() const { return *_sampler; }
     	VkExtent2D getExtent() const { return _image->getExtent();}

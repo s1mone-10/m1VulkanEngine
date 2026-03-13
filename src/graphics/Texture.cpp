@@ -25,7 +25,7 @@ namespace m1
         {
             .extent = textureParams.extent,
             .format = textureParams.format,
-            .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, // source (for creating mipmaps) and destination of transfer and shader read
+            .usage = getImageUsageFlags(),
             .mipLevels = mipLevels,
         };
 

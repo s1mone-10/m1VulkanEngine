@@ -306,7 +306,7 @@ namespace m1
 			{
 				.extent = {w, h},
 				.format = format,
-				.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+				.usage = Texture::getImageUsageFlags(),
 				.mipLevels = Texture::computeMipLevels(w, h)
 			};
 			myImage = std::move(engine.createImage(params, data));
