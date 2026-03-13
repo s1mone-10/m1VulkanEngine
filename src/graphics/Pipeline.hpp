@@ -57,7 +57,7 @@ namespace m1
     	bool depthWriteEnable = true;
 
     	// blending
-    	bool blendEnable = false;
+    	bool blendEnable = true;
 
     	// layouts
     	uint32_t setLayoutCount;
