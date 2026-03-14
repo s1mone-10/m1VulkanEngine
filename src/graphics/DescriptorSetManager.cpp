@@ -3,8 +3,8 @@
 #include "Engine.hpp"
 #include "Buffer.hpp"
 #include "Utils.hpp"
-#include "../log/Log.hpp"
-#include "geometry/Particle.hpp"
+#include "Log.hpp"
+#include "Particle.hpp"
 
 // std
 #include <array>

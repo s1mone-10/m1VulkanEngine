@@ -1,15 +1,15 @@
 #include "Engine.hpp"
-#include "log/Log.hpp"
+#include "Log.hpp"
 #include "Queue.hpp"
 #include "SceneObject.hpp"
 #include "Utils.hpp"
-#include "geometry/Mesh.hpp"
-#include "geometry/Particle.hpp"
+#include "Mesh.hpp"
+#include "Particle.hpp"
 #include "Sampler.hpp"
+#include "UiModule.hpp"
 
 //libs
 #include "glm_config.hpp"
-#include "UiModule.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>

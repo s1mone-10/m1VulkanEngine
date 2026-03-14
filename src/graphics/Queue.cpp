@@ -1,6 +1,6 @@
 #include "Queue.hpp"
 #include "Device.hpp"
-#include "log/Log.hpp"
+#include "Log.hpp"
 
 namespace m1
 {

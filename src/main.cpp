@@ -1,8 +1,8 @@
-#include "log/Log.hpp"
+#include "Log.hpp"
 #include "graphics/Engine.hpp"
 #include "graphics/SceneObject.hpp"
-#include "geometry/Vertex.hpp"
-#include "geometry/Mesh.hpp"
+#include "Vertex.hpp"
+#include "Mesh.hpp"
 #include "graphics/Material.hpp"
 #include "GltfReader.hpp"
 

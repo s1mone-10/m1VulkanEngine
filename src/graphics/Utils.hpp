@@ -2,7 +2,7 @@
 
 #include "Device.hpp"
 #include "Buffer.hpp"
-#include "log/Log.hpp" // for VK_CHECK function
+#include "Log.hpp" // for VK_CHECK function
 
 //libs
 #include "graphics/glm_config.hpp"

@@ -1,6 +1,6 @@
 #include "Instance.hpp"
 #include "Window.hpp"
-#include "log/Log.hpp"
+#include "Log.hpp"
 #include "Utils.hpp"
 
 #include <stdexcept>

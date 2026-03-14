@@ -3,8 +3,8 @@
 #include "SwapChain.hpp"
 #include "DescriptorSetManager.hpp"
 #include "Utils.hpp"
-#include "geometry/Vertex.hpp"
-#include "log/Log.hpp"
+#include "Vertex.hpp"
+#include "Log.hpp"
 #include <stdexcept>
 #include <fstream>
 

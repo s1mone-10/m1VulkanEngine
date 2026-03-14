@@ -1,7 +1,7 @@
 #include "Buffer.hpp"
 #include "Device.hpp"
 #include "Utils.hpp"
-#include "log/Log.hpp"
+#include "Log.hpp"
 #include <stdexcept>
 #include <cstring>
 

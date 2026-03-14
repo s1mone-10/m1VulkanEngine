@@ -1,8 +1,8 @@
 #include "Vertex.hpp"
 #include "Mesh.hpp"
-#include "../graphics/Buffer.hpp"
-#include "../graphics/Utils.hpp"
-#include "../log/Log.hpp"
+#include "Buffer.hpp"
+#include "Utils.hpp"
+#include "Log.hpp"
 
 // std
 #include <memory>

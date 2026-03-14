@@ -2,7 +2,7 @@
 #include "Instance.hpp"
 #include "SwapChain.hpp"
 #include "Utils.hpp"
-#include "log/Log.hpp"
+#include "Log.hpp"
 #include "Queue.hpp"
 
 // libs

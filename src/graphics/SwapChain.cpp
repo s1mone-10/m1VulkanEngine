@@ -2,7 +2,7 @@
 #include "Device.hpp"
 #include "Window.hpp"
 #include "Utils.hpp"
-#include "log/Log.hpp"
+#include "Log.hpp"
 
 #include <stdexcept>
 #include <algorithm>

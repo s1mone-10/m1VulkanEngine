@@ -11,7 +11,7 @@
 #include "Material.hpp"
 #include "Camera.hpp"
 #include "FrameData.hpp"
-#include "geometry/BBox.hpp"
+#include "BBox.hpp"
 
 // std
 #include <memory>

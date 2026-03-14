@@ -1,5 +1,5 @@
 #include "Window.hpp"
-#include "log/Log.hpp"
+#include "Log.hpp"
 #include "graphics/Utils.hpp"
 #include <stdexcept>
 #include <iostream>

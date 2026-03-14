@@ -1,7 +1,7 @@
 #pragma once
 
 //libs
-#include "../graphics/glm_config.hpp"
+#include "glm_config.hpp"
 #include <vulkan/vulkan.h>
 #include <vector>
 

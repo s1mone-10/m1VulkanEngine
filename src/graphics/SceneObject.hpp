@@ -1,6 +1,6 @@
 #pragma once
 
-#include "geometry/Mesh.hpp"
+#include "Mesh.hpp"
 
 // libs
 #include "glm_config.hpp"

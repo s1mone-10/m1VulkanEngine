@@ -112,6 +112,9 @@ endif()
 # specify include directories to use when compiling
 target_include_directories(${PROJECT_NAME} PUBLIC
   ${PROJECT_SOURCE_DIR}/src
+  ${PROJECT_SOURCE_DIR}/src/graphics
+  ${PROJECT_SOURCE_DIR}/src/geometry
+  ${PROJECT_SOURCE_DIR}/src/log
   ${stb_SOURCE_DIR}
   ${vma_SOURCE_DIR}/include
 )

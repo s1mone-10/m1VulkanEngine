@@ -4,7 +4,7 @@
 #include <fastgltf/types.hpp>
 #include <fastgltf/tools.hpp>
 
-#include "geometry/Mesh.hpp"
+#include "Mesh.hpp"
 #include "graphics/Material.hpp"
 
 namespace  m1

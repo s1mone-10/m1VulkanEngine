@@ -1,6 +1,6 @@
 #include "Sampler.hpp"
 #include "Utils.hpp"
-#include "log/Log.hpp"
+#include "Log.hpp"
 
 namespace m1
 {
