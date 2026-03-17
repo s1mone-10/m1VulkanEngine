@@ -11,9 +11,8 @@ layout (location = 4) in vec4 tangent;
 layout (location = 0) out vec3 fragColor;
 layout (location = 1) out vec2 fragTexCoord;
 layout (location = 2) out vec3 fragPosWorld;
-layout (location = 3) out vec3 fragNormalWorld;
-layout (location = 4) out vec4 fragPosLightSpace;
-layout (location = 5) out mat3 TBN;// Tangent-Bitangent-Normal matrix for normal mapping
+layout (location = 3) out vec4 fragPosLightSpace;
+layout (location = 4) out mat3 TBN;// Tangent-Bitangent-Normal matrix for normal mapping
 
 layout(set = 0, binding = 0) uniform ObjectUbo {
     mat4 model;
@@ -42,12 +41,11 @@ void main() {
     fragColor = color;// Pass the color to the fragment shader
     fragTexCoord = texCoord;
     fragPosWorld = vec3(push.model * vec4(position, 1.0));
-    fragNormalWorld = normalize(push.normalMatrix * normal);
     fragPosLightSpace = frameUbo.lightViewProjMatrix * vec4(fragPosWorld, 1.0);
 
     // compute TBN matrix for normal mapping
     vec3 T = normalize(vec3(push.normalMatrix * tangent.xyz));
-    vec3 N = fragNormalWorld;
+    vec3 N = normalize(push.normalMatrix * normal);;
     vec3 B = normalize(cross(N, T)) * tangent.w; // Bitangent (w = handedness)
-    TBN = mat3(T, B, N); // TODO must be computed in fragment shader?
+    TBN = mat3(T, B, N);
 }

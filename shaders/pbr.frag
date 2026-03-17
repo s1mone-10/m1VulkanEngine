@@ -12,9 +12,8 @@ const float PI = 3.14159265359;
 layout (location = 0) in vec3 fragColor;
 layout (location = 1) in vec2 fragTextCoord;
 layout (location = 2) in vec3 fragPosWorld;
-layout (location = 3) in vec3 fragNormalWorld;
-layout (location = 4) in vec4 fragPosLightSpace;
-layout (location = 5) in mat3 TBN;// Tangent-Bitangent-Normal matrix for normal mapping
+layout (location = 3) in vec4 fragPosLightSpace;
+layout (location = 4) in mat3 TBN;// Tangent-Bitangent-Normal matrix for normal mapping
 
 // Output. Specify the out location (index of the framebuffer attachment) and out variable
 layout (location = 0) out vec4 outColor;
@@ -62,7 +61,7 @@ layout(push_constant) uniform Push {
 } push;
 
 // Normal Distribution Function (D) - GGX/Trowbridge-Reitz Distribution
-// Describes the statistical distribution of microfacet orientations
+// Approximates the amount the surface's microfacets are aligned to the halfway vector
 float DistributionGGX(float NdotH, float roughness) {
     float a = roughness * roughness;// Remapping for more perceptual linearity
     float a2 = a * a;
@@ -76,7 +75,7 @@ float DistributionGGX(float NdotH, float roughness) {
 }
 
 // Geometry Function (G) - Smith's method with Schlick-GGX approximation
-// Models self-shadowing and masking between microfacets
+// Approximate self-shadowing between microfacets. Microfacets can overshadow other microfacets reducing the light the surface reflects.
 float GeometrySmith(float NdotV, float NdotL, float roughness) {
     float r = roughness + 1.0;
     float k = (r * r) / 8.0;// Direct lighting remapping
@@ -90,7 +89,7 @@ float GeometrySmith(float NdotV, float NdotL, float roughness) {
 }
 
 // Fresnel Reflectance (F) - Schlick's approximation
-// Compute the ratio of surface reflection at different surface angles.
+// Compute the ratio of light that gets reflected over the light that gets refracted.
 // F0 parameter is the surface reflection at zero incidence (how much the surface reflects if looking directly at the surface)
 vec3 FresnelSchlick(float cosTheta, vec3 F0)
 {
@@ -106,7 +105,7 @@ void main(){
     // Sample normal map and convert from [0,1] to [-1,1] range
     vec3 N = texture(normalMap, fragTextCoord).xyz * 2.0 - 1.0;
     // Transform normal from tangent space to world space
-    N = normalize(TBN * N);
+    N = normalize(TBN * N); // TODO TBN matrix must be re-orthogonalized or normalized?
 
     // === LIGHTING SETUP ===
     // Calculate view direction (fragment to camera)
@@ -137,7 +136,8 @@ void main(){
     // === PBR MATERIAL SETUP ===
     // Calculate F0 (reflectance at normal incidence)
     // Non-metals: default low reflectance (~0.04), Metals: colored reflectance from base color
-    vec3 F0 = mix(vec3(0.04), baseColor.rgb, metallic);// linear interpolation between default 0.04 and the albedo value given the metallic property.
+    // linear interpolation between default 0.04 and the albedo color using metallic property to weight between them.
+    vec3 F0 = mix(vec3(0.04), baseColor.rgb, metallic);
 
     // get the size of one texel in texture space (used for PCF in shadow calculation)
     vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
