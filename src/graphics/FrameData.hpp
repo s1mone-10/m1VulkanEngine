@@ -31,7 +31,7 @@ namespace m1
         FrameData& operator=(const FrameData&) = delete;
 
     	// buffers
-        FrameUbo frameUbo;
+        FrameUbo frameUbo; // TODO I need of this?
         std::unique_ptr<Buffer> frameUboBuffer;
 
         ObjectUbo objectUbo;
@@ -44,6 +44,7 @@ namespace m1
 
     	// descriptor set
     	VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+    	VkDescriptorSet skyBoxDescriptorSet = VK_NULL_HANDLE;
 
     	// synchronization objects
     	VkFence drawCmdExecutedFence, computeCmdExecutedFence = VK_NULL_HANDLE;

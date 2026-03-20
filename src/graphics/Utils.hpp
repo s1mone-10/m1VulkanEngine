@@ -22,13 +22,17 @@
 
 namespace m1
 {
+	class Engine;
+
     class Utils
     {
     public:
-        static void copyBuffer(const Device& device, const Buffer& srcBuffer, const Buffer& dstBuffer, VkDeviceSize size);
+	    static void copyBuffer(const Device& device, const Buffer& srcBuffer, const Buffer& dstBuffer, VkDeviceSize size);
         static void uploadToDeviceBuffer(const Device& device, const Buffer& dstBuffer, VkDeviceSize size, void* data);
+	    static std::unique_ptr<Texture> loadEquirectangularHDRMap(const Engine& engine, const std::string& filePath);
+	    static int getBytesPerPixel(VkFormat format);
 
-    	static glm::mat4 perspectiveProjection(float fov, float aspectRatio, float near, float far)
+	    static glm::mat4 perspectiveProjection(float fov, float aspectRatio, float near, float far)
     	{
     		auto perspective = glm::perspective(fov, aspectRatio, near, far);
 

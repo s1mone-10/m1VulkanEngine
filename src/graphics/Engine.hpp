@@ -46,16 +46,16 @@ namespace m1
         static constexpr int PARTICLES_COUNT = 8192;
         static constexpr auto DEFAULT_MATERIAL_NAME = "Default";
 
-        Engine(EngineConfig config);
+        explicit Engine(EngineConfig config);
         ~Engine();
 
         void run();
         void addSceneObject(std::unique_ptr<SceneObject> obj);
     	void addMaterial(std::unique_ptr<Material> material);
     	void compile();
-    	const EngineConfig& getConfig() const { return _config; }
-    	std::unique_ptr<Texture> createTexture(const TextureParams &params, void *data);
-        std::shared_ptr<Image> createImage(const ImageParams& params, void* data);
+    	[[nodiscard]] const EngineConfig& getConfig() const { return _config; }
+    	std::unique_ptr<Texture> createTexture(const TextureParams &params, void *data) const;
+        std::shared_ptr<Image> createImage(const ImageParams& params, void* data) const;
         Device& getDevice() { return _device; };
 
         // properties
@@ -77,16 +77,18 @@ namespace m1
         void updateObjectUbo(const SceneObject &sceneObject);
         void createSyncObjects();
         void drawObjectsLoop(VkCommandBuffer commandBuffer);
-    	void drawParticles(VkCommandBuffer commandBuffer);
+        void drawSkyBox(VkCommandBuffer commandBuffer) const;
+        void drawParticles(VkCommandBuffer commandBuffer) const;
         void recordDrawSceneCommands(VkCommandBuffer commandBuffer, uint32_t swapChainImageIndex);
         void recordComputeCommands(VkCommandBuffer commandBuffer);
         void recreateSwapChain();
     	void createPipelines();
+    	void createCubeMap();
 		void createFramesResources();
 		void createShadowResources();
 		void recordShadowMappingPass(VkCommandBuffer commandBuffer) const;
-    	BBox computeSceneBBox() const;
-        glm::mat4 computeLightViewProjMatrix() const;
+    	[[nodiscard]] BBox computeSceneBBox() const;
+        [[nodiscard]] glm::mat4 computeLightViewProjMatrix() const;
         void initParticles();
         void initLights();
         void updateFrameDescriptorSet();
@@ -94,19 +96,20 @@ namespace m1
     	void compileSceneObjects();
     	void compileMaterials();
         
-        void copyBufferToImage(const Buffer& srcBuffer, VkImage image, uint32_t width, uint32_t height);
-        void copyDataToImage(const void* data, uint32_t width, uint32_t height, VkDeviceSize imageSize, const Image* image);
+        void copyBufferToImage(const Buffer& srcBuffer, const Image& image, uint32_t width, uint32_t height) const;
+        void copyDataToImage(const void* data, uint32_t width, uint32_t height, VkDeviceSize imageSize, const Image* image) const;
 
         void createDefaultTextures();
-        std::unique_ptr<Texture> loadTexture(const std::string &filePath, VkFormat format);
+        std::unique_ptr<Texture> loadTexture(const std::string &filePath, VkFormat format) const;
 
         void processInput(float delta);
 
         void transitionImageLayout(const Image &image, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask) const;
-        static void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask);
+        static void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout,
+        	VkImageLayout newLayout, VkImageAspectFlags aspectMask, uint32_t layerCount = 1);
         static void getStageAndAccessMaskForLayout(VkImageLayout layout, VkPipelineStageFlags &stageMask, VkAccessFlags &accessMask);
 
-        void generateMipmaps(const Image& image);
+        void generateMipmaps(const Image& image) const;
         static void copyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize);
 
         const uint32_t  WIDTH = 800;
@@ -145,6 +148,8 @@ namespace m1
         uint32_t _currentFrame = 0;
 
     	std::unique_ptr<Texture> _shadowMap;
+    	std::unique_ptr<Texture> _skyBoxTexture;
+    	std::unique_ptr<SceneObject> _environmentCube;
 
 		// Synchronization objects (semaphores for GPU-GPU sync, fences for CPU-GPU sync)
         std::vector<VkSemaphore> _imageAvailableSems;

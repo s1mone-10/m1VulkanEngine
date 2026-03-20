@@ -14,7 +14,7 @@ namespace m1
         : _device(device)
     {
         createTextureImage(params);
-        createSampler();
+    	_sampler = std::make_shared<Sampler>(_device, params.samplerCreateInfo);
     }
 
     void Texture::createTextureImage(const TextureParams& textureParams)
@@ -30,33 +30,6 @@ namespace m1
         };
 
         _image = std::make_unique<Image>(_device, imageParams);
-    }
-
-    void Texture::createSampler()
-    {
-        // Sampler Info
-        VkSamplerCreateInfo samplerInfo{};
-        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerInfo.magFilter = VK_FILTER_LINEAR;
-        samplerInfo.minFilter = VK_FILTER_LINEAR;
-        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.anisotropyEnable = VK_TRUE;
-        samplerInfo.maxAnisotropy = 8.0f; // TODO query the device for maxSamplerAnisotropy 
-        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK; // for clamp to border address mode
-        samplerInfo.unnormalizedCoordinates = VK_FALSE; // unnormalized => range [0, widt). Normalized => range [0,1)
-        samplerInfo.compareEnable = VK_FALSE;
-        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-
-        // mipmapping
-        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerInfo.mipLodBias = 0.0f;
-        samplerInfo.minLod = 0.0f;
-        samplerInfo.maxLod = VK_LOD_CLAMP_NONE; // all available mipmap levels will be sampled
-
-    	// Create sampler
-    	_sampler = std::make_shared<Sampler>(_device, &samplerInfo);
     }
 
 	uint32_t Texture::computeMipLevels(uint32_t width, uint32_t height)

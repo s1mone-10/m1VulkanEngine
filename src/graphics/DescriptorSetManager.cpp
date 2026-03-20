@@ -25,6 +25,8 @@ namespace m1
 	    createFrameDescriptorSetLayout();
 	    createMaterialDescriptorSetLayout();
 	    createMaterialPbrDescriptorSetLayout();
+		createEquirectToCubemapDescriptorSetLayout();
+		createSkyBoxDescriptorSetLayout();
 	    createDescriptorPool();
     }
 
@@ -36,6 +38,8 @@ namespace m1
         vkDestroyDescriptorSetLayout(_device.getVkDevice(), _descriptorSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(_device.getVkDevice(), _materialDescriptorSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(_device.getVkDevice(), _materialPbrDescriptorSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(_device.getVkDevice(), _equirectToCubemapDescriptorSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(_device.getVkDevice(), _skyBoxDescriptorSetLayout, nullptr);
         Log::Get().Info("Descriptor destroyed");
     }
 
@@ -254,6 +258,48 @@ namespace m1
 		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_materialPbrDescriptorSetLayout));
 	}
 
+	void DescriptorSetManager::createEquirectToCubemapDescriptorSetLayout()
+	{
+		VkDescriptorSetLayoutBinding layoutBinding
+		{
+			.binding = 0,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+			.bindingCount = 1,
+			.pBindings = &layoutBinding
+		};
+
+		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_equirectToCubemapDescriptorSetLayout));
+	}
+
+	void DescriptorSetManager::createSkyBoxDescriptorSetLayout()
+	{
+		VkDescriptorSetLayoutBinding layoutBinding
+		{
+			.binding = 0,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+			.bindingCount = 1,
+			.pBindings = &layoutBinding
+		};
+
+		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_skyBoxDescriptorSetLayout));
+	}
+
 	void DescriptorSetManager::createDescriptorPool()
 	{
 		// Pool sizes
@@ -291,6 +337,40 @@ namespace m1
 		// create DescriptorSets
 		auto descriptorSets = std::vector<VkDescriptorSet>(count);
         VK_CHECK(vkAllocateDescriptorSets(_device.getVkDevice(), &allocInfo, descriptorSets.data()));
+
+		return descriptorSets;
+	}
+
+	std::vector<VkDescriptorSet> DescriptorSetManager::allocateEquirectToCubemapFrameDescriptorSets(uint32_t count) const
+	{
+		// DescriptorSet Info
+		VkDescriptorSetAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = _descriptorPool;
+		allocInfo.descriptorSetCount = count;
+		std::vector<VkDescriptorSetLayout> layouts(count, _equirectToCubemapDescriptorSetLayout);
+		allocInfo.pSetLayouts = layouts.data();
+
+		// create DescriptorSets
+		auto descriptorSets = std::vector<VkDescriptorSet>(count);
+		VK_CHECK(vkAllocateDescriptorSets(_device.getVkDevice(), &allocInfo, descriptorSets.data()));
+
+		return descriptorSets;
+	}
+
+	std::vector<VkDescriptorSet> DescriptorSetManager::allocateSkyBoxDescriptorSets(uint32_t count) const
+	{
+		// DescriptorSet Info
+		VkDescriptorSetAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = _descriptorPool;
+		allocInfo.descriptorSetCount = count;
+		std::vector<VkDescriptorSetLayout> layouts(count, _skyBoxDescriptorSetLayout);
+		allocInfo.pSetLayouts = layouts.data();
+
+		// create DescriptorSets
+		auto descriptorSets = std::vector<VkDescriptorSet>(count);
+		VK_CHECK(vkAllocateDescriptorSets(_device.getVkDevice(), &allocInfo, descriptorSets.data()));
 
 		return descriptorSets;
 	}

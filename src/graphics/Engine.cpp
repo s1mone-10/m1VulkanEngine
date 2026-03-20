@@ -25,6 +25,227 @@
 
 namespace m1
 {
+	void Engine::createCubeMap()
+	{
+		auto equirectTexture = Utils::loadEquirectangularHDRMap(*this, "../resources/newport_loft.hdr");
+
+		auto equirectToCubemapDescriptorSet = _descriptorSetManager->allocateEquirectToCubemapFrameDescriptorSets(1)[0];
+
+		VkDescriptorImageInfo equirectImageInfo
+		{
+			.sampler = equirectTexture->getSampler().getVkSampler(),
+			.imageView = equirectTexture->getImage().getVkImageView(),
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+		};
+
+		// environment map sampler write
+		VkWriteDescriptorSet descriptorWrite
+		{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = equirectToCubemapDescriptorSet,
+			.dstBinding = 0,
+			.dstArrayElement = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.pImageInfo = &equirectImageInfo
+		};
+
+		vkUpdateDescriptorSets(_device.getVkDevice(), 1,
+							   &descriptorWrite, 0, nullptr);
+
+		uint32_t extent = 512;
+		// create the texture
+		ImageParams params
+		{
+			.extent = {extent, extent},
+			.format = VK_FORMAT_B8G8R8A8_SRGB, // TODO VK_FORMAT_R16G16B16A16_SFLOAT,
+			.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
+			.usage = Texture::getImageUsageFlags() | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			.mipLevels = Texture::computeMipLevels(extent, extent),
+			.arrayLayers = 6,
+		};
+		auto cubeMapImage = std::make_shared<Image>(_device, params);
+
+
+		std::array equirectToCubemapLayout =
+		{
+			_descriptorSetManager->getEquirectToCubemapFrameDescriptorSetLayout(), // set 0
+		};
+
+		GraphicsPipelineConfig equirectToCubemapPipelineInfo
+		{
+			.colorAttachmentFormat = cubeMapImage->getFormat(),
+			.vertShaderPath = R"(..\shaders\compiled\equirectToCubemap.vert.spv)",
+			.fragShaderPath = R"(..\shaders\compiled\equirectToCubemap.frag.spv)",
+			.vertexBindingDescription = Vertex::getBindingDescription(),
+			.vertexAttributeDescriptions = Vertex::getAttributeDescriptions(),
+			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+			.setLayoutCount = equirectToCubemapLayout.size(),
+			.pSetLayouts = equirectToCubemapLayout.data(),
+			.pushConstantSize = sizeof(SkyBoxPushConstantData),
+			.msaaSamples = VK_SAMPLE_COUNT_1_BIT,
+		};
+		_graphicsPipelines.emplace(PipelineType::EquirectToCubemap, PipelineFactory::createGraphicsPipeline(_device, equirectToCubemapPipelineInfo));
+
+
+		glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+		glm::mat4 captureViews[] =
+		{
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+		 };
+
+
+		auto commandBuffer = _device.getGraphicsQueue().getPersistentCommandPool().allocateCommandBuffers(1)[0];
+
+		// reset the command buffer and begin a new recording
+		vkResetCommandBuffer(commandBuffer, 0);
+		VkCommandBufferBeginInfo beginInfo{};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = 0; // Optional
+		beginInfo.pInheritanceInfo = nullptr; // Optional
+		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
+
+		transitionImageLayout(commandBuffer, cubeMapImage->getVkImage(), cubeMapImage->getMipLevels(), VK_IMAGE_LAYOUT_UNDEFINED,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, cubeMapImage->getArrayLayers());
+
+		for (unsigned int i = 0; i < 6; ++i)
+		{
+			// set the color attachment
+			VkRenderingAttachmentInfo colorAttachment
+			{
+				.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+				.imageView = cubeMapImage->getLayerVkImageView(i),
+				.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+				.clearValue = {{0.0f, 0.0f, 0.0f, 1.0f}},
+			};
+
+			// begin rendering
+			VkRenderingInfo renderingInfo
+			{
+				.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+				.renderArea = {{0, 0}, cubeMapImage->getExtent()},
+				.layerCount = 1,
+				.colorAttachmentCount = 1,
+				.pColorAttachments = &colorAttachment,
+				//.pDepthAttachment = &depthAttachment,
+			};
+			vkCmdBeginRendering(commandBuffer, &renderingInfo);
+
+			// set viewport
+			VkViewport viewport{};
+			viewport.x = 0.0f;
+			viewport.y = 0.0f;
+			viewport.width = static_cast<float>(cubeMapImage->getExtent().width);
+			viewport.height = static_cast<float>(cubeMapImage->getExtent().height);
+			viewport.minDepth = 0.0f;
+			viewport.maxDepth = 1.0f;
+			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+			// set scissor
+			VkRect2D scissor{};
+			scissor.offset = {0, 0};
+			scissor.extent = cubeMapImage->getExtent();
+			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+
+			// draw
+			auto* pipeline = _graphicsPipelines.at(PipelineType::EquirectToCubemap).get();
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getVkPipeline());
+
+			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getLayout(), 0, 1,
+				&equirectToCubemapDescriptorSet, 0, nullptr);
+
+			// push constants
+			SkyBoxPushConstantData push
+			{
+				.projection = captureProjection,
+				.view       = captureViews[i]
+			};
+			vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+				0, sizeof(SkyBoxPushConstantData), &push);
+
+			_environmentCube->Mesh->draw(commandBuffer);
+
+
+			// end rendering
+			vkCmdEndRendering(commandBuffer);
+		}
+
+		transitionImageLayout(commandBuffer, cubeMapImage->getVkImage(), cubeMapImage->getMipLevels(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, cubeMapImage->getArrayLayers());
+
+		// end command buffer recording
+		VK_CHECK(vkEndCommandBuffer(commandBuffer));
+
+		// VkSemaphoreCreateInfo semaphoreInfo{};
+		// semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		// VkSemaphore semaphore;
+		// VK_CHECK(vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &semaphore));
+
+		// submit info
+		VkSubmitInfo submitInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+			//wait semaphores
+			.waitSemaphoreCount = 0,
+			// command buffers
+			.commandBufferCount = 1,
+			.pCommandBuffers = &commandBuffer,
+			// signal semaphore
+			.signalSemaphoreCount = 0,
+			//.pSignalSemaphores = &semaphore,
+		};
+
+		// submit the command buffer (the fence will be signaled when the command buffer finishes executing)
+		VK_CHECK(vkQueueSubmit(_device.getGraphicsQueue().getVkQueue(), 1, &submitInfo, nullptr));
+
+		vkDeviceWaitIdle(_device.getVkDevice());
+
+
+
+		auto sampler = std::make_shared<Sampler>(_device);
+
+		_skyBoxTexture = std::make_unique<Texture>(_device, std::move(cubeMapImage), std::move(sampler));
+
+
+		VkDescriptorImageInfo skyBoxImageInfo
+		{
+			.sampler = _skyBoxTexture->getSampler().getVkSampler(),
+			.imageView = _skyBoxTexture->getImage().getVkImageView(),
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+		};
+
+		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
+		{
+			//sky box sampler write
+			VkWriteDescriptorSet skyBoxDescriptorWrite
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = _framesData[i]->skyBoxDescriptorSet,
+				.dstBinding = 0,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &skyBoxImageInfo
+			};
+
+			std::array dw2 =
+			{
+				skyBoxDescriptorWrite
+			};
+
+			vkUpdateDescriptorSets(_device.getVkDevice(), dw2.size(),
+								   dw2.data(), 0, nullptr);
+		}
+	}
+
 	Engine::Engine(EngineConfig config) : _config(config)
 	{
 		Log::Get().Info("Engine constructor");
@@ -32,6 +253,12 @@ namespace m1
 		recreateSwapChain();
 		_descriptorSetManager = std::make_unique<DescriptorSetManager>(_device);
 		createShadowResources();
+
+		_environmentCube = m1::SceneObject::createSceneObject();
+		auto mesh = m1::Mesh::createCube();
+		mesh->compile(_device);
+		_environmentCube->Mesh = std::move(mesh); // TODO hardcode coordinates in the shaders?
+
 		createPipelines();
 
 		_materialUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialUbo));
@@ -45,6 +272,8 @@ namespace m1
 		createSyncObjects();
 
 		_gui = std::make_unique<UiModule>(*this, _device, _window, *_swapChain);
+
+		createCubeMap();
 	}
 
 	Engine::~Engine()
@@ -391,7 +620,28 @@ namespace m1
 		}
 	}
 
-	void Engine::drawParticles(VkCommandBuffer commandBuffer)
+	void Engine::drawSkyBox(VkCommandBuffer commandBuffer) const
+	{
+		Pipeline* pipeline = _graphicsPipelines.at(PipelineType::SkyBox).get();
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getVkPipeline());
+
+		VkDescriptorSet descriptorSet = _framesData[_currentFrame]->skyBoxDescriptorSet;
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getLayout(), 0, 1,
+			&descriptorSet, 0, nullptr);
+
+		// push constants
+		SkyBoxPushConstantData push
+		{
+			.projection = _camera.getProjectionMatrix(),
+			.view       = glm::mat4(glm::mat3(_camera.getViewMatrix())) // remove translation
+		};
+		vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+			0, sizeof(SkyBoxPushConstantData), &push);
+
+		vkCmdDraw(commandBuffer, 36, 1, 0, 0);
+	}
+
+	void Engine::drawParticles(VkCommandBuffer commandBuffer) const
 	{
 		Pipeline *particlePipeline = _graphicsPipelines.at(PipelineType::Particles).get();
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, particlePipeline->getVkPipeline());
@@ -519,6 +769,8 @@ namespace m1
 
 		// draw objects
 		drawObjectsLoop(commandBuffer);
+
+		drawSkyBox(commandBuffer); // TODO flag ui
 
 		// draw particles
 		if (_config.particlesEnabled)
@@ -778,8 +1030,8 @@ namespace m1
 			.extent = {2048, 2048},
 			.format = shadowImageFormat,
 			.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+			.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
 			.memoryProps = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, // dedicated allocation for special, big resources, like fullscreen images used as attachments
-			.aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT,
 		};
 
 		// create the shadow map image
@@ -891,10 +1143,10 @@ namespace m1
 		{
 			_descriptorSetManager->getFrameDescriptorSetLayout(),
 		};
+
 		GraphicsPipelineConfig shadowPipelineInfo
 		{
-			.swapChain = *_swapChain,
-			.shadowMapFormat = _shadowMap->getImage().getFormat(),
+			.depthAttachmentFormat = _shadowMap->getImage().getFormat(),
 			.vertShaderPath = R"(..\shaders\compiled\shadow.vert.spv)",
 			.vertexBindingDescription = Vertex::getBindingDescription(),
 			.vertexAttributeDescriptions = Vertex::getAttributeDescriptions(),
@@ -914,7 +1166,8 @@ namespace m1
 
 		GraphicsPipelineConfig noLightPipelineInfo
 		{
-			.swapChain = *_swapChain,
+			.colorAttachmentFormat = _swapChain->getSwapChainImageFormat(),
+			.depthAttachmentFormat = _swapChain->getDepthImage().getFormat(),
 			.vertShaderPath = R"(..\shaders\compiled\noLight.vert.spv)",
 			.fragShaderPath = R"(..\shaders\compiled\noLight.frag.spv)",
 			.vertexBindingDescription = Vertex::getBindingDescription(),
@@ -922,6 +1175,7 @@ namespace m1
 			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
 			.setLayoutCount = noLightSetLayouts.size(),
 			.pSetLayouts = noLightSetLayouts.data(),
+			.msaaSamples = _swapChain->getSamples(),
 		};
 		_graphicsPipelines.emplace(PipelineType::NoLight, PipelineFactory::createGraphicsPipeline(_device, noLightPipelineInfo));
 
@@ -934,7 +1188,8 @@ namespace m1
 
 		GraphicsPipelineConfig phongPipelineInfo
 		{
-			.swapChain = *_swapChain,
+			.colorAttachmentFormat = _swapChain->getSwapChainImageFormat(),
+			.depthAttachmentFormat = _swapChain->getDepthImage().getFormat(),
 			.vertShaderPath = R"(..\shaders\compiled\phong.vert.spv)",
 			.fragShaderPath = R"(..\shaders\compiled\phong.frag.spv)",
 			.vertexBindingDescription = Vertex::getBindingDescription(),
@@ -942,6 +1197,7 @@ namespace m1
 			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
 			.setLayoutCount = phongSetLayouts.size(),
 			.pSetLayouts = phongSetLayouts.data(),
+			.msaaSamples = _swapChain->getSamples(),
 		};
     	_graphicsPipelines.emplace(PipelineType::PhongLighting, PipelineFactory::createGraphicsPipeline(_device, phongPipelineInfo));
 
@@ -954,7 +1210,8 @@ namespace m1
 
 		GraphicsPipelineConfig pbrPipelineInfo
 		{
-			.swapChain = *_swapChain,
+			.colorAttachmentFormat = _swapChain->getSwapChainImageFormat(),
+			.depthAttachmentFormat = _swapChain->getDepthImage().getFormat(),
 			.vertShaderPath = R"(..\shaders\compiled\pbr.vert.spv)",
 			.fragShaderPath = R"(..\shaders\compiled\pbr.frag.spv)",
 			.vertexBindingDescription = Vertex::getBindingDescription(),
@@ -962,6 +1219,7 @@ namespace m1
 			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
 			.setLayoutCount = pbrSetLayouts.size(),
 			.pSetLayouts = pbrSetLayouts.data(),
+			.msaaSamples = _swapChain->getSamples(),
 		};
 		_graphicsPipelines.emplace(PipelineType::PbrLighting, PipelineFactory::createGraphicsPipeline(_device, pbrPipelineInfo));
 
@@ -969,7 +1227,8 @@ namespace m1
 		std::array particlesSetLayouts = {_descriptorSetManager->getFrameDescriptorSetLayout()};
 		GraphicsPipelineConfig particlesPipelineInfo
 		{
-			.swapChain = *_swapChain,
+			.colorAttachmentFormat = _swapChain->getSwapChainImageFormat(),
+			.depthAttachmentFormat = _swapChain->getDepthImage().getFormat(),
 			.vertShaderPath = R"(..\shaders\compiled\particle.vert.spv)",
 			.fragShaderPath = R"(..\shaders\compiled\particle.frag.spv)",
 			.vertexBindingDescription = Particle::getVertexBindingDescription(),
@@ -977,8 +1236,32 @@ namespace m1
 			.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
 			.setLayoutCount = particlesSetLayouts.size(),
 			.pSetLayouts = particlesSetLayouts.data(),
+			.msaaSamples = _swapChain->getSamples(),
 		};
     	_graphicsPipelines.emplace(PipelineType::Particles, PipelineFactory::createGraphicsPipeline(_device, particlesPipelineInfo));
+
+		// SkyBox
+		std::array skyBoxLayouts =
+		{
+			_descriptorSetManager->getSkyBoxDescriptorSetLayout(), // set 0
+		};
+
+		GraphicsPipelineConfig skyBoxConfig
+		{
+			.colorAttachmentFormat = _swapChain->getSwapChainImageFormat(),
+			.depthAttachmentFormat = _swapChain->getDepthImage().getFormat(),
+			.vertShaderPath = R"(..\shaders\compiled\skyBox.vert.spv)",
+			.fragShaderPath = R"(..\shaders\compiled\skyBox.frag.spv)",
+			.vertexBindingDescription = Vertex::getBindingDescription(),
+			.vertexAttributeDescriptions = Vertex::getAttributeDescriptions(),
+			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+			.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL,
+			.setLayoutCount = skyBoxLayouts.size(),
+			.pSetLayouts = skyBoxLayouts.data(),
+			.pushConstantSize = sizeof(SkyBoxPushConstantData),
+			.msaaSamples = _swapChain->getSamples(),
+		};
+		_graphicsPipelines.emplace(PipelineType::SkyBox, PipelineFactory::createGraphicsPipeline(_device, skyBoxConfig));
 
 		// Compute
 		_computePipeline = PipelineFactory::createComputePipeline(_device, _descriptorSetManager->getFrameDescriptorSetLayout());
@@ -1004,6 +1287,7 @@ namespace m1
 
 		// allocate descriptor sets and command buffers
 		auto descriptorSets = _descriptorSetManager->allocateFrameDescriptorSets(FRAMES_IN_FLIGHT);
+		auto skyBoxDescriptorSets = _descriptorSetManager->allocateSkyBoxDescriptorSets(FRAMES_IN_FLIGHT);
 		auto drawSceneCmdBuffers = _device.getGraphicsQueue().getPersistentCommandPool().allocateCommandBuffers(FRAMES_IN_FLIGHT);
 		auto computeCmdBuffers = _device.getComputeQueue().getPersistentCommandPool().allocateCommandBuffers(FRAMES_IN_FLIGHT);
 
@@ -1032,6 +1316,8 @@ namespace m1
 			// create the frame data
 			_framesData[i] = std::make_unique<FrameData> (frameUbo, std::move(frameUboBuffer), objectUbo,
 				std::move(objectUboBuffer), descriptorSets[i], drawFence, drawSceneCmdBuffers[i]);
+
+			_framesData[i]->skyBoxDescriptorSet = skyBoxDescriptorSets[i];
 
 			_framesData[i]->computeCmdExecutedFence = computeFence;
 			_framesData[i]->computeCmdExecutedSem = computeSem;
@@ -1569,7 +1855,7 @@ namespace m1
 		}
 	}
 
-	void Engine::copyDataToImage(const void* data, uint32_t width, uint32_t height, VkDeviceSize imageSize, const Image* image)
+	void Engine::copyDataToImage(const void* data, uint32_t width, uint32_t height, VkDeviceSize imageSize, const Image* image) const
 	{
 		// Create a staging buffer to upload the texture data to GPU
 		Buffer stagingBuffer{_device, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT};
@@ -1581,40 +1867,48 @@ namespace m1
 		transitionImageLayout(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
 
 		// Copy the texture data from the staging buffer to the image
-		copyBufferToImage(stagingBuffer, image->getVkImage(), width, height);
+		copyBufferToImage(stagingBuffer, *image, width, height);
 
-		//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
-		// Transition image layout to be optimal for shader access
-		//transitionImageLayout(textImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-		// Generate mipmaps (also transitions the image to be optimal for shader access)
-		generateMipmaps(*image);
+		if (image->getMipLevels() == 1)
+			// Transition image layout to be optimal for shader access
+			transitionImageLayout(*image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				VK_IMAGE_ASPECT_COLOR_BIT);
+		else
+			// Generate mipmaps (also transitions the image to be optimal for shader access)
+			generateMipmaps(*image);
 	}
 
-	void Engine::copyBufferToImage(const Buffer &srcBuffer, VkImage image, uint32_t width, uint32_t height)
+	void Engine::copyBufferToImage(const Buffer &srcBuffer, const Image& image, uint32_t width, uint32_t height) const
 	{
 		// Begin one-time command
 		VkCommandBuffer commandBuffer = _device.getGraphicsQueue().beginOneTimeCommand();
 
-		// Copy buffer to image
-		VkBufferImageCopy region{};
-		region.bufferOffset = 0;
-		region.bufferRowLength = 0; // 0 means tightly packed, no padding bytes
-		region.bufferImageHeight = 0; // 0 means tightly packed, no padding bytes
+		auto layerCount = image.getArrayLayers();
+		auto layersSize = srcBuffer.getSize() / layerCount;
+		std::vector<VkBufferImageCopy> bufferImageCopies {layerCount};
+		// init regions to copy
+		for (uint32_t i = 0; i < layerCount; i++)
+		{
+			VkBufferImageCopy region{};
+			region.bufferOffset = i * layersSize;
+			region.bufferRowLength = 0; // 0 means tightly packed, no padding bytes
+			region.bufferImageHeight = 0; // 0 means tightly packed, no padding bytes
 
-		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		region.imageSubresource.mipLevel = 0;
-		region.imageSubresource.baseArrayLayer = 0;
-		region.imageSubresource.layerCount = 1;
+			region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			region.imageSubresource.mipLevel = 0;
+			region.imageSubresource.baseArrayLayer = i;
+			region.imageSubresource.layerCount = 1; // TODO can't I just set the layer count here without the for loop?
 
-		// which part of the image to copy to
-		region.imageOffset = {0, 0, 0};
-		region.imageExtent = {width, height, 1};
+			// which part of the image to copy to
+			region.imageOffset = {0, 0, 0};
+			region.imageExtent = {width, height, 1};
 
-		vkCmdCopyBufferToImage(commandBuffer, srcBuffer.getVkBuffer(), image,
-		                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // which layout the image is currently using
-		                       1, &region
-		);
+			bufferImageCopies[i] = region;
+		}
+
+		vkCmdCopyBufferToImage(commandBuffer, srcBuffer.getVkBuffer(), image.getVkImage(),
+								   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // which layout the image is currently using
+								   bufferImageCopies.size(), bufferImageCopies.data());
 
 		// Execute the copy command
 		_device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
@@ -1641,7 +1935,7 @@ namespace m1
 		_defaultMetallicRoughnessMap = createTexture(params, &defaultMetallicRoughnessPixel);
 	}
 
-	std::unique_ptr<Texture> Engine::loadTexture(const std::string& filePath, VkFormat format)
+	std::unique_ptr<Texture> Engine::loadTexture(const std::string& filePath, VkFormat format) const
 	{
 		// load texture data. Return a pointer to the array of RGBA values
 		int texWidth, texHeight, texChannels;
@@ -1664,11 +1958,11 @@ namespace m1
 		return texture;
 	}
 
-	std::unique_ptr<Texture> Engine::createTexture(const TextureParams& params, void* data)
+	std::unique_ptr<Texture> Engine::createTexture(const TextureParams& params, void* data) const
 	{
 		auto width = params.extent.width;
 		auto height = params.extent.height;
-		VkDeviceSize imageSize = width * height * 4; // 4 bytes per pixel (RGBA)
+		VkDeviceSize imageSize = width * height * Utils::getBytesPerPixel(params.format);
 
 		// create the texture object
 		auto texture = std::make_unique<Texture>(_device, params);
@@ -1680,7 +1974,7 @@ namespace m1
 		return texture;
 	}
 
-	std::shared_ptr<Image> Engine::createImage(const ImageParams& params, void* data)
+	std::shared_ptr<Image> Engine::createImage(const ImageParams& params, void* data) const
 	{
 		auto width = params.extent.width;
 		auto height = params.extent.height;
@@ -1727,18 +2021,19 @@ namespace m1
 	}
 
 	void Engine::transitionImageLayout(const Image& image, VkImageLayout oldLayout, VkImageLayout newLayout,
-	                                   VkImageAspectFlags aspectMask) const
+		VkImageAspectFlags aspectMask) const
 	{
 		VkCommandBuffer commandBuffer = _device.getGraphicsQueue().beginOneTimeCommand();
 
-		transitionImageLayout(commandBuffer, image.getVkImage(), image.getMipLevels(), oldLayout, newLayout, aspectMask);
+		transitionImageLayout(commandBuffer, image.getVkImage(), image.getMipLevels(), oldLayout, newLayout, aspectMask,
+			image.getArrayLayers());
 
 		_device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
 	}
 
 
 	void Engine::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout,
-		VkImageLayout newLayout, VkImageAspectFlags aspectMask)
+		VkImageLayout newLayout, VkImageAspectFlags aspectMask, uint32_t layerCount)
 	{
 
 		/*
@@ -1774,7 +2069,7 @@ namespace m1
 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, // for queue family ownership transfer, not used here
 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.image = image,
-			.subresourceRange = {aspectMask, 0, mipLevels, 0, 1},
+			.subresourceRange = {aspectMask, 0, mipLevels, 0, layerCount},
 		};
 
 		VkDependencyInfo depInfo
@@ -1835,7 +2130,7 @@ namespace m1
 		}
 	}
 
-	void Engine::generateMipmaps(const Image &image)
+	void Engine::generateMipmaps(const Image &image) const
 	{
 		// Use vkCmdBlitImage command. This command performs copying, scaling, and filtering operations.
 		// We will call this multiple times to blit data to each mip level of the image.

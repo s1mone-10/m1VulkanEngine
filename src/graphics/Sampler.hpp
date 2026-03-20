@@ -22,10 +22,10 @@ namespace m1
 
 		[[nodiscard]] VkSampler getVkSampler() const { return _vkSampler; }
 
+		static VkSamplerCreateInfo getDefaultCreateInfo();
+
 	private:
 		const Device& _device;
 		VkSampler _vkSampler = VK_NULL_HANDLE;
-
-		static VkSamplerCreateInfo getDefaultCreateInfo();
 	};
 } // namespace m1

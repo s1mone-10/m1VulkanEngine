@@ -62,7 +62,7 @@ namespace m1
         SwapChainProperties getSwapChainProperties() const { return getSwapChainProperties(_physicalDevice); }
     	VmaAllocator getMemoryAllocator() const { return _memAllocator; }
         VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
-        bool isLinearFilteringSupported(VkFormat format, VkImageTiling tiling);
+        bool isLinearFilteringSupported(VkFormat format, VkImageTiling tiling) const;
     	VkDeviceSize getUniformBufferAlignment(VkDeviceSize uboInstanceSize);
 
     private:

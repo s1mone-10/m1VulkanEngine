@@ -21,7 +21,9 @@ namespace m1
 		PhongLighting,
 		ShadowMapping,
 		PbrLighting,
-		Particles
+		Particles,
+		EquirectToCubemap,
+		SkyBox,
 	};
 
     struct PushConstantData
@@ -30,13 +32,17 @@ namespace m1
         alignas(16) glm::mat3 normalMatrix; // https://vulkan-tutorial.com/Uniform_buffers/Descriptor_pool_and_sets#page_Alignment-requirements
     };
 
+	struct SkyBoxPushConstantData
+	{
+		glm::mat4 projection;
+		glm::mat4 view;
+	};
+
     struct GraphicsPipelineConfig
     {
-    	// swap chain
-    	const SwapChain& swapChain;
-
     	// format of the shadow map image
-    	VkFormat shadowMapFormat;
+    	VkFormat colorAttachmentFormat;
+    	VkFormat depthAttachmentFormat;
 
     	// shaders
         std::string vertShaderPath;
@@ -55,13 +61,20 @@ namespace m1
     	// depth
     	bool depthTestEnable = true;
     	bool depthWriteEnable = true;
+    	VkCompareOp depthCompareOp = VK_COMPARE_OP_LESS;
 
     	// blending
     	bool blendEnable = true;
 
     	// layouts
-    	uint32_t setLayoutCount;
-    	VkDescriptorSetLayout* pSetLayouts;
+	    uint32_t setLayoutCount{0};
+    	VkDescriptorSetLayout* pSetLayouts = nullptr;
+
+    	// push constants
+    	uint32_t pushConstantSize {sizeof(PushConstantData)};
+
+
+    	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
     };
 
     class Pipeline

@@ -130,7 +130,7 @@ namespace m1
         VkPipelineMultisampleStateCreateInfo multisampling{};
         multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
         multisampling.sampleShadingEnable = VK_FALSE; // if enabled, better quality but an additional performance cost
-        multisampling.rasterizationSamples = config.swapChain.getSamples();
+        multisampling.rasterizationSamples = config.msaaSamples;
         multisampling.minSampleShading = 0.2f; // min fraction for sample shading; closer to one is smoother
         multisampling.pSampleMask = nullptr; // Optional
         multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
@@ -141,7 +141,7 @@ namespace m1
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
         depthStencil.depthTestEnable = config.depthTestEnable;
         depthStencil.depthWriteEnable = config.depthWriteEnable;
-		depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; // lower depth = closer
+		depthStencil.depthCompareOp = config.depthCompareOp;
         depthStencil.depthBoundsTestEnable = VK_FALSE; // if true, keep fragments that fall within the specified depth range
         depthStencil.minDepthBounds = 0.0f; // Optional
         depthStencil.maxDepthBounds = 1.0f; // Optional
@@ -188,7 +188,7 @@ namespace m1
         {
             .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, // shaders that can access the push constants
             .offset = 0, // mainly for if using separate ranges for vertex and fragments shaders
-            .size = sizeof(PushConstantData)
+            .size = config.pushConstantSize
         };
 
     	// layout info: specify layout of dynamic values (descriptors and push constant) for shaders
@@ -204,13 +204,12 @@ namespace m1
         VK_CHECK(vkCreatePipelineLayout(device.getVkDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
     	// rendering info (color and depth attachments)
-    	auto colorAttachFormats = config.swapChain.getSwapChainImageFormat();
     	VkPipelineRenderingCreateInfo pipelineRenderingInfo
 		{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
 			.colorAttachmentCount = 1,
-			.pColorAttachmentFormats = &colorAttachFormats,
-			.depthAttachmentFormat = config.swapChain.getDepthImage().getFormat(),
+			.pColorAttachmentFormats = &config.colorAttachmentFormat,
+			.depthAttachmentFormat = config.depthAttachmentFormat
 		};
 
         // pipeline info: all data configured above
@@ -338,7 +337,7 @@ namespace m1
         {
             .stageFlags = VK_SHADER_STAGE_VERTEX_BIT, // shaders that can access the push constants
             .offset = 0, // mainly for if using separate ranges for vertex and fragments shaders
-            .size = sizeof(PushConstantData)
+            .size = config.pushConstantSize
         };
 
     	// layout info: specify layout of dynamic values (descriptors and push constant) for shaders
@@ -354,13 +353,12 @@ namespace m1
         VK_CHECK(vkCreatePipelineLayout(device.getVkDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
     	// rendering info (color and depth attachments)
-    	auto colorAttachFormats = config.swapChain.getSwapChainImageFormat();
     	VkPipelineRenderingCreateInfo pipelineRenderingInfo
 		{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
 			.colorAttachmentCount = 0,
 			.pColorAttachmentFormats = nullptr,
-			.depthAttachmentFormat = config.shadowMapFormat,
+			.depthAttachmentFormat = config.depthAttachmentFormat,
 		};
 
         // pipeline info: all data configured above

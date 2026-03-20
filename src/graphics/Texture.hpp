@@ -15,6 +15,7 @@ namespace m1
 	{
 		VkExtent2D extent;
 		VkFormat format;
+		const VkSamplerCreateInfo* samplerCreateInfo = nullptr; // optional, if not provided, a default sampler will be created
 	};
 
     class Texture
@@ -40,15 +41,14 @@ namespace m1
 		    return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	    }
 
-        Image& getImage() const { return *_image; }
-        Sampler& getSampler() const { return *_sampler; }
-    	VkExtent2D getExtent() const { return _image->getExtent();}
-        uint32_t getWidth() const { return _image->getWidth(); }
-        uint32_t getHeight() const { return _image->getHeight(); }
+        [[nodiscard]] Image& getImage() const { return *_image; }
+        [[nodiscard]] Sampler& getSampler() const { return *_sampler; }
+    	[[nodiscard]] VkExtent2D getExtent() const { return _image->getExtent();}
+        [[nodiscard]] uint32_t getWidth() const { return _image->getWidth(); }
+        [[nodiscard]] uint32_t getHeight() const { return _image->getHeight(); }
 
     private:
         void createTextureImage(const TextureParams& textureParams);
-        void createSampler();
 
         const Device& _device;
         std::shared_ptr<Image> _image;

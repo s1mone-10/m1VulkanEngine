@@ -64,7 +64,7 @@ namespace m1
         throw std::runtime_error("failed to find supported format!");
     }
 
-    bool Device::isLinearFilteringSupported(VkFormat format, VkImageTiling tiling)
+    bool Device::isLinearFilteringSupported(VkFormat format, VkImageTiling tiling) const
     {
         // Check if the image format supports linear blitting
         VkFormatProperties formatProperties;
