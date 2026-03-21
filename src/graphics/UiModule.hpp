@@ -19,7 +19,7 @@ namespace m1
 		UiModule& operator=(UiModule&&) = delete;
 
 		void build();
-		void draw(VkCommandBuffer cmd, VkImageView colorImage, VkRect2D renderArea);
+		void draw(VkCommandBuffer cmdBuffer, VkImageView colorImage, VkRect2D renderArea);
 
 	private:
 		Engine& _engine;

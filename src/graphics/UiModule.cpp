@@ -1,6 +1,6 @@
 #include "UiModule.hpp"
-
 #include "Queue.hpp"
+#include "Renderer.hpp"
 #include "Utils.hpp"
 
 static void check_vk_result(VkResult err)
@@ -74,34 +74,20 @@ namespace m1
 		ImGui::Render();
 	}
 
-	void UiModule::draw(VkCommandBuffer cmd, VkImageView colorImage, VkRect2D renderArea)
+	void UiModule::draw(VkCommandBuffer cmdBuffer, VkImageView colorImage, VkRect2D renderArea)
 	{
+		// set the color attachment
+		VkRenderingAttachmentInfo colorAttachment = Renderer::createColorAttachment(colorImage);
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD; // don't clear the color buffer, we want to render the UI on top of the existing scene
+
 		// begin rendering
-		VkRenderingAttachmentInfo colorAttachment
-		{
-			.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-			.imageView = colorImage,
-			.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-			.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD, // don't clear the color buffer, we want to render the UI on top of the existing scene
-			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-		};
-
-		VkRenderingInfo renderingInfo
-		{
-			.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-			.renderArea = renderArea,
-			.layerCount = 1,
-			.colorAttachmentCount = 1,
-			.pColorAttachments = &colorAttachment,
-		};
-
-		vkCmdBeginRendering(cmd, &renderingInfo);
+		Renderer::beginRendering(cmdBuffer, renderArea, 1, &colorAttachment, nullptr);
 
 		// render gui
-		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmdBuffer);
 
 		// end rendering
-		vkCmdEndRendering(cmd);
+		Renderer::endRendering(cmdBuffer);
 	}
 
 	void UiModule::createDescriptorPool()

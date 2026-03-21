@@ -7,6 +7,7 @@
 #include "Particle.hpp"
 #include "Sampler.hpp"
 #include "UiModule.hpp"
+#include "Renderer.hpp"
 
 //libs
 #include "glm_config.hpp"
@@ -50,8 +51,7 @@ namespace m1
 			.pImageInfo = &equirectImageInfo
 		};
 
-		vkUpdateDescriptorSets(_device.getVkDevice(), 1,
-							   &descriptorWrite, 0, nullptr);
+		vkUpdateDescriptorSets(_device.getVkDevice(), 1, &descriptorWrite, 0, nullptr);
 
 		uint32_t extent = 512;
 		// create the texture
@@ -101,45 +101,12 @@ namespace m1
 
 		for (unsigned int i = 0; i < 6; ++i)
 		{
-			// set the color attachment
-			VkRenderingAttachmentInfo colorAttachment
-			{
-				.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-				.imageView = cubeMapImage->getLayerVkImageView(i),
-				.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-				.clearValue = {{0.0f, 0.0f, 0.0f, 1.0f}},
-			};
+			VkRenderingAttachmentInfo colorAttachment = Renderer::createColorAttachment(cubeMapImage->getLayerVkImageView(i));
 
-			// begin rendering
-			VkRenderingInfo renderingInfo
-			{
-				.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-				.renderArea = {{0, 0}, cubeMapImage->getExtent()},
-				.layerCount = 1,
-				.colorAttachmentCount = 1,
-				.pColorAttachments = &colorAttachment,
-				//.pDepthAttachment = &depthAttachment,
-			};
-			vkCmdBeginRendering(commandBuffer, &renderingInfo);
+			auto targetExtent = cubeMapImage->getExtent();
+			Renderer::beginRendering(commandBuffer, {{0, 0}, targetExtent}, 1, &colorAttachment, nullptr);
 
-			// set viewport
-			VkViewport viewport{};
-			viewport.x = 0.0f;
-			viewport.y = 0.0f;
-			viewport.width = static_cast<float>(cubeMapImage->getExtent().width);
-			viewport.height = static_cast<float>(cubeMapImage->getExtent().height);
-			viewport.minDepth = 0.0f;
-			viewport.maxDepth = 1.0f;
-			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-			// set scissor
-			VkRect2D scissor{};
-			scissor.offset = {0, 0};
-			scissor.extent = cubeMapImage->getExtent();
-			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
+			Renderer::setDynamicStates(commandBuffer, targetExtent);
 
 			// draw
 			auto* pipeline = _graphicsPipelines.at(PipelineType::EquirectToCubemap).get();
@@ -148,7 +115,6 @@ namespace m1
 			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getLayout(), 0, 1,
 				&equirectToCubemapDescriptorSet, 0, nullptr);
 
-			// push constants
 			SkyBoxPushConstantData push
 			{
 				.projection = captureProjection,
@@ -158,10 +124,8 @@ namespace m1
 				0, sizeof(SkyBoxPushConstantData), &push);
 
 			_environmentCube->Mesh->draw(commandBuffer);
-
-
-			// end rendering
-			vkCmdEndRendering(commandBuffer);
+			
+			Renderer::endRendering(commandBuffer);
 		}
 
 		transitionImageLayout(commandBuffer, cubeMapImage->getVkImage(), cubeMapImage->getMipLevels(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -693,17 +657,10 @@ namespace m1
 
 		// choose the render target image
 		Image& renderTarget = _config.msaaEnabled ? msaaImage : colorImage;
+		auto extent = renderTarget.getExtent();
 
 		// set the color attachment
-		VkRenderingAttachmentInfo colorAttachment
-		{
-			.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-			.imageView = renderTarget.getVkImageView(),
-			.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-			.clearValue = {{0.0f, 0.0f, 0.0f, 1.0f}},
-		};
+		VkRenderingAttachmentInfo colorAttachment = Renderer::createColorAttachment(renderTarget.getVkImageView());
 
 		// set resolve image if msaa is enable
 		if (_config.msaaEnabled)
@@ -715,43 +672,13 @@ namespace m1
 		}
 
 		// set depth attachment
-		VkRenderingAttachmentInfo depthAttachment
-		{
-			.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-			.imageView = depthImage.getVkImageView(),
-			.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-			.clearValue = { .depthStencil { 1.0f, 0 } } // depth range [0.0f, 1.0f] with 1.0f being furthest - init depth with furthest value
-		};
+		VkRenderingAttachmentInfo depthAttachment = Renderer::createDepthAttachment(depthImage.getVkImageView());
 
 		// begin rendering
-		VkRenderingInfo renderingInfo
-		{
-			.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-			.renderArea = {{0, 0}, renderTarget.getExtent()},
-			.layerCount = 1,
-			.colorAttachmentCount = 1,
-			.pColorAttachments = &colorAttachment,
-			.pDepthAttachment = &depthAttachment,
-		};
-		vkCmdBeginRendering(commandBuffer, &renderingInfo);
+		Renderer::beginRendering(commandBuffer, {{0, 0}, extent}, 1, &colorAttachment, &depthAttachment);
 
-		// set viewport
-		VkViewport viewport{};
-		viewport.x = 0.0f;
-		viewport.y = 0.0f;
-		viewport.width = static_cast<float>(renderTarget.getExtent().width);
-		viewport.height = static_cast<float>(renderTarget.getExtent().height);
-		viewport.minDepth = 0.0f;
-		viewport.maxDepth = 1.0f;
-		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-		// set scissor
-		VkRect2D scissor{};
-		scissor.offset = {0, 0};
-		scissor.extent = renderTarget.getExtent();
-		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+		// set dynamic states
+		Renderer::setDynamicStates(commandBuffer, extent);
 
 		// draw objects
 		drawObjectsLoop(commandBuffer);
@@ -763,7 +690,7 @@ namespace m1
 			drawParticles(commandBuffer);
 
 		// end rendering
-		vkCmdEndRendering(commandBuffer);
+		Renderer::endRendering(commandBuffer);
 
 		// transition the color image and the swapchain image into their correct transfer layouts
 		transitionImageLayout(commandBuffer, colorImage.getVkImage(), 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -1050,44 +977,16 @@ namespace m1
 		// transition the layout to DEPTH_STENCIL_ATTACHMENT_OPTIMAL
 		transitionImageLayout(commandBuffer, shadowMapImage.getVkImage(), 1, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
 
+		auto extent = shadowMapImage.getExtent();
+
 		// set depth attachment
-		VkRenderingAttachmentInfo depthAttachment
-		{
-			.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-			.imageView = shadowMapImage.getVkImageView(),
-			.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-			.clearValue = { .depthStencil { 1.0f, 0 } } // depth range [0.0f, 1.0f] with 1.0f being furthest - init depth with furthest value
-		};
+		VkRenderingAttachmentInfo depthAttachment = Renderer::createDepthAttachment(shadowMapImage.getVkImageView());
 
 		// begin rendering
-		VkRenderingInfo renderingInfo
-		{
-			.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-			.renderArea = {{0, 0}, shadowMapImage.getExtent()},
-			.layerCount = 1,
-			.colorAttachmentCount = 0,
-			.pColorAttachments = nullptr,
-			.pDepthAttachment = &depthAttachment,
-		};
-		vkCmdBeginRendering(commandBuffer, &renderingInfo);
+		Renderer::beginRendering(commandBuffer, {{0, 0}, extent}, 0, nullptr, &depthAttachment);
 
-		// set viewport
-		VkViewport viewport{};
-		viewport.x = 0.0f;
-		viewport.y = 0.0f;
-		viewport.width = static_cast<float>(shadowMapImage.getExtent().width);
-		viewport.height = static_cast<float>(shadowMapImage.getExtent().height);
-		viewport.minDepth = 0.0f;
-		viewport.maxDepth = 1.0f;
-		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-		// set scissor
-		VkRect2D scissor{};
-		scissor.offset = {0, 0};
-		scissor.extent = shadowMapImage.getExtent();
-		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+		// set dynamic states
+		Renderer::setDynamicStates(commandBuffer, extent);
 
 		// bind shadow mapping pipeline
 		Pipeline* pipeline = _graphicsPipelines.at(PipelineType::ShadowMapping).get();
@@ -1113,7 +1012,7 @@ namespace m1
 		}
 
 		// end rendering
-		vkCmdEndRendering(commandBuffer);
+		Renderer::endRendering(commandBuffer);
 
 		// transition layout SHADER_READ_ONLY_OPTIMAL
 		transitionImageLayout(commandBuffer, shadowMapImage.getVkImage(), 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
