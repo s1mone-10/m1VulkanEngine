@@ -46,7 +46,7 @@ namespace m1
     	//stbi_set_flip_vertically_on_load(true);
     	int width, height, nrComponents;
     	// TODO loadf -> float
-    	auto* data = stbi_load(filePath.c_str(), &width, &height, &nrComponents, 4);
+    	auto* data = stbi_loadf(filePath.c_str(), &width, &height, &nrComponents, 4);
     	if (data)
     	{
     		auto samplerCreateInfo = Sampler::getDefaultCreateInfo();
@@ -55,7 +55,7 @@ namespace m1
     		TextureParams params
     		{
     			.extent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
-    			.format = VK_FORMAT_R8G8B8A8_SRGB,
+    			.format = VK_FORMAT_R32G32B32A32_SFLOAT,
     			.samplerCreateInfo = &samplerCreateInfo
     		};
 
