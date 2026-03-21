@@ -31,6 +31,7 @@ namespace m1
         static void uploadToDeviceBuffer(const Device& device, const Buffer& dstBuffer, VkDeviceSize size, void* data);
 	    static std::unique_ptr<Texture> loadEquirectangularHDRMap(const Engine& engine, const std::string& filePath);
 	    static int getBytesPerPixel(VkFormat format);
+	    static std::vector<char> readFile(const std::string& filename);
 
 	    static glm::mat4 perspectiveProjection(float fov, float aspectRatio, float near, float far)
     	{

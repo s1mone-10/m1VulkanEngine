@@ -66,27 +66,13 @@ namespace m1
 		};
 		auto cubeMapImage = std::make_shared<Image>(_device, params);
 
-
-		std::array equirectToCubemapLayout =
-		{
-			_descriptorSetManager->getEquirectToCubemapFrameDescriptorSetLayout(), // set 0
-		};
-
-		GraphicsPipelineConfig equirectToCubemapPipelineInfo
-		{
-			.colorAttachmentFormat = cubeMapImage->getFormat(),
-			.vertShaderPath = R"(..\shaders\compiled\equirectToCubemap.vert.spv)",
-			.fragShaderPath = R"(..\shaders\compiled\equirectToCubemap.frag.spv)",
-			.vertexBindingDescription = Vertex::getBindingDescription(),
-			.vertexAttributeDescriptions = Vertex::getAttributeDescriptions(),
-			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-			.setLayoutCount = equirectToCubemapLayout.size(),
-			.pSetLayouts = equirectToCubemapLayout.data(),
-			.pushConstantSize = sizeof(SkyBoxPushConstantData),
-			.msaaSamples = VK_SAMPLE_COUNT_1_BIT,
-		};
-		_graphicsPipelines.emplace(PipelineType::EquirectToCubemap, PipelineFactory::createGraphicsPipeline(_device, equirectToCubemapPipelineInfo));
-
+		GraphicsPipelineBuilder builder = {};
+		builder.addSetLayout(_descriptorSetManager->getEquirectToCubemapFrameDescriptorSetLayout())
+			   .addColorAttachment(cubeMapImage->getFormat())
+			   .addShaderStage(R"(..\shaders\compiled\equirectToCubemap.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(R"(..\shaders\compiled\equirectToCubemap.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(SkyBoxPushConstantData));
+		_graphicsPipelines.emplace(PipelineType::EquirectToCubemap, builder.build(_device));
 
 		glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
 		glm::mat4 captureViews[] =
@@ -168,7 +154,7 @@ namespace m1
 				.projection = captureProjection,
 				.view       = captureViews[i]
 			};
-			vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+			vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT,
 				0, sizeof(SkyBoxPushConstantData), &push);
 
 			_environmentCube->Mesh->draw(commandBuffer);
@@ -635,7 +621,7 @@ namespace m1
 			.projection = _camera.getProjectionMatrix(),
 			.view       = glm::mat4(glm::mat3(_camera.getViewMatrix())) // remove translation
 		};
-		vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+		vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT,
 			0, sizeof(SkyBoxPushConstantData), &push);
 
 		vkCmdDraw(commandBuffer, 36, 1, 0, 0);
@@ -1120,7 +1106,7 @@ namespace m1
 				.model = obj->Transform,
 				.normalMatrix = glm::transpose(glm::inverse(obj->Transform))
 			};
-			vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &push);
+			vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantData), &push);
 
 			// draw the mesh
 			obj->Mesh->draw(commandBuffer);
@@ -1139,132 +1125,74 @@ namespace m1
 		_computePipeline.reset();
 
 		// Shadow mapping
-		std::array shadowSetLayouts
-		{
-			_descriptorSetManager->getFrameDescriptorSetLayout(),
-		};
+		GraphicsPipelineBuilder builder{};
+		builder.addSetLayout(_descriptorSetManager->getFrameDescriptorSetLayout())
+		       .setDepthAttachmentFormat(_shadowMap->getImage().getFormat())
+		       .addShaderStage(R"(..\shaders\compiled\shadow.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
+		       // front face culling to fix peter panning artifacts, but works only for 3D solid objects, not for planes/surfaces
+		       .setCullModeFlags(VK_CULL_MODE_FRONT_BIT);
+		_graphicsPipelines.emplace(PipelineType::ShadowMapping, builder.build(_device));
 
-		GraphicsPipelineConfig shadowPipelineInfo
-		{
-			.depthAttachmentFormat = _shadowMap->getImage().getFormat(),
-			.vertShaderPath = R"(..\shaders\compiled\shadow.vert.spv)",
-			.vertexBindingDescription = Vertex::getBindingDescription(),
-			.vertexAttributeDescriptions = Vertex::getAttributeDescriptions(),
-			.cullMode = VK_CULL_MODE_FRONT_BIT, // front face culling to fix peter panning artifacts, but works only for 3D solid objects, not for planes/surfaces
-			.depthTestEnable = true,
-			.depthWriteEnable = true,
-			.setLayoutCount = shadowSetLayouts.size(),
-			.pSetLayouts = shadowSetLayouts.data(),
-		};
-		_graphicsPipelines.emplace(PipelineType::ShadowMapping, PipelineFactory::createShadowMapPipeline(_device, shadowPipelineInfo));
-
-		// NoLight
-		std::array noLightSetLayouts =
-		{
-			_descriptorSetManager->getFrameDescriptorSetLayout(), // set 0
-		};
-
-		GraphicsPipelineConfig noLightPipelineInfo
-		{
-			.colorAttachmentFormat = _swapChain->getSwapChainImageFormat(),
-			.depthAttachmentFormat = _swapChain->getDepthImage().getFormat(),
-			.vertShaderPath = R"(..\shaders\compiled\noLight.vert.spv)",
-			.fragShaderPath = R"(..\shaders\compiled\noLight.frag.spv)",
-			.vertexBindingDescription = Vertex::getBindingDescription(),
-			.vertexAttributeDescriptions = Vertex::getAttributeDescriptions(),
-			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-			.setLayoutCount = noLightSetLayouts.size(),
-			.pSetLayouts = noLightSetLayouts.data(),
-			.msaaSamples = _swapChain->getSamples(),
-		};
-		_graphicsPipelines.emplace(PipelineType::NoLight, PipelineFactory::createGraphicsPipeline(_device, noLightPipelineInfo));
+		// No lights
+		builder = {};
+		builder.addSetLayout(_descriptorSetManager->getFrameDescriptorSetLayout())
+		       .addColorAttachment(_swapChain->getSwapChainImageFormat())
+		       .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
+		       .addShaderStage(R"(..\shaders\compiled\noLight.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
+		       .addShaderStage(R"(..\shaders\compiled\noLight.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+		       .setSamples(_swapChain->getSamples());
+		_graphicsPipelines.emplace(PipelineType::NoLight, builder.build(_device));
 
 		// PhongLighting
-		std::array phongSetLayouts =
-		{
-			_descriptorSetManager->getFrameDescriptorSetLayout(), // set 0
-			_descriptorSetManager->getMaterialDescriptorSetLayout(), // set 1
-		};
-
-		GraphicsPipelineConfig phongPipelineInfo
-		{
-			.colorAttachmentFormat = _swapChain->getSwapChainImageFormat(),
-			.depthAttachmentFormat = _swapChain->getDepthImage().getFormat(),
-			.vertShaderPath = R"(..\shaders\compiled\phong.vert.spv)",
-			.fragShaderPath = R"(..\shaders\compiled\phong.frag.spv)",
-			.vertexBindingDescription = Vertex::getBindingDescription(),
-			.vertexAttributeDescriptions = Vertex::getAttributeDescriptions(),
-			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-			.setLayoutCount = phongSetLayouts.size(),
-			.pSetLayouts = phongSetLayouts.data(),
-			.msaaSamples = _swapChain->getSamples(),
-		};
-    	_graphicsPipelines.emplace(PipelineType::PhongLighting, PipelineFactory::createGraphicsPipeline(_device, phongPipelineInfo));
+		builder = {};
+		builder.addSetLayout(_descriptorSetManager->getFrameDescriptorSetLayout()) // set 0
+		       .addSetLayout(_descriptorSetManager->getMaterialDescriptorSetLayout()) // set 1
+			   .addColorAttachment(_swapChain->getSwapChainImageFormat())
+			   .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
+			   .addShaderStage(R"(..\shaders\compiled\phong.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(R"(..\shaders\compiled\phong.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .setSamples(_swapChain->getSamples());
+		_graphicsPipelines.emplace(PipelineType::PhongLighting, builder.build(_device));
 
 		// PbrLighting
-		std::array pbrSetLayouts =
-		{
-			_descriptorSetManager->getFrameDescriptorSetLayout(), // set 0
-			_descriptorSetManager->getMaterialPbrDescriptorSetLayout(), // set 1
-		};
-
-		GraphicsPipelineConfig pbrPipelineInfo
-		{
-			.colorAttachmentFormat = _swapChain->getSwapChainImageFormat(),
-			.depthAttachmentFormat = _swapChain->getDepthImage().getFormat(),
-			.vertShaderPath = R"(..\shaders\compiled\pbr.vert.spv)",
-			.fragShaderPath = R"(..\shaders\compiled\pbr.frag.spv)",
-			.vertexBindingDescription = Vertex::getBindingDescription(),
-			.vertexAttributeDescriptions = Vertex::getAttributeDescriptions(),
-			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-			.setLayoutCount = pbrSetLayouts.size(),
-			.pSetLayouts = pbrSetLayouts.data(),
-			.msaaSamples = _swapChain->getSamples(),
-		};
-		_graphicsPipelines.emplace(PipelineType::PbrLighting, PipelineFactory::createGraphicsPipeline(_device, pbrPipelineInfo));
+		builder = {};
+		builder.addSetLayout(_descriptorSetManager->getFrameDescriptorSetLayout()) // set 0
+			   .addSetLayout(_descriptorSetManager->getMaterialPbrDescriptorSetLayout()) // set 1
+			   .addColorAttachment(_swapChain->getSwapChainImageFormat())
+			   .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
+			   .addShaderStage(R"(..\shaders\compiled\pbr.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(R"(..\shaders\compiled\pbr.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .setSamples(_swapChain->getSamples());
+		_graphicsPipelines.emplace(PipelineType::PbrLighting, builder.build(_device));
 
 		// Particles
-		std::array particlesSetLayouts = {_descriptorSetManager->getFrameDescriptorSetLayout()};
-		GraphicsPipelineConfig particlesPipelineInfo
-		{
-			.colorAttachmentFormat = _swapChain->getSwapChainImageFormat(),
-			.depthAttachmentFormat = _swapChain->getDepthImage().getFormat(),
-			.vertShaderPath = R"(..\shaders\compiled\particle.vert.spv)",
-			.fragShaderPath = R"(..\shaders\compiled\particle.frag.spv)",
-			.vertexBindingDescription = Particle::getVertexBindingDescription(),
-			.vertexAttributeDescriptions = Particle::getVertexAttributeDescriptions(),
-			.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
-			.setLayoutCount = particlesSetLayouts.size(),
-			.pSetLayouts = particlesSetLayouts.data(),
-			.msaaSamples = _swapChain->getSamples(),
-		};
-    	_graphicsPipelines.emplace(PipelineType::Particles, PipelineFactory::createGraphicsPipeline(_device, particlesPipelineInfo));
+		builder = {};
+		builder.addSetLayout(_descriptorSetManager->getFrameDescriptorSetLayout()) // set 0
+			   .addColorAttachment(_swapChain->getSwapChainImageFormat())
+			   .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
+			   .addShaderStage(R"(..\shaders\compiled\particle.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(R"(..\shaders\compiled\particle.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .setPrimitiveTopology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
+			   .setSamples(_swapChain->getSamples());
+		_graphicsPipelines.emplace(PipelineType::Particles, builder.build(_device));
 
 		// SkyBox
-		std::array skyBoxLayouts =
-		{
-			_descriptorSetManager->getSkyBoxDescriptorSetLayout(), // set 0
-		};
-
-		GraphicsPipelineConfig skyBoxConfig
-		{
-			.colorAttachmentFormat = _swapChain->getSwapChainImageFormat(),
-			.depthAttachmentFormat = _swapChain->getDepthImage().getFormat(),
-			.vertShaderPath = R"(..\shaders\compiled\skyBox.vert.spv)",
-			.fragShaderPath = R"(..\shaders\compiled\skyBox.frag.spv)",
-			.vertexBindingDescription = Vertex::getBindingDescription(),
-			.vertexAttributeDescriptions = Vertex::getAttributeDescriptions(),
-			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-			.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL,
-			.setLayoutCount = skyBoxLayouts.size(),
-			.pSetLayouts = skyBoxLayouts.data(),
-			.pushConstantSize = sizeof(SkyBoxPushConstantData),
-			.msaaSamples = _swapChain->getSamples(),
-		};
-		_graphicsPipelines.emplace(PipelineType::SkyBox, PipelineFactory::createGraphicsPipeline(_device, skyBoxConfig));
+		builder = {};
+		builder.addSetLayout(_descriptorSetManager->getSkyBoxDescriptorSetLayout()) // set 0
+			   .addColorAttachment(_swapChain->getSwapChainImageFormat())
+			   .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
+			   .addShaderStage(R"(..\shaders\compiled\skyBox.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(R"(..\shaders\compiled\skyBox.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .setDepthCompareOp(VK_COMPARE_OP_LESS_OR_EQUAL)
+			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(SkyBoxPushConstantData))
+			   .setSamples(_swapChain->getSamples());
+		_graphicsPipelines.emplace(PipelineType::SkyBox, builder.build(_device));
 
 		// Compute
-		_computePipeline = PipelineFactory::createComputePipeline(_device, _descriptorSetManager->getFrameDescriptorSetLayout());
+		ComputePipelineBuilder computeBuilder{};
+		computeBuilder.addSetLayout(_descriptorSetManager->getFrameDescriptorSetLayout())
+		              .setShader(R"(..\shaders\compiled\particle.comp.spv)");
+		_computePipeline = computeBuilder.build(_device);
 	}
 
 	void Engine::createFramesResources()
@@ -2118,7 +2046,7 @@ namespace m1
 				break;
 			default:
 				throw std::invalid_argument("not implemented image layout transition!");
-				
+
 				/*
 				// Fallback for unknown transitions (Safe but slow)
 				// It basically waits for EVERYTHING to finish before doing the transition.
