@@ -91,7 +91,7 @@ namespace m1
         [[nodiscard]] glm::mat4 computeLightViewProjMatrix() const;
         void initParticles();
         void initLights();
-        void updateFrameDescriptorSet();
+        void updateDescriptorSets();
         void updateMaterialDescriptorSets(const Material &material);
     	void compileSceneObjects();
     	void compileMaterials();

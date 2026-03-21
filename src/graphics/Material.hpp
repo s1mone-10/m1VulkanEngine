@@ -73,7 +73,7 @@ namespace m1
 
 		VkDescriptorSet getDescriptorSet(PipelineType pipeLineType) const
 		{
-			return pipeLineType == PipelineType::PbrLighting ? descriptorSetPbr : descriptorSet;
+			return pipeLineType == PipelineType::PbrLighting ? descriptorSetPbr : descriptorSetPhong;
 		}
 
 		// Properties
@@ -100,7 +100,7 @@ namespace m1
 	    std::shared_ptr<Texture> metallicRoughnessMap;
 	    std::shared_ptr<Texture> occlusionMap;
 	    std::shared_ptr<Texture> emissiveMap;
-	    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+	    VkDescriptorSet descriptorSetPhong = VK_NULL_HANDLE;
 	    VkDescriptorSet descriptorSetPbr = VK_NULL_HANDLE;
     };
 }

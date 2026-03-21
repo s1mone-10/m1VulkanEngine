@@ -21,7 +21,7 @@ namespace m1
     		std::unique_ptr<Buffer> objectUboBuffer, VkDescriptorSet frameDescriptorSet, VkFence drawFence,
     		VkCommandBuffer drawSceneCmdBuffer) :
 				frameUbo(frameUbo), frameUboBuffer(std::move(frameUboBuffer)), objectUbo(objectUbo),
-				objectUboBuffer(std::move(objectUboBuffer)), descriptorSet(frameDescriptorSet),
+				objectUboBuffer(std::move(objectUboBuffer)), frameDescriptorSet(frameDescriptorSet),
     			drawCmdExecutedFence(drawFence), drawSceneCmdBuffer(drawSceneCmdBuffer)
     	{
     	}
@@ -43,8 +43,9 @@ namespace m1
         std::unique_ptr<Buffer> materialPbrDynUboBuffer;
 
     	// descriptor set
-    	VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+    	VkDescriptorSet frameDescriptorSet = VK_NULL_HANDLE;
     	VkDescriptorSet skyBoxDescriptorSet = VK_NULL_HANDLE;
+    	VkDescriptorSet computeParticleDescriptorSet = VK_NULL_HANDLE;
 
     	// synchronization objects
     	VkFence drawCmdExecutedFence, computeCmdExecutedFence = VK_NULL_HANDLE;

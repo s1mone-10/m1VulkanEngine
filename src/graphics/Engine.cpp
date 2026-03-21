@@ -29,7 +29,7 @@ namespace m1
 	{
 		auto equirectTexture = Utils::loadEquirectangularHDRMap(*this, "../resources/newport_loft.hdr");
 
-		auto equirectToCubemapDescriptorSet = _descriptorSetManager->allocateEquirectToCubemapFrameDescriptorSets(1)[0];
+		auto equirectToCubemapDescriptorSet = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::EquirectToCubemap, 1)[0];
 
 		VkDescriptorImageInfo equirectImageInfo
 		{
@@ -67,7 +67,7 @@ namespace m1
 		auto cubeMapImage = std::make_shared<Image>(_device, params);
 
 		GraphicsPipelineBuilder builder = {};
-		builder.addSetLayout(_descriptorSetManager->getEquirectToCubemapFrameDescriptorSetLayout())
+		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::EquirectToCubemap))
 			   .addColorAttachment(cubeMapImage->getFormat())
 			   .addShaderStage(R"(..\shaders\compiled\equirectToCubemap.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
 			   .addShaderStage(R"(..\shaders\compiled\equirectToCubemap.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -253,7 +253,7 @@ namespace m1
 		createDefaultTextures();
 		initLights();
 		initParticles();
-		updateFrameDescriptorSet();
+		updateDescriptorSets();
 
 		createSyncObjects();
 
@@ -543,7 +543,7 @@ namespace m1
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getVkPipeline());
 
 		// bind frame descriptor set
-		VkDescriptorSet descriptorSet0 = _framesData[_currentFrame]->descriptorSet;
+		VkDescriptorSet descriptorSet0 = _framesData[_currentFrame]->frameDescriptorSet;
     	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 0, 1, &descriptorSet0, 0, nullptr);
 
 		// bind default material descriptor set
@@ -569,7 +569,7 @@ namespace m1
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getVkPipeline());
 
 				// bind descriptor set
-				descriptorSet0 = _framesData[_currentFrame]->descriptorSet;
+				descriptorSet0 = _framesData[_currentFrame]->frameDescriptorSet;
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(),
 				                        0, 1, &descriptorSet0, 0, nullptr);
 
@@ -632,7 +632,7 @@ namespace m1
 		Pipeline *particlePipeline = _graphicsPipelines.at(PipelineType::Particles).get();
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, particlePipeline->getVkPipeline());
 
-		VkDescriptorSet descriptorSet = _framesData[_currentFrame]->descriptorSet;
+		VkDescriptorSet descriptorSet = _framesData[_currentFrame]->frameDescriptorSet;
 	    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, particlePipeline->getLayout(), 0, 1, &descriptorSet, 0, nullptr);
 
 		VkBuffer vertexBuffers[] = {_framesData[_currentFrame]->particleSSboBuffer->getVkBuffer()};
@@ -801,7 +801,7 @@ namespace m1
 		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline->getVkPipeline());
-		VkDescriptorSet descriptorSet = _framesData[_currentFrame]->descriptorSet;
+		VkDescriptorSet descriptorSet = _framesData[_currentFrame]->computeParticleDescriptorSet;
     	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline->getLayout(), 0, 1, &descriptorSet, 0, 0);
 
 		// groupsCount = PARTICLE_COUNT / 256 because we defined in the particle shader 256 invocations for each group
@@ -1094,7 +1094,7 @@ namespace m1
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getVkPipeline());
 
 		// bind frame descriptor set
-		VkDescriptorSet descriptorSet = _framesData[_currentFrame]->descriptorSet;
+		VkDescriptorSet descriptorSet = _framesData[_currentFrame]->frameDescriptorSet;
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getLayout(), 0, 1, &descriptorSet, 0, nullptr);
 
 		// draw objects loop
@@ -1126,7 +1126,7 @@ namespace m1
 
 		// Shadow mapping
 		GraphicsPipelineBuilder builder{};
-		builder.addSetLayout(_descriptorSetManager->getFrameDescriptorSetLayout())
+		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::Frame))
 		       .setDepthAttachmentFormat(_shadowMap->getImage().getFormat())
 		       .addShaderStage(R"(..\shaders\compiled\shadow.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
 		       // front face culling to fix peter panning artifacts, but works only for 3D solid objects, not for planes/surfaces
@@ -1135,7 +1135,7 @@ namespace m1
 
 		// No lights
 		builder = {};
-		builder.addSetLayout(_descriptorSetManager->getFrameDescriptorSetLayout())
+		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::Frame))
 		       .addColorAttachment(_swapChain->getSwapChainImageFormat())
 		       .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
 		       .addShaderStage(R"(..\shaders\compiled\noLight.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
@@ -1145,8 +1145,8 @@ namespace m1
 
 		// PhongLighting
 		builder = {};
-		builder.addSetLayout(_descriptorSetManager->getFrameDescriptorSetLayout()) // set 0
-		       .addSetLayout(_descriptorSetManager->getMaterialDescriptorSetLayout()) // set 1
+		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::Frame)) // set 0
+		       .addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::MaterialPhong)) // set 1
 			   .addColorAttachment(_swapChain->getSwapChainImageFormat())
 			   .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
 			   .addShaderStage(R"(..\shaders\compiled\phong.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
@@ -1156,8 +1156,8 @@ namespace m1
 
 		// PbrLighting
 		builder = {};
-		builder.addSetLayout(_descriptorSetManager->getFrameDescriptorSetLayout()) // set 0
-			   .addSetLayout(_descriptorSetManager->getMaterialPbrDescriptorSetLayout()) // set 1
+		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::Frame)) // set 0
+			   .addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::MaterialPbr)) // set 1
 			   .addColorAttachment(_swapChain->getSwapChainImageFormat())
 			   .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
 			   .addShaderStage(R"(..\shaders\compiled\pbr.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
@@ -1167,7 +1167,7 @@ namespace m1
 
 		// Particles
 		builder = {};
-		builder.addSetLayout(_descriptorSetManager->getFrameDescriptorSetLayout()) // set 0
+		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::Frame)) // set 0
 			   .addColorAttachment(_swapChain->getSwapChainImageFormat())
 			   .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
 			   .addShaderStage(R"(..\shaders\compiled\particle.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
@@ -1178,7 +1178,7 @@ namespace m1
 
 		// SkyBox
 		builder = {};
-		builder.addSetLayout(_descriptorSetManager->getSkyBoxDescriptorSetLayout()) // set 0
+		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::SkyBox)) // set 0
 			   .addColorAttachment(_swapChain->getSwapChainImageFormat())
 			   .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
 			   .addShaderStage(R"(..\shaders\compiled\skyBox.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
@@ -1190,7 +1190,7 @@ namespace m1
 
 		// Compute
 		ComputePipelineBuilder computeBuilder{};
-		computeBuilder.addSetLayout(_descriptorSetManager->getFrameDescriptorSetLayout())
+		computeBuilder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::ComputeParticles))
 		              .setShader(R"(..\shaders\compiled\particle.comp.spv)");
 		_computePipeline = computeBuilder.build(_device);
 	}
@@ -1214,8 +1214,9 @@ namespace m1
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
 		// allocate descriptor sets and command buffers
-		auto descriptorSets = _descriptorSetManager->allocateFrameDescriptorSets(FRAMES_IN_FLIGHT);
-		auto skyBoxDescriptorSets = _descriptorSetManager->allocateSkyBoxDescriptorSets(FRAMES_IN_FLIGHT);
+		auto descriptorSets = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::Frame, FRAMES_IN_FLIGHT);
+		auto skyBoxDescriptorSets = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::SkyBox, FRAMES_IN_FLIGHT);
+		auto computeParticlesDescSet = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::ComputeParticles, FRAMES_IN_FLIGHT);
 		auto drawSceneCmdBuffers = _device.getGraphicsQueue().getPersistentCommandPool().allocateCommandBuffers(FRAMES_IN_FLIGHT);
 		auto computeCmdBuffers = _device.getComputeQueue().getPersistentCommandPool().allocateCommandBuffers(FRAMES_IN_FLIGHT);
 
@@ -1246,6 +1247,7 @@ namespace m1
 				std::move(objectUboBuffer), descriptorSets[i], drawFence, drawSceneCmdBuffers[i]);
 
 			_framesData[i]->skyBoxDescriptorSet = skyBoxDescriptorSets[i];
+			_framesData[i]->computeParticleDescriptorSet = computeParticlesDescSet[i];
 
 			_framesData[i]->computeCmdExecutedFence = computeFence;
 			_framesData[i]->computeCmdExecutedSem = computeSem;
@@ -1318,7 +1320,7 @@ namespace m1
 		Utils::uploadToDeviceBuffer(_device, *_lightsUboBuffer, lightsUboSize, &_lightsUbo);
 	}
 
-	void Engine::updateFrameDescriptorSet()
+	void Engine::updateDescriptorSets()
     {
 	    // LightUbo Info
 	    VkDescriptorBufferInfo lightUboInfo
@@ -1340,7 +1342,8 @@ namespace m1
 	    for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 	    {
 	    	auto& frameResources = _framesData[i];
-	    	auto frameDescriptorSet = frameResources->descriptorSet;
+	    	auto frameDescriptorSet = frameResources->frameDescriptorSet;
+	    	auto particleDescriptorSet = frameResources->computeParticleDescriptorSet;
 
 		    // ObjectUbo Info
 		    VkDescriptorBufferInfo objectUboInfo
@@ -1394,6 +1397,26 @@ namespace m1
 			    .pBufferInfo = &lightUboInfo
 		    };
 
+	    	// Shadow map sampler write
+	    	VkWriteDescriptorSet shadowMapDescriptorWrite
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = frameDescriptorSet,
+				.dstBinding = 3,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &shadowMapImageInfo
+			};
+
+		    std::array descriptorWrites =
+		    {
+			    objectUboWrite, frameUboWrite, lightsDescriptorWrite, shadowMapDescriptorWrite
+		    };
+
+		    vkUpdateDescriptorSets(_device.getVkDevice(), descriptorWrites.size(),
+		                           descriptorWrites.data(), 0, nullptr);
+
 	    	// Particles Ssbo previous frame
 	    	VkDescriptorBufferInfo particlesSsboInfoPrevFrame{};
 	    	particlesSsboInfoPrevFrame.buffer = _framesData[(i - 1) % FRAMES_IN_FLIGHT]->particleSSboBuffer->getVkBuffer();
@@ -1403,8 +1426,8 @@ namespace m1
 	    	VkWriteDescriptorSet particlesDescriptorWritePrevFrame
 			{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = frameDescriptorSet,
-				.dstBinding = 3,
+				.dstSet = particleDescriptorSet,
+				.dstBinding = 0,
 				.dstArrayElement = 0,
 				.descriptorCount = 1,
 				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -1420,33 +1443,21 @@ namespace m1
 	    	VkWriteDescriptorSet particlesDescriptorWriteCurrentFrame
 			{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = frameDescriptorSet,
-				.dstBinding = 4,
+				.dstSet = particleDescriptorSet,
+				.dstBinding = 1,
 				.dstArrayElement = 0,
 				.descriptorCount = 1,
 				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
 				.pBufferInfo = &particlesSsboInfoCurrentFrame
 			};
 
-	    	// Shadow map sampler write
-	    	VkWriteDescriptorSet shadowMapDescriptorWrite
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = frameDescriptorSet,
-				.dstBinding = 5,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.pImageInfo = &shadowMapImageInfo
+	    	std::array dw =
+	    	{
+	    		particlesDescriptorWritePrevFrame, particlesDescriptorWriteCurrentFrame
 			};
 
-		    std::array descriptorWrites =
-		    {
-			    objectUboWrite, frameUboWrite, lightsDescriptorWrite, particlesDescriptorWritePrevFrame, particlesDescriptorWriteCurrentFrame, shadowMapDescriptorWrite
-		    };
-
-		    vkUpdateDescriptorSets(_device.getVkDevice(), descriptorWrites.size(),
-		                           descriptorWrites.data(), 0, nullptr);
+	    	vkUpdateDescriptorSets(_device.getVkDevice(), dw.size(),
+								   dw.data(), 0, nullptr);
 	    }
     }
 
@@ -1468,7 +1479,7 @@ namespace m1
 			VkWriteDescriptorSet materialDynUboWrite
 			{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = material.descriptorSet,
+				.dstSet = material.descriptorSetPhong,
 				.dstBinding = 0,
 				.dstArrayElement = 0,
 				.descriptorCount = 1,
@@ -1488,7 +1499,7 @@ namespace m1
 			VkWriteDescriptorSet diffuseTextDescriptorWrite
 			{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = material.descriptorSet,
+				.dstSet = material.descriptorSetPhong,
 				.dstBinding = 1,
 				.dstArrayElement = 0,
 				.descriptorCount = 1,
@@ -1508,7 +1519,7 @@ namespace m1
 			VkWriteDescriptorSet specularDescriptorWrite
 			{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = material.descriptorSet,
+				.dstSet = material.descriptorSetPhong,
 				.dstBinding = 2,
 				.dstArrayElement = 0,
 				.descriptorCount = 1,
@@ -1719,11 +1730,11 @@ namespace m1
 		}
 
 		// allocate one descriptor set for each material
-		auto descriptorSets = _descriptorSetManager->allocateMaterialDescriptorSets(materialCount,
-			_descriptorSetManager->getMaterialDescriptorSetLayout());
+		auto phongDescriptorSets = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::MaterialPhong,
+			materialCount);
 
-		auto descriptorPbrSets = _descriptorSetManager->allocateMaterialDescriptorSets(materialCount,
-			_descriptorSetManager->getMaterialPbrDescriptorSetLayout());
+		auto pbrDescriptorSets = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::MaterialPbr,
+			materialCount);
 
 		// set materials properties and update descriptorSet
 		_defaultMaterial->uboIndex = 0;
@@ -1735,8 +1746,8 @@ namespace m1
 		_defaultMaterial->emissiveMap = _blackMapSRGB;
 		_defaultMaterial->occlusionMap = _whiteMapSRGB;
 
-		_defaultMaterial->descriptorSet = descriptorSets[0];
-		_defaultMaterial->descriptorSetPbr = descriptorPbrSets[0];
+		_defaultMaterial->descriptorSetPhong = phongDescriptorSets[0];
+		_defaultMaterial->descriptorSetPbr = pbrDescriptorSets[0];
 		updateMaterialDescriptorSets(*_defaultMaterial);
 
 		uint32_t index = 1; // index 0 is for the default material
@@ -1776,8 +1787,8 @@ namespace m1
 				material->emissiveMap = _blackMapSRGB;
 
 			// update the material descriptor set
-			material->descriptorSet = descriptorSets[index];
-			material->descriptorSetPbr = descriptorPbrSets[index];
+			material->descriptorSetPhong = phongDescriptorSets[index];
+			material->descriptorSetPbr = pbrDescriptorSets[index];
 			index++;
 			updateMaterialDescriptorSets(*material);
 		}

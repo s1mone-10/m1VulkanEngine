@@ -33,7 +33,7 @@ layout(set = 0, binding = 1) uniform FrameUbo {
 } frameUbo;
 
 // shadow map sampler
-layout(set = 0, binding = 5) uniform sampler2D shadowMap;
+layout(set = 0, binding = 3) uniform sampler2D shadowMap;
 
 // Material ubo
 layout (set = 1, binding = 0) uniform MaterialUbo {

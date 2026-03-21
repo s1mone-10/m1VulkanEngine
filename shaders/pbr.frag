@@ -36,7 +36,7 @@ layout(set = 0, binding = 2) uniform LightsUbo {
 } lightsUbo;
 
 // shadow map sampler
-layout(set = 0, binding = 5) uniform sampler2D shadowMap;
+layout(set = 0, binding = 3) uniform sampler2D shadowMap;
 
 // === SET 1 ===
 // Material ubo

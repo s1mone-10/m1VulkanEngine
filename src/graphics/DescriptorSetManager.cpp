@@ -8,7 +8,7 @@
 
 // std
 #include <array>
-#include <stdexcept>
+#include <ranges>
 
 namespace m1
 {
@@ -27,6 +27,7 @@ namespace m1
 	    createMaterialPbrDescriptorSetLayout();
 		createEquirectToCubemapDescriptorSetLayout();
 		createSkyBoxDescriptorSetLayout();
+		createParticleDescriptorSetLayout();
 	    createDescriptorPool();
     }
 
@@ -35,11 +36,9 @@ namespace m1
         // descriptor set are automatically freed when the pool is destroyed
         vkDestroyDescriptorPool(_device.getVkDevice(), _descriptorPool, nullptr);
 
-        vkDestroyDescriptorSetLayout(_device.getVkDevice(), _descriptorSetLayout, nullptr);
-        vkDestroyDescriptorSetLayout(_device.getVkDevice(), _materialDescriptorSetLayout, nullptr);
-        vkDestroyDescriptorSetLayout(_device.getVkDevice(), _materialPbrDescriptorSetLayout, nullptr);
-        vkDestroyDescriptorSetLayout(_device.getVkDevice(), _equirectToCubemapDescriptorSetLayout, nullptr);
-        vkDestroyDescriptorSetLayout(_device.getVkDevice(), _skyBoxDescriptorSetLayout, nullptr);
+		for (auto layout: _descriptorSetLayouts | std::views::values)
+			vkDestroyDescriptorSetLayout(_device.getVkDevice(), layout, nullptr);
+
         Log::Get().Info("Descriptor destroyed");
     }
 
@@ -77,30 +76,10 @@ namespace m1
 		    .pImmutableSamplers = nullptr
 	    };
 
-		// Particles SSBO layout binding (two bindings are required due to multiple frame-in flights,
-		// as I need to read from the previous frame and write to the current one).
-		VkDescriptorSetLayoutBinding particleSsboInLayoutBinding
-		{
-			.binding = 3,
-			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-			.descriptorCount = 1,
-			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-			.pImmutableSamplers = nullptr
-		};
-
-		VkDescriptorSetLayoutBinding particleSsboOutLayoutBinding
-		{
-			.binding = 4,
-			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-			.descriptorCount = 1,
-			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-			.pImmutableSamplers = nullptr
-		};
-
 		// Shadow map sampler
 		VkDescriptorSetLayoutBinding shadowMapSamplerBinding
 		{
-			.binding = 5,
+			.binding = 3,
 			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 			.descriptorCount = 1,
 			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -113,8 +92,6 @@ namespace m1
 		    objectUboLayoutBinding,
 		    frameUboLayoutBinding,
 	    	lightsUboLayoutBinding,
-	    	particleSsboInLayoutBinding,
-	    	particleSsboOutLayoutBinding,
 			shadowMapSamplerBinding,
 	    };
 
@@ -126,7 +103,9 @@ namespace m1
 	    };
 
 	    // Create the DescriptorSet
-	    VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_descriptorSetLayout));
+		VkDescriptorSetLayout descriptorSetLayout;
+	    VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &descriptorSetLayout));
+		_descriptorSetLayouts.emplace(DescriptorSetLayoutType::Frame, descriptorSetLayout);
     }
 
 	void DescriptorSetManager::createMaterialDescriptorSetLayout()
@@ -174,8 +153,9 @@ namespace m1
 		    .pBindings = bindings.data()
 	    };
 
-	    // Create the DescriptorSet
-		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_materialDescriptorSetLayout));
+		VkDescriptorSetLayout descriptorSetLayout;
+		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &descriptorSetLayout));
+		_descriptorSetLayouts.emplace(DescriptorSetLayoutType::MaterialPhong, descriptorSetLayout);
     }
 
 	void DescriptorSetManager::createMaterialPbrDescriptorSetLayout()
@@ -254,8 +234,9 @@ namespace m1
 			.pBindings = bindings.data()
 		};
 
-		// Create the DescriptorSet
-		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_materialPbrDescriptorSetLayout));
+		VkDescriptorSetLayout descriptorSetLayout;
+		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &descriptorSetLayout));
+		_descriptorSetLayouts.emplace(DescriptorSetLayoutType::MaterialPbr, descriptorSetLayout);
 	}
 
 	void DescriptorSetManager::createEquirectToCubemapDescriptorSetLayout()
@@ -276,7 +257,9 @@ namespace m1
 			.pBindings = &layoutBinding
 		};
 
-		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_equirectToCubemapDescriptorSetLayout));
+		VkDescriptorSetLayout descriptorSetLayout;
+		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &descriptorSetLayout));
+		_descriptorSetLayouts.emplace(DescriptorSetLayoutType::EquirectToCubemap, descriptorSetLayout);
 	}
 
 	void DescriptorSetManager::createSkyBoxDescriptorSetLayout()
@@ -297,7 +280,50 @@ namespace m1
 			.pBindings = &layoutBinding
 		};
 
-		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &_skyBoxDescriptorSetLayout));
+		VkDescriptorSetLayout descriptorSetLayout;
+		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &descriptorSetLayout));
+		_descriptorSetLayouts.emplace(DescriptorSetLayoutType::SkyBox, descriptorSetLayout);
+	}
+
+	void DescriptorSetManager::createParticleDescriptorSetLayout()
+	{
+		// Particles SSBO layout binding (two bindings are required due to multiple frame-in flights,
+		// as I need to read from the previous frame and write to the current one).
+		VkDescriptorSetLayoutBinding particleSsboInLayoutBinding
+		{
+			.binding = 0,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
+		VkDescriptorSetLayoutBinding particleSsboOutLayoutBinding
+		{
+			.binding = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
+		std::array bindings =
+		{
+			particleSsboInLayoutBinding,
+			particleSsboOutLayoutBinding,
+		};
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+			.bindingCount = static_cast<uint32_t>(bindings.size()),
+			.pBindings = bindings.data()
+		};
+
+		// Create the DescriptorSet
+		VkDescriptorSetLayout descriptorSetLayout;
+		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &descriptorSetLayout));
+		_descriptorSetLayouts.emplace(DescriptorSetLayoutType::ComputeParticles, descriptorSetLayout);
 	}
 
 	void DescriptorSetManager::createDescriptorPool()
@@ -324,69 +350,18 @@ namespace m1
         VK_CHECK(vkCreateDescriptorPool(_device.getVkDevice(), &poolInfo, nullptr, &_descriptorPool));
     }
 
-	std::vector<VkDescriptorSet> DescriptorSetManager::allocateFrameDescriptorSets(uint32_t count) const
-	{
-		// DescriptorSet Info
-		VkDescriptorSetAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = _descriptorPool;
-		allocInfo.descriptorSetCount = count;
-		std::vector<VkDescriptorSetLayout> layouts(count, _descriptorSetLayout);
-		allocInfo.pSetLayouts = layouts.data();
-
-		// create DescriptorSets
-		auto descriptorSets = std::vector<VkDescriptorSet>(count);
-        VK_CHECK(vkAllocateDescriptorSets(_device.getVkDevice(), &allocInfo, descriptorSets.data()));
-
-		return descriptorSets;
-	}
-
-	std::vector<VkDescriptorSet> DescriptorSetManager::allocateEquirectToCubemapFrameDescriptorSets(uint32_t count) const
-	{
-		// DescriptorSet Info
-		VkDescriptorSetAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = _descriptorPool;
-		allocInfo.descriptorSetCount = count;
-		std::vector<VkDescriptorSetLayout> layouts(count, _equirectToCubemapDescriptorSetLayout);
-		allocInfo.pSetLayouts = layouts.data();
-
-		// create DescriptorSets
-		auto descriptorSets = std::vector<VkDescriptorSet>(count);
-		VK_CHECK(vkAllocateDescriptorSets(_device.getVkDevice(), &allocInfo, descriptorSets.data()));
-
-		return descriptorSets;
-	}
-
-	std::vector<VkDescriptorSet> DescriptorSetManager::allocateSkyBoxDescriptorSets(uint32_t count) const
-	{
-		// DescriptorSet Info
-		VkDescriptorSetAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = _descriptorPool;
-		allocInfo.descriptorSetCount = count;
-		std::vector<VkDescriptorSetLayout> layouts(count, _skyBoxDescriptorSetLayout);
-		allocInfo.pSetLayouts = layouts.data();
-
-		// create DescriptorSets
-		auto descriptorSets = std::vector<VkDescriptorSet>(count);
-		VK_CHECK(vkAllocateDescriptorSets(_device.getVkDevice(), &allocInfo, descriptorSets.data()));
-
-		return descriptorSets;
-	}
-
-	std::vector<VkDescriptorSet> DescriptorSetManager::allocateMaterialDescriptorSets(uint32_t count, VkDescriptorSetLayout layout) const
+	std::vector<VkDescriptorSet> DescriptorSetManager::allocateDescriptorSets(DescriptorSetLayoutType layoutType, uint32_t count) const
 	{
 		// TODO I should probably use a pool with VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT for materials
 
 		// Material Allocate Info
-		std::vector materialLayouts(count, layout);
+		std::vector layouts(count, _descriptorSetLayouts.at(layoutType));
 		VkDescriptorSetAllocateInfo materialAllocInfo
 		{
 			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
 			.descriptorPool = _descriptorPool,
 			.descriptorSetCount = count,
-			.pSetLayouts = materialLayouts.data()
+			.pSetLayouts = layouts.data()
 		};
 
 		// create material descriptor sets

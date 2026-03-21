@@ -1,12 +1,11 @@
 #pragma once
 
-#include "DescriptorSetManager.hpp"
-
 //libs
 #include <vulkan/vulkan.h>
 #include "glm_config.hpp"
 
 // std
+#include <memory>
 #include <vector>
 #include <string>
 

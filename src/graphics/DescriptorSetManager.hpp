@@ -2,13 +2,23 @@
 
 #include <vulkan/vulkan.h>
 #include <vector>
-#include <memory>
+#include <unordered_map>
 
 namespace m1
 {
 	class Device; // Forward declaration
 	class Buffer;
 	class Texture;
+
+	enum class DescriptorSetLayoutType
+	{
+		Frame,
+		MaterialPhong,
+		MaterialPbr,
+		ComputeParticles,
+		EquirectToCubemap,
+		SkyBox,
+	};
 
 	class DescriptorSetManager
 	{
@@ -22,24 +32,12 @@ namespace m1
 		DescriptorSetManager(DescriptorSetManager&&) = delete;
 		DescriptorSetManager& operator=(DescriptorSetManager&&) = delete;
 
-		[[nodiscard]] std::vector<VkDescriptorSet> allocateFrameDescriptorSets(uint32_t count) const;
-		[[nodiscard]] std::vector<VkDescriptorSet> allocateEquirectToCubemapFrameDescriptorSets(uint32_t count) const;
-		[[nodiscard]] std::vector<VkDescriptorSet> allocateSkyBoxDescriptorSets(uint32_t count) const;
-		[[nodiscard]] std::vector<VkDescriptorSet> allocateMaterialDescriptorSets(uint32_t count, VkDescriptorSetLayout layout) const;
-
-		[[nodiscard]] VkDescriptorSetLayout getFrameDescriptorSetLayout() const { return _descriptorSetLayout; }
-		[[nodiscard]] VkDescriptorSetLayout getMaterialDescriptorSetLayout() const { return _materialDescriptorSetLayout; }
-		[[nodiscard]] VkDescriptorSetLayout getMaterialPbrDescriptorSetLayout() const {	return _materialPbrDescriptorSetLayout;	}
-		[[nodiscard]] VkDescriptorSetLayout getEquirectToCubemapFrameDescriptorSetLayout() const { return _equirectToCubemapDescriptorSetLayout; }
-		[[nodiscard]] VkDescriptorSetLayout getSkyBoxDescriptorSetLayout() const { return _skyBoxDescriptorSetLayout; }
+		[[nodiscard]] std::vector<VkDescriptorSet> allocateDescriptorSets(DescriptorSetLayoutType layoutType, uint32_t count) const;
+		[[nodiscard]] VkDescriptorSetLayout getDescriptorSetLayout(DescriptorSetLayoutType layoutType) const { return _descriptorSetLayouts.at(layoutType); }
 
 	private:
 		const Device& _device;
-		VkDescriptorSetLayout _descriptorSetLayout = VK_NULL_HANDLE;
-		VkDescriptorSetLayout _materialDescriptorSetLayout = VK_NULL_HANDLE;
-		VkDescriptorSetLayout _materialPbrDescriptorSetLayout = VK_NULL_HANDLE;
-		VkDescriptorSetLayout _equirectToCubemapDescriptorSetLayout = VK_NULL_HANDLE;
-		VkDescriptorSetLayout _skyBoxDescriptorSetLayout = VK_NULL_HANDLE;
+		std::unordered_map<DescriptorSetLayoutType, VkDescriptorSetLayout> _descriptorSetLayouts;
 		VkDescriptorPool _descriptorPool;
 
 		void createFrameDescriptorSetLayout();
@@ -47,6 +45,7 @@ namespace m1
 		void createMaterialPbrDescriptorSetLayout();
 		void createEquirectToCubemapDescriptorSetLayout();
 		void createSkyBoxDescriptorSetLayout();
+		void createParticleDescriptorSetLayout();
 		void createDescriptorPool();
 	};
 }
