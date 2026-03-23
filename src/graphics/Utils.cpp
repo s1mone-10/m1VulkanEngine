@@ -124,4 +124,19 @@ namespace m1
 
     	return buffer;
     }
+
+	VkWriteDescriptorSet Utils::initVkWriteDescriptorSet(VkDescriptorSet dstSet, uint32_t dstBinding, VkDescriptorType descriptorType,
+		VkDescriptorBufferInfo* pBufferInfo, VkDescriptorImageInfo* pImageInfo)
+    {
+    	return {
+    		.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet          = dstSet,
+			.dstBinding      = dstBinding,
+			.dstArrayElement = 0,
+			.descriptorCount = 1,
+			.descriptorType  = descriptorType,
+    		.pImageInfo		 = pImageInfo,
+    		.pBufferInfo     = pBufferInfo,
+		};
+    }
 }

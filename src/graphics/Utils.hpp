@@ -52,5 +52,8 @@ namespace m1
 
     		return ortho;
     	}
+
+	    static VkWriteDescriptorSet initVkWriteDescriptorSet(VkDescriptorSet dstSet, uint32_t dstBinding, VkDescriptorType descriptorType,
+		    VkDescriptorBufferInfo* pBufferInfo = nullptr, VkDescriptorImageInfo* pImageInfo = nullptr);
     };
 }

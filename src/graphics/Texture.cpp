@@ -17,6 +17,15 @@ namespace m1
     	_sampler = std::make_shared<Sampler>(_device, params.samplerCreateInfo);
     }
 
+    VkDescriptorImageInfo Texture::getVkDescriptorImageInfo() const
+    {
+	    return{
+		    .sampler     = _sampler->getVkSampler(),
+		    .imageView   = _image->getVkImageView(),
+		    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+	    };
+    }
+
     void Texture::createTextureImage(const TextureParams& textureParams)
     {
     	uint32_t mipLevels = computeMipLevels(textureParams.extent.width, textureParams.extent.height);

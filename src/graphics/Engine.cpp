@@ -28,8 +28,8 @@ namespace m1
 {
 	void Engine::createCubeMap()
 	{
-		//auto equirectTexture = Utils::loadEquirectangularHDRMap(*this, "../resources/newport_loft.hdr");
-		auto equirectTexture = Utils::loadEquirectangularHDRMap(*this, "../resources/HDR_111_Parking_Lot_2_Ref.hdr");
+		auto equirectTexture = Utils::loadEquirectangularHDRMap(*this, "../resources/newport_loft.hdr");
+		//auto equirectTexture = Utils::loadEquirectangularHDRMap(*this, "../resources/HDR_111_Parking_Lot_2_Ref.hdr");
 
 		auto equirectToCubemapDescriptorSet = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::EquirectToCubemap, 1)[0];
 
@@ -203,7 +203,7 @@ namespace m1
 
 		recreateSwapChain();
 		_descriptorSetManager = std::make_unique<DescriptorSetManager>(_device);
-		createShadowResources();
+		createShadowMapTexture();
 
 		_environmentCube = m1::SceneObject::createSceneObject();
 		auto mesh = m1::Mesh::createCube();
@@ -212,7 +212,7 @@ namespace m1
 
 		createPipelines();
 
-		_materialUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialUbo));
+		_materialPhongUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialUbo));
 		_materialPbrUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialPbrUbo));
 		createFramesResources();
 		createDefaultTextures();
@@ -552,7 +552,7 @@ namespace m1
 					_currentMaterialName = matName;
 					uint32_t dynamicOffset = material.uboIndex * (currentPipelineType == PipelineType::PbrLighting
 						                                              ? _materialPbrUboAlignment
-						                                              : _materialUboAlignment);
+						                                              : _materialPhongUboAlignment);
 
 					VkDescriptorSet descriptorSet = material.getDescriptorSet(currentPipelineType);
 					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline->getLayout(), 1, 1, &descriptorSet, 1, &dynamicOffset);
@@ -929,7 +929,7 @@ namespace m1
 		*/
 	}
 
-	void Engine::createShadowResources()
+	void Engine::createShadowMapTexture()
 	{
 		// find image format
 		auto shadowImageFormat = _device.findSupportedFormat(
@@ -1220,119 +1220,49 @@ namespace m1
 		Utils::uploadToDeviceBuffer(_device, *_lightsUboBuffer, lightsUboSize, &_lightsUbo);
 	}
 
-	void Engine::updateDescriptorSets()
-    {
-	    // LightUbo Info
-	    VkDescriptorBufferInfo lightUboInfo
-		{
-		    .buffer = _lightsUboBuffer->getVkBuffer(),
-		    .offset = 0,
-		    .range = sizeof(LightsUbo)
-	    };
+	void Engine::updateDescriptorSets() const
+	{
+		// LightUbo Info
+		VkDescriptorBufferInfo lightUboInfo = _lightsUboBuffer->getVkDescriptorBufferInfo();
 
 		// ShadowMap info (used to define the sampler)
-	    VkDescriptorImageInfo shadowMapImageInfo
-		{
-			.sampler = _shadowMap->getSampler().getVkSampler(),
-			.imageView = _shadowMap->getImage().getVkImageView(),
-			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-		};
+	    VkDescriptorImageInfo shadowMapImageInfo = _shadowMap->getVkDescriptorImageInfo();
 
 	    // populate each DescriptorSet
 	    for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 	    {
 	    	auto& frameResources = _framesData[i];
+
+			//---------- FRAME DESCRIPTOR SET ---------------//
 	    	auto frameDescriptorSet = frameResources->frameDescriptorSet;
-	    	auto particleDescriptorSet = frameResources->computeParticleDescriptorSet;
+		    auto objectUboInfo = frameResources->objectUboBuffer->getVkDescriptorBufferInfo();
+			auto objectUboWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 0,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &objectUboInfo);
 
-		    // ObjectUbo Info
-		    VkDescriptorBufferInfo objectUboInfo
-	    	{
-			    .buffer = frameResources->objectUboBuffer->getVkBuffer(),
-			    .offset = 0,
-			    .range = sizeof(ObjectUbo)
-		    };
+	    	auto frameUboInfo = frameResources->frameUboBuffer->getVkDescriptorBufferInfo();
+	    	auto frameUboWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 1,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &frameUboInfo);
 
-		    // FrameUbo Info
-		    VkDescriptorBufferInfo frameUboInfo
-	    	{
-			    .buffer = frameResources->frameUboBuffer->getVkBuffer(),
-			    .offset = 0,
-			    .range = sizeof(FrameUbo)
-		    };
+	    	auto lightsUboWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 2,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &lightUboInfo);
 
-		    // ObjectUbo Descriptor Write
-		    VkWriteDescriptorSet objectUboWrite
-	    	{
-			    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			    .dstSet = frameDescriptorSet,
-			    .dstBinding = 0,
-			    .dstArrayElement = 0,
-	    		.descriptorCount = 1,
-			    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			    .pBufferInfo = &objectUboInfo
-		    };
-
-		    // FrameUbo Descriptor Write
-		    VkWriteDescriptorSet frameUboWrite
-	    	{
-			    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			    .dstSet = frameDescriptorSet,
-			    .dstBinding = 1,
-			    .dstArrayElement = 0,
-	    		.descriptorCount = 1,
-			    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			    .pBufferInfo = &frameUboInfo
-		    };
-
-		    // Lights Ubo Descriptor Write
-		    VkWriteDescriptorSet lightsDescriptorWrite
-	    	{
-			    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			    .dstSet = frameDescriptorSet,
-			    .dstBinding = 2,
-			    .dstArrayElement = 0,
-	    		.descriptorCount = 1,
-			    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			    .pBufferInfo = &lightUboInfo
-		    };
-
-	    	// Shadow map sampler write
-	    	VkWriteDescriptorSet shadowMapDescriptorWrite
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = frameDescriptorSet,
-				.dstBinding = 3,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.pImageInfo = &shadowMapImageInfo
-			};
+	    	auto shadowMapWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 3,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &shadowMapImageInfo);
 
 		    std::array descriptorWrites =
 		    {
-			    objectUboWrite, frameUboWrite, lightsDescriptorWrite, shadowMapDescriptorWrite
+			    objectUboWrite, frameUboWrite, lightsUboWrite, shadowMapWrite
 		    };
 
 		    vkUpdateDescriptorSets(_device.getVkDevice(), descriptorWrites.size(),
 		                           descriptorWrites.data(), 0, nullptr);
 
+	    	//---------- COMPUTE PARTICLE DESCRIPTOR SET ---------------//
+	    	auto particleDescriptorSet = frameResources->computeParticleDescriptorSet;
 	    	// Particles Ssbo previous frame
 	    	VkDescriptorBufferInfo particlesSsboInfoPrevFrame{};
 	    	particlesSsboInfoPrevFrame.buffer = _framesData[(i - 1) % FRAMES_IN_FLIGHT]->particleSSboBuffer->getVkBuffer();
 	    	particlesSsboInfoPrevFrame.offset = 0;
 	    	particlesSsboInfoPrevFrame.range = sizeof(Particle) * PARTICLES_COUNT;
 
-	    	VkWriteDescriptorSet particlesDescriptorWritePrevFrame
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = particleDescriptorSet,
-				.dstBinding = 0,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				.pBufferInfo = &particlesSsboInfoPrevFrame
-			};
+		    VkWriteDescriptorSet particlesDescriptorWritePrevFrame = Utils::initVkWriteDescriptorSet(particleDescriptorSet, 0,
+			    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &particlesSsboInfoPrevFrame);
 
 	    	// Particles Ssbo current frame
 	    	VkDescriptorBufferInfo particlesSsboInfoCurrentFrame{};
@@ -1340,16 +1270,8 @@ namespace m1
 	    	particlesSsboInfoCurrentFrame.offset = 0;
 	    	particlesSsboInfoCurrentFrame.range = sizeof(Particle) * PARTICLES_COUNT;
 
-	    	VkWriteDescriptorSet particlesDescriptorWriteCurrentFrame
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = particleDescriptorSet,
-				.dstBinding = 1,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				.pBufferInfo = &particlesSsboInfoCurrentFrame
-			};
+	    	VkWriteDescriptorSet particlesDescriptorWriteCurrentFrame = Utils::initVkWriteDescriptorSet(particleDescriptorSet, 1,
+	    		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &particlesSsboInfoCurrentFrame);
 
 	    	std::array dw =
 	    	{
@@ -1361,71 +1283,31 @@ namespace m1
 	    }
     }
 
-	void Engine::updateMaterialDescriptorSets(const Material& material)
+	void Engine::updateMaterialDescriptorSets(const Material& material) const
 	{
+		VkDescriptorImageInfo baseColorImageInfo = material.baseColorMap->getVkDescriptorImageInfo();
+		VkDescriptorImageInfo specularImageInfo = material.specularMap->getVkDescriptorImageInfo();
+		VkDescriptorImageInfo normalImageInfo = material.normalMap->getVkDescriptorImageInfo();
+		VkDescriptorImageInfo metallicRoughnessImageInfo = material.metallicRoughnessMap->getVkDescriptorImageInfo();
+		VkDescriptorImageInfo occlusionImageInfo = material.occlusionMap->getVkDescriptorImageInfo();
+		VkDescriptorImageInfo emissiveImageInfo = material.emissiveMap->getVkDescriptorImageInfo();
+
 		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 		{
 			auto& frameResources = _framesData[i];
 
-			// MaterialUbo Info
-			VkDescriptorBufferInfo materialDynUboInfo
-			{
-				.buffer = frameResources->materialDynUboBuffer->getVkBuffer(),
-				.offset = 0,
-				.range = _materialUboAlignment
-			};
+			//---------- PHONG DESCRIPTOR SET ---------------//
+			VkDescriptorBufferInfo materialDynUboInfo = frameResources->materialDynUboBuffer->getVkDescriptorBufferInfo();
+			materialDynUboInfo.range = _materialPhongUboAlignment;
 
-			// Material Descriptor Write
-			VkWriteDescriptorSet materialDynUboWrite
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = material.descriptorSetPhong,
-				.dstBinding = 0,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-				.pBufferInfo = &materialDynUboInfo
-			};
+			auto materialDynUboWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPhong, 0,
+				VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, &materialDynUboInfo);
 
-			// diffuse Texture Image Info
-			VkDescriptorImageInfo diffuseImageInfo
-			{
-				.sampler = material.baseColorMap->getSampler().getVkSampler(),
-				.imageView = material.baseColorMap->getImage().getVkImageView(),
-				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-			};
+			auto diffuseTextDescriptorWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPhong, 1,
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &baseColorImageInfo);
 
-			// diffuse Texture Descriptor Write
-			VkWriteDescriptorSet diffuseTextDescriptorWrite
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = material.descriptorSetPhong,
-				.dstBinding = 1,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.pImageInfo = &diffuseImageInfo
-			};
-
-			// specular Texture Image Info
-			VkDescriptorImageInfo specularImageInfo
-			{
-				.sampler = material.specularMap->getSampler().getVkSampler(),
-				.imageView = material.specularMap->getImage().getVkImageView(),
-				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-			};
-
-			// specular Texture Descriptor Write
-			VkWriteDescriptorSet specularDescriptorWrite
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = material.descriptorSetPhong,
-				.dstBinding = 2,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.pImageInfo = &specularImageInfo
-			};
+			auto specularDescriptorWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPhong, 2,
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &specularImageInfo);
 
 			std::array descriptorWrites =
 			{
@@ -1435,127 +1317,27 @@ namespace m1
 			vkUpdateDescriptorSets(_device.getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()),
 								   descriptorWrites.data(), 0, nullptr);
 
-			// ===== PBR =====
+			//---------- PBR DESCRIPTOR SET ---------------//
+			VkDescriptorBufferInfo materialPbrDynUboInfo = frameResources->materialPbrDynUboBuffer->getVkDescriptorBufferInfo();
+			materialPbrDynUboInfo.range = _materialPbrUboAlignment;
 
-			// MaterialPbrUbo Info
-			VkDescriptorBufferInfo materialPbrDynUboInfo
-			{
-				.buffer = frameResources->materialPbrDynUboBuffer->getVkBuffer(),
-				.offset = 0,
-				.range = _materialPbrUboAlignment
-			};
+			auto materialPbrDynUboWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPbr, 0,
+				VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, &materialPbrDynUboInfo);
 
-			// Material Descriptor Write
-			VkWriteDescriptorSet materialPbrDynUboWrite
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = material.descriptorSetPbr,
-				.dstBinding = 0,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-				.pBufferInfo = &materialPbrDynUboInfo
-			};
+			auto baseColorDescriptorWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPbr, 1,
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &baseColorImageInfo);
 
-			// base color Texture Image Info
-			VkDescriptorImageInfo baseColorImageInfo
-			{
-				.sampler = material.baseColorMap->getSampler().getVkSampler(),
-				.imageView = material.baseColorMap->getImage().getVkImageView(),
-				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-			};
+			auto normalDescriptorWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPbr, 2,
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &normalImageInfo);
 
-			// base color Texture Descriptor Write
-			VkWriteDescriptorSet baseColorDescriptorWrite
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = material.descriptorSetPbr,
-				.dstBinding = 1,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.pImageInfo = &baseColorImageInfo
-			};
+			auto metallicRoughnessDescriptorWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPbr, 3,
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &metallicRoughnessImageInfo);
 
-			// normal Texture Image Info
-			VkDescriptorImageInfo normalImageInfo
-			{
-				.sampler = material.normalMap->getSampler().getVkSampler(),
-				.imageView = material.normalMap->getImage().getVkImageView(),
-				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-			};
+			auto aoDescriptorWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPbr, 4,
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &occlusionImageInfo);
 
-			// normal Texture Descriptor Write
-			VkWriteDescriptorSet normalDescriptorWrite
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = material.descriptorSetPbr,
-				.dstBinding = 2,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.pImageInfo = &normalImageInfo
-			};
-
-			// metallic roughness Texture Image Info
-			VkDescriptorImageInfo metallicRoughnessImageInfo
-			{
-				.sampler = material.metallicRoughnessMap->getSampler().getVkSampler(),
-				.imageView = material.metallicRoughnessMap->getImage().getVkImageView(),
-				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-			};
-
-			// metallic roughness Texture Descriptor Write
-			VkWriteDescriptorSet metallicRoughnessDescriptorWrite
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = material.descriptorSetPbr,
-				.dstBinding = 3,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.pImageInfo = &metallicRoughnessImageInfo
-			};
-
-			// normal Texture Image Info
-			VkDescriptorImageInfo aoImageInfo
-			{
-				.sampler = material.occlusionMap->getSampler().getVkSampler(),
-				.imageView = material.occlusionMap->getImage().getVkImageView(),
-				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-			};
-
-			// normal Texture Descriptor Write
-			VkWriteDescriptorSet aoDescriptorWrite
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = material.descriptorSetPbr,
-				.dstBinding = 4,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.pImageInfo = &aoImageInfo
-			};
-
-			// normal Texture Image Info
-			VkDescriptorImageInfo emissiveImageInfo
-			{
-				.sampler = material.emissiveMap->getSampler().getVkSampler(),
-				.imageView = material.emissiveMap->getImage().getVkImageView(),
-				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-			};
-
-			// normal Texture Descriptor Write
-			VkWriteDescriptorSet emissiveDescriptorWrite
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = material.descriptorSetPbr,
-				.dstBinding = 5,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.pImageInfo = &emissiveImageInfo
-			};
+			auto emissiveDescriptorWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPbr, 5,
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &emissiveImageInfo);
 
 			std::array descriptorPbrWrites =
 			{
@@ -1563,12 +1345,12 @@ namespace m1
 				aoDescriptorWrite, emissiveDescriptorWrite
 			};
 
-			vkUpdateDescriptorSets(_device.getVkDevice(), descriptorPbrWrites.size(),
+			vkUpdateDescriptorSets(_device.getVkDevice(), static_cast<uint32_t>(descriptorPbrWrites.size()),
 				descriptorPbrWrites.data(), 0, nullptr);
 		}
 	}
 
-	void Engine::compileSceneObjects()
+	void Engine::compileSceneObjects() const
 	{
 		for (auto &obj: _sceneObjects)
 		{
@@ -1601,7 +1383,7 @@ namespace m1
 		}
 
 		// Create the material dynamic ubo buffers, one for each frame in flight
-		size_t materialUboSize = materialCount * _materialUboAlignment;
+		size_t materialUboSize = materialCount * _materialPhongUboAlignment;
 		size_t materialPbrUboSize = materialCount * _materialPbrUboAlignment;
 		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 		{

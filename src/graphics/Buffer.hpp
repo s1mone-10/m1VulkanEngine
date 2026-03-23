@@ -74,9 +74,10 @@ namespace m1
 		Buffer(const Buffer&) = delete;
 		Buffer& operator=(const Buffer&) = delete;
 
-		VkBuffer getVkBuffer() const { return _vkBuffer; }
+		[[nodiscard]] VkBuffer getVkBuffer() const { return _vkBuffer; }
 		void copyDataToBuffer(const void* data) const;
-		VkDeviceSize getSize() const { return _size; }
+		[[nodiscard]] VkDeviceSize getSize() const { return _size; }
+		[[nodiscard]] VkDescriptorBufferInfo getVkDescriptorBufferInfo() const;
 
 	private:
 		VkBuffer _vkBuffer;

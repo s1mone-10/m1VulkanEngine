@@ -26,6 +26,15 @@ namespace m1
 		vmaCopyMemoryToAllocation(_device.getMemoryAllocator(), data, _allocation, 0, _size);
 	}
 
+	VkDescriptorBufferInfo Buffer::getVkDescriptorBufferInfo() const
+	{
+		return {
+			.buffer = _vkBuffer,
+			.offset = 0,
+			.range  = _size
+		};
+	}
+
 	void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaAllocationCreateFlags memoryProps)
 	{
 		// Buffer Info

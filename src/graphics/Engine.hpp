@@ -86,15 +86,15 @@ namespace m1
     	void createPipelines();
     	void createCubeMap();
 		void createFramesResources();
-		void createShadowResources();
+		void createShadowMapTexture();
 		void recordShadowMappingPass(VkCommandBuffer commandBuffer) const;
     	[[nodiscard]] BBox computeSceneBBox() const;
         [[nodiscard]] glm::mat4 computeLightViewProjMatrix() const;
         void initParticles();
         void initLights();
-        void updateDescriptorSets();
-        void updateMaterialDescriptorSets(const Material &material);
-    	void compileSceneObjects();
+        void updateDescriptorSets() const;
+        void updateMaterialDescriptorSets(const Material &material) const;
+    	void compileSceneObjects() const;
     	void compileMaterials();
         
         void copyBufferToImage(const Buffer& srcBuffer, const Image& image, uint32_t width, uint32_t height) const;
@@ -133,7 +133,7 @@ namespace m1
     	LightsUbo _lightsUbo{};
 
 		std::unique_ptr<DescriptorSetManager> _descriptorSetManager;
-    	VkDeviceSize _materialUboAlignment = -1;
+    	VkDeviceSize _materialPhongUboAlignment = -1;
     	VkDeviceSize _materialPbrUboAlignment = -1;
 
         std::vector<std::unique_ptr<SceneObject>> _sceneObjects{};

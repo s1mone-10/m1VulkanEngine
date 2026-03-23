@@ -46,6 +46,7 @@ namespace m1
     	[[nodiscard]] VkExtent2D getExtent() const { return _image->getExtent();}
         [[nodiscard]] uint32_t getWidth() const { return _image->getWidth(); }
         [[nodiscard]] uint32_t getHeight() const { return _image->getHeight(); }
+    	[[nodiscard]] VkDescriptorImageInfo getVkDescriptorImageInfo() const;
 
     private:
         void createTextureImage(const TextureParams& textureParams);
