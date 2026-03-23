@@ -21,11 +21,11 @@ namespace m1
 		Mesh();
 		~Mesh();
 
-		static std::unique_ptr<Mesh> createCube(const glm::vec3& color = glm::vec3(1.0f, 1.0f, 1.0f));
+		static std::unique_ptr<Mesh> createCube(float dx = 1, float dy = 1, float dz = 1, const glm::vec3& color = glm::vec3(1.0f, 1.0f, 1.0f));
 		static std::unique_ptr<Mesh> createQuad(const glm::vec3& color = glm::vec3(1.0f, 1.0f, 1.0f));
 
 		void setMaterialName(const std::string& materialName) { _materialName = materialName; }
-		const std::string& getMaterialName() const { return _materialName; }
+		[[nodiscard]] const std::string& getMaterialName() const { return _materialName; }
 		void compile(const Device& device);
 		void draw(VkCommandBuffer commandBuffer) const;
 

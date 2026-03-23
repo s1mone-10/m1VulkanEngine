@@ -183,13 +183,15 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	// cube that represents the light source
     sceneObj = m1::SceneObject::createSceneObject();
 	sceneObj->IsAuxiliary = true;
-	mesh = m1::Mesh::createCube(glm::vec3(1.0f, 1.0f, 1.0f));
+	mesh = m1::Mesh::createCube();
     sceneObj->setMesh(std::move(mesh));
     auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(5.2f, 5.2f, 6.2f));
     transform = glm::scale(transform, glm::vec3(.1f));
     sceneObj->setTransform(transform);
 	sceneObj->PipelineKey = m1::PipelineType::NoLight;
     engine.addSceneObject(std::move(sceneObj));
+
+	float dx = 3, dy = 2, dz = 0.5;
 
 	bool random = false;
 	if (random)
@@ -231,10 +233,10 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 				for (uint32_t k = 0; k < numCubes; k++)
 				{
 					sceneObj = m1::SceneObject::createSceneObject();
-					mesh = m1::Mesh::createCube();
+					mesh = m1::Mesh::createCube(dx, dy, dz);
 					mesh->setMaterialName("container");
 					sceneObj->setMesh(std::move(mesh));
-					transform = glm::translate(glm::mat4(1.0f), glm::vec3(i* 2, j * 2, k * 2));
+					transform = glm::translate(glm::mat4(1.0f), glm::vec3(i* (dx + 1), j * (dy + 1), k * (dz + 1)));
 					sceneObj->setTransform(transform);
 					engine.addSceneObject(std::move(sceneObj));
 				}

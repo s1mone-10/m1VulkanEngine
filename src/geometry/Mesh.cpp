@@ -121,22 +121,26 @@ namespace m1
 		}
 	}
 
-	std::unique_ptr<Mesh> Mesh::createCube(const glm::vec3& color)
+	std::unique_ptr<Mesh> Mesh::createCube(float dx, float dy, float dz, const glm::vec3& color)
 	{
 		auto mesh = std::make_unique<Mesh>();
+
+		auto halfWidth = dx / 2.0f;
+		auto halfDepth = dy / 2.0f;
+		auto halfHeight = dz / 2.0f;
 
 		// Define 8 unique cube vertices (positions, normals, colors, texCoords)
 		// Cube is centered at origin, size 1
 		const glm::vec3 positions[8] =
 		{
-			{-0.5f, -0.5f, -0.5f}, // 0
-			{ 0.5f, -0.5f, -0.5f}, // 1
-			{ 0.5f,  0.5f, -0.5f}, // 2
-			{-0.5f,  0.5f, -0.5f}, // 3
-			{-0.5f, -0.5f,  0.5f}, // 4
-			{ 0.5f, -0.5f,  0.5f}, // 5
-			{ 0.5f,  0.5f,  0.5f}, // 6
-			{-0.5f,  0.5f,  0.5f}  // 7
+			{-halfWidth, -halfDepth, -halfHeight}, // 0
+			{ halfWidth, -halfDepth, -halfHeight}, // 1
+			{ halfWidth,  halfDepth, -halfHeight}, // 2
+			{-halfWidth,  halfDepth, -halfHeight}, // 3
+			{-halfWidth, -halfDepth,  halfHeight}, // 4
+			{ halfWidth, -halfDepth,  halfHeight}, // 5
+			{ halfWidth,  halfDepth,  halfHeight}, // 6
+			{-halfWidth,  halfDepth,  halfHeight}  // 7
 		};
 		const glm::vec3 colors[8] =
 		{
