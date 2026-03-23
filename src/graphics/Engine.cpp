@@ -28,7 +28,8 @@ namespace m1
 {
 	void Engine::createCubeMap()
 	{
-		auto equirectTexture = Utils::loadEquirectangularHDRMap(*this, "../resources/newport_loft.hdr");
+		//auto equirectTexture = Utils::loadEquirectangularHDRMap(*this, "../resources/newport_loft.hdr");
+		auto equirectTexture = Utils::loadEquirectangularHDRMap(*this, "../resources/HDR_111_Parking_Lot_2_Ref.hdr");
 
 		auto equirectToCubemapDescriptorSet = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::EquirectToCubemap, 1)[0];
 
@@ -53,7 +54,7 @@ namespace m1
 
 		vkUpdateDescriptorSets(_device.getVkDevice(), 1, &descriptorWrite, 0, nullptr);
 
-		uint32_t extent = 512;
+		uint32_t extent = equirectTexture->getWidth() / 4;
 		// create the texture
 		ImageParams params
 		{
@@ -1203,12 +1204,12 @@ namespace m1
 		_lightsUbo.numLights = 2;
 
 		// Directional light (like sunlight)
-		_lightsUbo.lights[1].posDir = glm::vec4(-0.5f, 1.0f, -0.8f, 0.0f); // w=0 => dir light
+		_lightsUbo.lights[1].posDir = glm::vec4(-0.5f, -.8f, -1.f, 0.0f); // w=0 => dir light
 		_lightsUbo.lights[1].color = glm::vec4(1.0f, 1.0f, 1.0f, 4.f);
 
 		// Point light
-		_lightsUbo.lights[0].posDir = glm::vec4(5.2f, 5.2f, 6.2f, 1.0f); // w=1 => point light
-		_lightsUbo.lights[0].color = glm::vec4(1.0f, 1.0f, 1.0f, 1.4f);
+		_lightsUbo.lights[0].posDir = glm::vec4(5.2f, 6.2f, -5.2f, 1.0f); // w=1 => point light
+		_lightsUbo.lights[0].color = glm::vec4(1.0f, 1.0f, 1.0f, 2.0f);
 		_lightsUbo.lights[0].attenuation = glm::vec4(1.0f, 0.09f, 0.032f, 0.0f);
 
 		// Create the lights ubo with device local memory for better performance

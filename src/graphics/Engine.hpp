@@ -57,6 +57,7 @@ namespace m1
     	std::unique_ptr<Texture> createTexture(const TextureParams &params, void *data) const;
         std::shared_ptr<Image> createImage(const ImageParams& params, void* data) const;
         Device& getDevice() { return _device; };
+    	Camera& getCamera() { return _camera; }
 
         // properties
         void setUiEnabled(bool enabled);

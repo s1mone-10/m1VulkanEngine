@@ -62,6 +62,7 @@ void loadScene(m1::Engine& engine)
     //loadObj(engine, MODEL_PATH);
 
     loadGltf(engine, "../resources/DamagedHelmet.glb");
+    //loadGltf(engine, "C:\\Users\\simon\\Downloads\\NormalTangentTest.glb");
 }
 
 void loadObj(m1::Engine& engine, const std::string& path)
@@ -141,6 +142,8 @@ void loadGltf(m1::Engine& engine, const std::string& path)
 
 void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 {
+	bool isYup = engine.getCamera().isYup();
+
 	// Initialize materials array with different material types
 
 	// Shiny material (high specular, moderate diffuse)
@@ -178,6 +181,11 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	auto sceneObj = m1::SceneObject::createSceneObject();
 	auto mesh = m1::Mesh::createQuad({0.5f, 0.5f, 0.5f});
 	sceneObj->setMesh(std::move(mesh));
+	if (isYup)
+	{
+		auto transform = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(-1.0f, 0.0f, 0.0f));
+		sceneObj->setTransform(transform);
+	}
 	engine.addSceneObject(std::move(sceneObj));
 
 	// cube that represents the light source
@@ -185,7 +193,7 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	sceneObj->IsAuxiliary = true;
 	mesh = m1::Mesh::createCube();
     sceneObj->setMesh(std::move(mesh));
-    auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(5.2f, 5.2f, 6.2f));
+    auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(5.2f, 6.2f, -5.2f));
     transform = glm::scale(transform, glm::vec3(.1f));
     sceneObj->setTransform(transform);
 	sceneObj->PipelineKey = m1::PipelineType::NoLight;
@@ -236,7 +244,11 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 					mesh = m1::Mesh::createCube(dx, dy, dz);
 					mesh->setMaterialName("container");
 					sceneObj->setMesh(std::move(mesh));
-					transform = glm::translate(glm::mat4(1.0f), glm::vec3(i* (dx + 1), j * (dy + 1), k * (dz + 1)));
+					transform = glm::mat4(1.0f);
+					if (isYup)
+						transform = glm::rotate(transform, glm::radians(90.0f), glm::vec3(-1.0f, 0.0f, 0.0f));
+					transform = glm::translate(transform, glm::vec3(i* (dx + 1), j * (dy + 1), k * (dz + 1)));
+
 					sceneObj->setTransform(transform);
 					engine.addSceneObject(std::move(sceneObj));
 				}

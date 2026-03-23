@@ -5,7 +5,7 @@ namespace m1
 {
 	Camera::Camera()
 	{
-		setViewTarget(glm::vec3(0.0f, -2.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		setViewTarget(glm::vec3(0.0f, 2.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, .0f));
 		setPerspectiveProjection(1);
 	}
 
@@ -102,7 +102,7 @@ namespace m1
 		_position += viewDir * factor * _cameraSpeed;
 		updateViewMatrix();
 
-		_zoomfactor += factor;
+		_zoomFactor += factor;
 		if(_projectionType == ProjectionType::Orthographic)
 			updateProjectionMatrix();
 	}
@@ -120,7 +120,7 @@ namespace m1
 		}
 		else // Orthographic
 		{
-			_projectionMatrix = Utils::orthoProjection(_left / _zoomfactor, _right / _zoomfactor, _bottom / _zoomfactor, _top / _zoomfactor, _nearPlane, _farPlane);
+			_projectionMatrix = Utils::orthoProjection(_left / _zoomFactor, _right / _zoomFactor, _bottom / _zoomFactor, _top / _zoomFactor, _nearPlane, _farPlane);
 		}
 	}
 } // namespace m1
