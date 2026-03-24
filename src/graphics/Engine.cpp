@@ -66,13 +66,13 @@ namespace m1
 		beginInfo.pInheritanceInfo = nullptr; // Optional
 		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
-		auto& envCubemapImage = _environmentCubeMap->getImage();
+		auto& envCubemapImage = _environmentCubemap->getImage();
 		transitionImageLayout(commandBuffer, envCubemapImage.getVkImage(), envCubemapImage.getMipLevels(), VK_IMAGE_LAYOUT_UNDEFINED,
 			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, envCubemapImage.getArrayLayers());
 
 		for (unsigned int i = 0; i < 6; ++i)
 		{
-			VkRenderingAttachmentInfo colorAttachment = Renderer::createColorAttachment(envCubemapImage.getLayerVkImageView(i));
+			VkRenderingAttachmentInfo colorAttachment = Renderer::createColorAttachment(envCubemapImage.getSubresourceVkImageView(i, 0));
 
 			auto targetExtent = envCubemapImage.getExtent();
 			Renderer::beginRendering(commandBuffer, {{0, 0}, targetExtent}, 1, &colorAttachment, nullptr);
@@ -80,19 +80,19 @@ namespace m1
 			Renderer::setDynamicStates(commandBuffer, targetExtent);
 
 			// draw
-			auto* pipeline = _graphicsPipelines.at(PipelineType::EquirectToCubemap).get();
+			auto* pipeline = _graphicsPipelines.at(PipelineType::EquirectToCube).get();
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getVkPipeline());
 
 			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getLayout(), 0, 1,
 				&equirectToCubemapDescriptorSet, 0, nullptr);
 
-			SkyBoxPushConstantData push
+			IblPushConstantData push
 			{
 				.projection = captureProjection,
 				.view       = captureViews[i]
 			};
 			vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT,
-				0, sizeof(SkyBoxPushConstantData), &push);
+				0, sizeof(IblPushConstantData), &push);
 
 			// draw cube
 			vkCmdDraw(commandBuffer, 36, 1, 0, 0);
@@ -143,13 +143,13 @@ namespace m1
 		beginInfo.pInheritanceInfo = nullptr; // Optional
 		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
-		auto& irradianceMapImage = _irradianceCubeMap->getImage();
+		auto& irradianceMapImage = _irradianceCubemap->getImage();
 		transitionImageLayout(commandBuffer, irradianceMapImage.getVkImage(), irradianceMapImage.getMipLevels(), VK_IMAGE_LAYOUT_UNDEFINED,
 			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, irradianceMapImage.getArrayLayers());
 
 		for (unsigned int i = 0; i < 6; ++i)
 		{
-			VkRenderingAttachmentInfo colorAttachment = Renderer::createColorAttachment(irradianceMapImage.getLayerVkImageView(i));
+			VkRenderingAttachmentInfo colorAttachment = Renderer::createColorAttachment(irradianceMapImage.getSubresourceVkImageView(i, 0));
 
 			auto targetExtent = irradianceMapImage.getExtent();
 			Renderer::beginRendering(commandBuffer, {{0, 0}, targetExtent}, 1, &colorAttachment, nullptr);
@@ -157,20 +157,20 @@ namespace m1
 			Renderer::setDynamicStates(commandBuffer, targetExtent);
 
 			// draw
-			auto* pipeline = _graphicsPipelines.at(PipelineType::Convolution).get();
+			auto* pipeline = _graphicsPipelines.at(PipelineType::IrradianceConvolution).get();
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getVkPipeline());
 
 			VkDescriptorSet descriptorSet = _framesData[0]->skyBoxDescriptorSet;
 			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getLayout(), 0, 1,
 				&descriptorSet, 0, nullptr);
 
-			SkyBoxPushConstantData push
+			IblPushConstantData push
 			{
 				.projection = captureProjection,
 				.view       = captureViews[i]
 			};
 			vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT,
-				0, sizeof(SkyBoxPushConstantData), &push);
+				0, sizeof(IblPushConstantData), &push);
 
 			// draw cube
 			vkCmdDraw(commandBuffer, 36, 1, 0, 0);
@@ -207,6 +207,94 @@ namespace m1
 		VK_CHECK(vkQueueSubmit(_device.getGraphicsQueue().getVkQueue(), 1, &submitInfo, nullptr));
 
 		vkDeviceWaitIdle(_device.getVkDevice()); // TODO use fence and semaphores
+
+
+
+
+		// -------------- PREFILTER ENV ----------------------
+
+		// reset the command buffer and begin a new recording
+		vkResetCommandBuffer(commandBuffer, 0);
+		beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = 0; // Optional
+		beginInfo.pInheritanceInfo = nullptr; // Optional
+		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
+
+		auto& prefEnvImage = _prefilteredEnvCubemap->getImage();
+		uint32_t prefEnvImgMipLevels = prefEnvImage.getMipLevels();
+		transitionImageLayout(commandBuffer, prefEnvImage.getVkImage(), prefEnvImgMipLevels, VK_IMAGE_LAYOUT_UNDEFINED,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, prefEnvImage.getArrayLayers());
+
+		for (unsigned int mipLevel = 0; mipLevel < prefEnvImgMipLevels; ++mipLevel)
+		{
+			for (unsigned int face = 0; face < 6; ++face)
+			{
+				VkRenderingAttachmentInfo colorAttachment = Renderer::createColorAttachment(prefEnvImage.getSubresourceVkImageView(face, mipLevel));
+
+				// extent according to mip-level.
+				auto targetSize = prefEnvImage.getExtent().width >> mipLevel;
+				VkExtent2D targetExtent = {targetSize, targetSize };
+
+				Renderer::beginRendering(commandBuffer, {{0, 0}, targetExtent}, 1,
+					&colorAttachment, nullptr);
+
+				Renderer::setDynamicStates(commandBuffer, targetExtent);
+
+				// draw
+				auto* pipeline = _graphicsPipelines.at(PipelineType::PrefilterEnv).get();
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getVkPipeline());
+
+				VkDescriptorSet descriptorSet = _framesData[0]->skyBoxDescriptorSet;
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getLayout(), 0, 1,
+					&descriptorSet, 0, nullptr);
+
+				IblPushConstantData push
+				{
+					.projection = captureProjection,
+					.view       = captureViews[face],
+					.roughness =  static_cast<float>(mipLevel) / static_cast<float>(prefEnvImgMipLevels - 1)
+				};
+				vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+					0, sizeof(IblPushConstantData), &push);
+
+				// draw cube
+				vkCmdDraw(commandBuffer, 36, 1, 0, 0);
+
+				Renderer::endRendering(commandBuffer);
+			}
+		}
+
+		transitionImageLayout(commandBuffer, prefEnvImage.getVkImage(), prefEnvImgMipLevels, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, prefEnvImage.getArrayLayers());
+
+		// end command buffer recording
+		VK_CHECK(vkEndCommandBuffer(commandBuffer));
+
+		// VkSemaphoreCreateInfo semaphoreInfo{};
+		// semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		// VkSemaphore semaphore;
+		// VK_CHECK(vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &semaphore));
+
+		// submit info
+		submitInfo =
+		{
+			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+			//wait semaphores
+			.waitSemaphoreCount = 0,
+			// command buffers
+			.commandBufferCount = 1,
+			.pCommandBuffers = &commandBuffer,
+			// signal semaphore
+			.signalSemaphoreCount = 0,
+			//.pSignalSemaphores = &semaphore,
+		};
+
+		// submit the command buffer (the fence will be signaled when the command buffer finishes executing)
+		VK_CHECK(vkQueueSubmit(_device.getGraphicsQueue().getVkQueue(), 1, &submitInfo, nullptr));
+
+		vkDeviceWaitIdle(_device.getVkDevice()); // TODO use fence and semaphores
+
 	}
 
 	Engine::Engine(EngineConfig config) : _config(config)
@@ -589,13 +677,13 @@ namespace m1
 			&descriptorSet, 0, nullptr);
 
 		// push constants
-		SkyBoxPushConstantData push
+		IblPushConstantData push
 		{
 			.projection = _camera.getProjectionMatrix(),
 			.view       = glm::mat4(glm::mat3(_camera.getViewMatrix())) // remove translation
 		};
 		vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT,
-			0, sizeof(SkyBoxPushConstantData), &push);
+			0, sizeof(IblPushConstantData), &push);
 
 		// draw cube
 		vkCmdDraw(commandBuffer, 36, 1, 0, 0);
@@ -940,6 +1028,13 @@ namespace m1
 
 	void Engine::createEnvironmentTextures()
 	{
+		auto samplerCreateInfo = Sampler::getDefaultCreateInfo();
+		samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		auto sampler = std::make_shared<Sampler>(_device, &samplerCreateInfo);
+
+		// Environment cubemap
 		ImageParams imageParams
 		{
 			.extent = ENVIRONMENT_CUBEMAP_RESOLUTION,
@@ -951,25 +1046,36 @@ namespace m1
 		};
 		auto envCubemapImage = std::make_shared<Image>(_device, imageParams);
 
-		auto samplerCreateInfo = Sampler::getDefaultCreateInfo();
-		samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		auto sampler = std::make_shared<Sampler>(_device);
-		_environmentCubeMap = std::make_unique<Texture>(_device, std::move(envCubemapImage), sampler);
+		_environmentCubemap = std::make_unique<Texture>(_device, std::move(envCubemapImage), sampler);
 
+		// irradiance cubemap
 		imageParams =
 		{
-			.extent = IBL_CUBEMAP_RESOLUTION,
+			.extent = IRRADIANCE_CUBEMAP_RESOLUTION,
 			.format = ENVIRONMENT_CUBEMAP_FORMAT,
 			.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
-			.usage = Texture::getImageUsageFlags() | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, // TODO color attach only for testing in skyBox
+			.usage = Texture::getImageUsageFlags() | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 			.mipLevels = 1,
 			.arrayLayers = 6,
-			.memoryProps = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
 		};
 		auto irradianceCubemapImage = std::make_shared<Image>(_device, imageParams);
-		_irradianceCubeMap = std::make_unique<Texture>(_device, std::move(irradianceCubemapImage), sampler);
+		_irradianceCubemap = std::make_unique<Texture>(_device, std::move(irradianceCubemapImage), sampler);
+
+		// prefiltered cubemap
+		imageParams =
+		{
+			.extent = PREFILTERED_ENV_CUBEMAP_RESOLUTION,
+			.format = ENVIRONMENT_CUBEMAP_FORMAT,
+			.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
+			.usage = Texture::getImageUsageFlags() | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			.mipLevels = PREFILTERED_ENV_CUBEMAP_MIP_LEVELS,
+			.arrayLayers = 6,
+		};
+		auto prefilterEnvCubemapImage = std::make_shared<Image>(_device, imageParams);
+
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		auto prefSampler = std::make_shared<Sampler>(_device, &samplerCreateInfo);
+		_prefilteredEnvCubemap = std::make_unique<Texture>(_device, std::move(prefilterEnvCubemapImage), prefSampler);
 	}
 
 	void Engine::createShadowMapTexture()
@@ -1128,29 +1234,39 @@ namespace m1
 			   .addShaderStage(R"(..\shaders\compiled\skyBox.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
 			   .addShaderStage(R"(..\shaders\compiled\skyBox.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .setDepthCompareOp(VK_COMPARE_OP_LESS_OR_EQUAL)
-			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(SkyBoxPushConstantData))
+			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(IblPushConstantData))
 			   .setSamples(_swapChain->getSamples());
 		_graphicsPipelines.emplace(PipelineType::SkyBox, builder.build(_device));
 
-		// EquirectToCubemap
+		// Equirect to cube map
 		builder = {};
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::EquirectToCubemap))
 			   .addColorAttachment(ENVIRONMENT_CUBEMAP_FORMAT)
 			   .clearVertexInput()
 			   .addShaderStage(R"(..\shaders\compiled\cube1x1.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
-			   .addShaderStage(R"(..\shaders\compiled\equirectToCubemap.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
-			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(SkyBoxPushConstantData));
-		_graphicsPipelines.emplace(PipelineType::EquirectToCubemap, builder.build(_device));
+			   .addShaderStage(R"(..\shaders\compiled\equirectToCube.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(IblPushConstantData));
+		_graphicsPipelines.emplace(PipelineType::EquirectToCube, builder.build(_device));
 
-		// Convolution
+		// Irradiance convolution
 		builder = {};
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::SkyBox))
 			   .addColorAttachment(ENVIRONMENT_CUBEMAP_FORMAT)
 			   .clearVertexInput()
 			   .addShaderStage(R"(..\shaders\compiled\cube1x1.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
-			   .addShaderStage(R"(..\shaders\compiled\convolution.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
-			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(SkyBoxPushConstantData));
-		_graphicsPipelines.emplace(PipelineType::Convolution, builder.build(_device));
+			   .addShaderStage(R"(..\shaders\compiled\irradianceConvolution.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(IblPushConstantData));
+		_graphicsPipelines.emplace(PipelineType::IrradianceConvolution, builder.build(_device));
+
+		// Prefilter env
+		builder = {};
+		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::SkyBox))
+			   .addColorAttachment(ENVIRONMENT_CUBEMAP_FORMAT)
+			   .clearVertexInput()
+			   .addShaderStage(R"(..\shaders\compiled\cube1x1.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(R"(..\shaders\compiled\prefilterEnv.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(IblPushConstantData));
+		_graphicsPipelines.emplace(PipelineType::PrefilterEnv, builder.build(_device));
 
 		// Compute
 		ComputePipelineBuilder computeBuilder{};
@@ -1289,8 +1405,8 @@ namespace m1
 		// get buffers and images info
 		VkDescriptorBufferInfo lightUboInfo = _lightsUboBuffer->getVkDescriptorBufferInfo();
 	    VkDescriptorImageInfo shadowMapImageInfo = _shadowMap->getVkDescriptorImageInfo();
-		VkDescriptorImageInfo envImageInfo = _environmentCubeMap->getVkDescriptorImageInfo();
-		VkDescriptorImageInfo irradianceImageInfo = _irradianceCubeMap->getVkDescriptorImageInfo();
+		VkDescriptorImageInfo envImageInfo = _environmentCubemap->getVkDescriptorImageInfo();
+		VkDescriptorImageInfo irradianceImageInfo = _irradianceCubemap->getVkDescriptorImageInfo();
 
 	    // update each DescriptorSet
 	    for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)

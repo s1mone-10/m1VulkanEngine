@@ -17,7 +17,7 @@ namespace m1
 		MaterialPbr,
 		ComputeParticles,
 		EquirectToCubemap,
-		SkyBox,
+		SkyBox, // TODO rename and merge with EquirectToCubemap ?
 	};
 
 	class DescriptorSetManager

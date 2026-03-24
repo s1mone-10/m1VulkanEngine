@@ -53,18 +53,31 @@ namespace m1
 		// Create the Image View
         VK_CHECK(vkCreateImageView(_device.getVkDevice(), &viewInfo, nullptr, &_imageView));
 
-    	// create an imageView for each face
+    	// create an 2D imageView for each layer and mip level
     	if (params.flags & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT)
     	{
+    		_subViews.resize(_arrayLayers * _mipLevels, VK_NULL_HANDLE);
+
     		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    		uint32_t index {0};
 
 		    for (uint32_t i = 0; i < _arrayLayers; i++)
 		    {
+		    	// set the layer
 			    viewInfo.subresourceRange.baseArrayLayer = i;
 			    viewInfo.subresourceRange.layerCount = 1;
 
-			    // Create the Image View
-			    VK_CHECK(vkCreateImageView(_device.getVkDevice(), &viewInfo, nullptr, &_cubeMapViews[i]));
+		    	for (uint32_t j = 0; j < _mipLevels; j++)
+		    	{
+		    		// set the mip level
+		    		viewInfo.subresourceRange.baseMipLevel = j;
+		    		viewInfo.subresourceRange.levelCount = 1;
+
+		    		// create the image view
+		    		VkImageView imageView;
+		    		VK_CHECK(vkCreateImageView(_device.getVkDevice(), &viewInfo, nullptr, &imageView));
+		    		_subViews[index++] = imageView;
+		    	}
     		};
     	}
     }
@@ -73,7 +86,7 @@ namespace m1
     {
         Log::Get().Info("Destroying image");
         vkDestroyImageView(_device.getVkDevice(), _imageView, nullptr);
-    	for (auto imageView : _cubeMapViews)
+    	for (auto imageView : _subViews)
     	{
     		if (imageView != VK_NULL_HANDLE)
     			vkDestroyImageView(_device.getVkDevice(), imageView, nullptr);

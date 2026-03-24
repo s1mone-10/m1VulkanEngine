@@ -23,9 +23,10 @@ namespace m1
 		ShadowMapping,
 		PbrLighting,
 		Particles,
-		EquirectToCubemap,
+		EquirectToCube,
 		SkyBox,
-		Convolution,
+		IrradianceConvolution,
+		PrefilterEnv,
 	};
 
 	struct PushConstantData
@@ -34,11 +35,12 @@ namespace m1
 		alignas(16) glm::mat3 normalMatrix; // https://vulkan-tutorial.com/Uniform_buffers/Descriptor_pool_and_sets#page_Alignment-requirements
 	};
 
-	struct SkyBoxPushConstantData
+	struct IblPushConstantData
 	{
-		// TODO store only one matrix (proj * view)?
+		// TODO store only one matrix (proj * view)? I can have two ranges one for the vertex and one for fragment shader?
 		glm::mat4 projection;
 		glm::mat4 view;
+		float roughness;
 	};
 
 	class Pipeline

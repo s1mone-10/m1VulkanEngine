@@ -1,7 +1,7 @@
 #pragma once
 
 // libs
-#include <array>
+#include <vector>
 
 #include "vk_mem_alloc.h"
 
@@ -37,7 +37,7 @@ namespace m1
 
         [[nodiscard]] VkImage getVkImage() const { return _vkImage; }
         [[nodiscard]] VkImageView getVkImageView() const { return _imageView; }
-        [[nodiscard]] VkImageView getLayerVkImageView(uint32_t layer) const { return _cubeMapViews[layer]; }
+        [[nodiscard]] VkImageView getSubresourceVkImageView(uint32_t layer, uint32_t mipLevel) const { return _subViews[layer * _mipLevels + mipLevel]; }
 		[[nodiscard]] VkFormat getFormat() const { return _format; }
 		[[nodiscard]] VkExtent2D getExtent() const { return _extent; }
 		[[nodiscard]] uint32_t getWidth() const { return _extent.width; }
@@ -50,7 +50,7 @@ namespace m1
         VkImage _vkImage = VK_NULL_HANDLE;
     	VmaAllocation _allocation = VK_NULL_HANDLE;
         VkImageView _imageView = VK_NULL_HANDLE;
-    	std::array<VkImageView, 6> _cubeMapViews {VK_NULL_HANDLE};
+    	std::vector<VkImageView> _subViews {};
 		VkFormat _format;
         VkExtent2D _extent;
         uint32_t _mipLevels;
