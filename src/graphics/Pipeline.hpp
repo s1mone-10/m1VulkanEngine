@@ -25,6 +25,7 @@ namespace m1
 		Particles,
 		EquirectToCubemap,
 		SkyBox,
+		Convolution,
 	};
 
 	struct PushConstantData
@@ -35,6 +36,7 @@ namespace m1
 
 	struct SkyBoxPushConstantData
 	{
+		// TODO store only one matrix (proj * view)?
 		glm::mat4 projection;
 		glm::mat4 view;
 	};

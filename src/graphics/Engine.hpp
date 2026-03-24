@@ -45,6 +45,13 @@ namespace m1
         static constexpr int FRAMES_IN_FLIGHT = 2;
         static constexpr int PARTICLES_COUNT = 8192;
         static constexpr auto DEFAULT_MATERIAL_NAME = "Default";
+    	static constexpr VkExtent2D SHADOW_MAP_RESOLUTION = { 2048, 2048 };
+
+    	// As the irradiance map averages all surrounding radiance uniformly, it doesn't have a lot of high frequency details,
+    	// so we can store the map at a low resolution (32x32) and let GPU linear filtering do most of the work
+    	static constexpr VkExtent2D IBL_CUBEMAP_RESOLUTION = {32, 32 };
+    	static constexpr VkExtent2D ENVIRONMENT_CUBEMAP_RESOLUTION = {1024, 1024 };
+    	static constexpr VkFormat ENVIRONMENT_CUBEMAP_FORMAT = VK_FORMAT_R16G16B16A16_SFLOAT;
 
         explicit Engine(EngineConfig config);
         ~Engine();
@@ -90,6 +97,7 @@ namespace m1
 		void recordShadowMappingPass(VkCommandBuffer commandBuffer) const;
     	[[nodiscard]] BBox computeSceneBBox() const;
         [[nodiscard]] glm::mat4 computeLightViewProjMatrix() const;
+        void createEnvironmentTextures();
         void initParticles();
         void initLights();
         void updateDescriptorSets() const;
@@ -149,8 +157,9 @@ namespace m1
         uint32_t _currentFrame = 0;
 
     	std::unique_ptr<Texture> _shadowMap;
-    	std::unique_ptr<Texture> _skyBoxTexture;
-    	std::unique_ptr<SceneObject> _environmentCube;
+    	std::unique_ptr<Texture> _environmentCubeMap;
+    	std::unique_ptr<Texture> _irradianceCubeMap;
+    	std::unique_ptr<SceneObject> cube1x1;
 
 		// Synchronization objects (semaphores for GPU-GPU sync, fences for CPU-GPU sync)
         std::vector<VkSemaphore> _imageAvailableSems;

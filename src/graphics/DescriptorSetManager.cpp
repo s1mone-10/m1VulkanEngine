@@ -86,6 +86,16 @@ namespace m1
 			.pImmutableSamplers = nullptr
 		};
 
+		// Irradiance Map Sampler
+		VkDescriptorSetLayoutBinding irradianceSamplerBinding
+		{
+			.binding = 4,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
 	    // DescriptorSet Info
 	    std::array bindings =
 	    {
@@ -93,6 +103,7 @@ namespace m1
 		    frameUboLayoutBinding,
 	    	lightsUboLayoutBinding,
 			shadowMapSamplerBinding,
+	    	irradianceSamplerBinding
 	    };
 
 	    VkDescriptorSetLayoutCreateInfo layoutInfo

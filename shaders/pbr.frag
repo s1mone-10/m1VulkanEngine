@@ -19,7 +19,6 @@ layout (location = 4) in mat3 TBN;// Tangent-Bitangent-Normal matrix for normal 
 layout (location = 0) out vec4 outColor;
 
 // === SET 0 ===
-// Frame ubo
 layout(set = 0, binding = 1) uniform FrameUbo {
     mat4 view;
     mat4 proj;
@@ -28,18 +27,16 @@ layout(set = 0, binding = 1) uniform FrameUbo {
     int shadowsEnabled;
 } frameUbo;
 
-// Lights ubo
 layout(set = 0, binding = 2) uniform LightsUbo {
     vec4 ambient;// rgb = ambient color, a = intensity
     Light lights[10];
     int numLights;
 } lightsUbo;
 
-// shadow map sampler
 layout(set = 0, binding = 3) uniform sampler2D shadowMap;
+layout (set = 0, binding = 4) uniform samplerCube irradianceMap;
 
 // === SET 1 ===
-// Material ubo
 layout (set = 1, binding = 0) uniform MaterialUbo {
     vec4 baseColor;
     vec4 emissiveFactor;
@@ -91,9 +88,9 @@ float GeometrySmith(float NdotV, float NdotL, float roughness) {
 // Fresnel Reflectance (F) - Schlick's approximation
 // Compute the ratio of light that gets reflected over the light that gets refracted.
 // F0 parameter is the surface reflection at zero incidence (how much the surface reflects if looking directly at the surface)
-vec3 FresnelSchlick(float cosTheta, vec3 F0)
+vec3 FresnelSchlick(float cosTheta, vec3 F0, float roughness)
 {
-    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
 vec3 calculateLight(Light light, vec3 N, vec3 baseColor, vec3 V, vec3 F0, float metallic, float roughness, vec2 texelSize);
@@ -150,8 +147,12 @@ void main(){
         Lo += calculateLight(lightsUbo.lights[i], N, baseColor.rgb, V, F0, metallic, roughness, texelSize);
     }
 
-    // Add simple ambient lighting (should be replaced with IBL in production)
-    vec3 ambient = vec3(0.03) * baseColor.rgb * ao;
+    // IBL - ambient light from irradiance map
+    vec3 kS = FresnelSchlick(max(dot(N, V), 0.0), F0, roughness);
+    vec3 kD = 1.0 - kS;
+    //kD *= 1.0 - metallic; // Metals have no diffuse reflection // TODO I need this?
+    vec3 irradiance = texture(irradianceMap, N).rgb;
+    vec3 ambient = kD * irradiance * baseColor.rgb * ao;
 
     // Combine all lighting contributions
     vec3 color = ambient + Lo + emissive;
@@ -199,7 +200,7 @@ vec3 calculateLight(Light light, vec3 N, vec3 baseColor, vec3 V, vec3 F0, float 
     // Evaluate Cook-Torrance BRDF components
     float D = DistributionGGX(NdotH, roughness);// Normal distribution
     float G = GeometrySmith(NdotV, NdotL, roughness);// Geometry function
-    vec3 F = FresnelSchlick(HdotV, F0);// Fresnel reflectance
+    vec3 F = FresnelSchlick(HdotV, F0, 0);// Fresnel reflectance
 
     // Calculate specular BRDF
     vec3 numerator = D * G * F;

@@ -8,5 +8,10 @@ layout(set = 0, binding = 0) uniform samplerCube cubeSampler;
 
 void main()
 {
-    outColor = texture(cubeSampler, dir);
+    vec3 envColor = texture(cubeSampler, dir).rgb;
+
+    // Apply Reinhard tone mapping to compress HDR (high dynamic range) values to LDR (low dynamic range - monitor - [0,1])
+    envColor = envColor / (envColor + vec3(1.0));
+
+    outColor = vec4(envColor, 1.0f);
 }
