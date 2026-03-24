@@ -30,6 +30,15 @@ namespace m1
 		return *this;
 	}
 
+	GraphicsPipelineBuilder& GraphicsPipelineBuilder::clearVertexInput()
+	{
+		_vertexInput.vertexBindingDescriptionCount = 0;
+		_vertexInput.pVertexBindingDescriptions = nullptr;
+		_vertexInput.vertexAttributeDescriptionCount = 0;
+		_vertexInput.pVertexAttributeDescriptions = nullptr;
+		return *this;
+	}
+
 	GraphicsPipelineBuilder& GraphicsPipelineBuilder::setPrimitiveTopology(VkPrimitiveTopology topology)
 	{
 		_inputAssembly.topology = topology;
@@ -226,18 +235,6 @@ namespace m1
 		VkPipelineLayout pipelineLayout;
 		VK_CHECK(vkCreatePipelineLayout(device.getVkDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
-		// vertex info: describes the format of the vertex data that will be passed to the vertex shader
-		auto vertexBindDescription = Vertex::getBindingDescription();
-		auto vertexAttributeDescriptions = Vertex::getAttributeDescriptions();
-		VkPipelineVertexInputStateCreateInfo vertexInput
-		{
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-			.vertexBindingDescriptionCount = 1,
-			.pVertexBindingDescriptions = &vertexBindDescription,
-			.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexAttributeDescriptions.size()),
-			.pVertexAttributeDescriptions = vertexAttributeDescriptions.data(),
-		};
-
 		// color blending info: global settings
 		VkPipelineColorBlendStateCreateInfo colorBlending
 		{
@@ -268,7 +265,7 @@ namespace m1
 			.pStages    = _shaderStages.data(),
 
 			// set structures describing the fixed stage,
-			.pVertexInputState   = &vertexInput,
+			.pVertexInputState   = &_vertexInput,
 			.pInputAssemblyState = &_inputAssembly,
 			.pViewportState      = &_viewportState,
 			.pRasterizationState = &_rasterization,

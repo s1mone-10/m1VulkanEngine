@@ -159,7 +159,6 @@ namespace m1
     	std::unique_ptr<Texture> _shadowMap;
     	std::unique_ptr<Texture> _environmentCubeMap;
     	std::unique_ptr<Texture> _irradianceCubeMap;
-    	std::unique_ptr<SceneObject> cube1x1;
 
 		// Synchronization objects (semaphores for GPU-GPU sync, fences for CPU-GPU sync)
         std::vector<VkSemaphore> _imageAvailableSems;

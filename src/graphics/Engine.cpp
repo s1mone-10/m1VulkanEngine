@@ -94,8 +94,9 @@ namespace m1
 			vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT,
 				0, sizeof(SkyBoxPushConstantData), &push);
 
-			cube1x1->Mesh->draw(commandBuffer);
-			
+			// draw cube
+			vkCmdDraw(commandBuffer, 36, 1, 0, 0);
+
 			Renderer::endRendering(commandBuffer);
 		}
 
@@ -136,7 +137,7 @@ namespace m1
 
 		// reset the command buffer and begin a new recording
 		vkResetCommandBuffer(commandBuffer, 0);
-		 beginInfo = {};
+		beginInfo = {};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = 0; // Optional
 		beginInfo.pInheritanceInfo = nullptr; // Optional
@@ -171,7 +172,8 @@ namespace m1
 			vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT,
 				0, sizeof(SkyBoxPushConstantData), &push);
 
-			cube1x1->Mesh->draw(commandBuffer);
+			// draw cube
+			vkCmdDraw(commandBuffer, 36, 1, 0, 0);
 
 			Renderer::endRendering(commandBuffer);
 		}
@@ -215,11 +217,6 @@ namespace m1
 		_descriptorSetManager = std::make_unique<DescriptorSetManager>(_device);
 		createShadowMapTexture();
 		createEnvironmentTextures();
-
-		cube1x1 = m1::SceneObject::createSceneObject();
-		auto mesh = m1::Mesh::createCube();
-		mesh->compile(_device);
-		cube1x1->Mesh = std::move(mesh); // TODO hardcode coordinates in the shaders?
 
 		createPipelines();
 
@@ -600,6 +597,7 @@ namespace m1
 		vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT,
 			0, sizeof(SkyBoxPushConstantData), &push);
 
+		// draw cube
 		vkCmdDraw(commandBuffer, 36, 1, 0, 0);
 	}
 
@@ -1126,6 +1124,7 @@ namespace m1
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::SkyBox)) // set 0
 			   .addColorAttachment(_swapChain->getSwapChainImageFormat())
 			   .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
+			   .clearVertexInput()
 			   .addShaderStage(R"(..\shaders\compiled\skyBox.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
 			   .addShaderStage(R"(..\shaders\compiled\skyBox.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .setDepthCompareOp(VK_COMPARE_OP_LESS_OR_EQUAL)
@@ -1137,7 +1136,8 @@ namespace m1
 		builder = {};
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::EquirectToCubemap))
 			   .addColorAttachment(ENVIRONMENT_CUBEMAP_FORMAT)
-			   .addShaderStage(R"(..\shaders\compiled\equirectToCubemap.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
+			   .clearVertexInput()
+			   .addShaderStage(R"(..\shaders\compiled\cube1x1.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
 			   .addShaderStage(R"(..\shaders\compiled\equirectToCubemap.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(SkyBoxPushConstantData));
 		_graphicsPipelines.emplace(PipelineType::EquirectToCubemap, builder.build(_device));
@@ -1146,7 +1146,8 @@ namespace m1
 		builder = {};
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::SkyBox))
 			   .addColorAttachment(ENVIRONMENT_CUBEMAP_FORMAT)
-			   .addShaderStage(R"(..\shaders\compiled\equirectToCubemap.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
+			   .clearVertexInput()
+			   .addShaderStage(R"(..\shaders\compiled\cube1x1.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
 			   .addShaderStage(R"(..\shaders\compiled\convolution.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(SkyBoxPushConstantData));
 		_graphicsPipelines.emplace(PipelineType::Convolution, builder.build(_device));

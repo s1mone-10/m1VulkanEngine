@@ -76,6 +76,19 @@ namespace m1
 			.scissorCount  = 1  // specifies only the count since is dynamic state
 		};
 
+		VkVertexInputBindingDescription _vertexBindingDescription = Vertex::getBindingDescription();
+		std::vector<VkVertexInputAttributeDescription> _vertexAttributeDescriptions = Vertex::getAttributeDescriptions();
+
+		// vertex info: describes the format of the vertex data that will be passed to the vertex shader
+		VkPipelineVertexInputStateCreateInfo _vertexInput
+		{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+			.vertexBindingDescriptionCount = 1,
+			.pVertexBindingDescriptions = &_vertexBindingDescription,
+			.vertexAttributeDescriptionCount = static_cast<uint32_t>(_vertexAttributeDescriptions.size()),
+			.pVertexAttributeDescriptions = _vertexAttributeDescriptions.data(),
+		};
+
 		// assembly info: primitive topology
 		VkPipelineInputAssemblyStateCreateInfo _inputAssembly
 		{
@@ -182,6 +195,8 @@ namespace m1
 		GraphicsPipelineBuilder& addShaderStage(const std::string& shaderPath, VkShaderStageFlagBits stage, const char* entryPoint = "main");
 
 		GraphicsPipelineBuilder& setViewportState(uint32_t viewportCount, uint32_t scissorCount);
+
+		GraphicsPipelineBuilder& clearVertexInput();
 
 		GraphicsPipelineBuilder& setPrimitiveTopology(VkPrimitiveTopology topology);
 
