@@ -1,11 +1,17 @@
 #pragma once
 
+#include <vulkan/vulkan.h>
+
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_vulkan.h"
-#include "Engine.hpp"
 
 namespace m1
 {
+	class Engine;
+	class Device;
+	class Window;
+	class SwapChain;
+
 	class UiModule
 	{
 	public:

@@ -1,15 +1,18 @@
 #pragma once
 
-#include "Mesh.hpp"
+#include "Pipeline.hpp"
 
 // libs
 #include "glm_config.hpp"
 
 // std
 #include <memory>
+#include <optional>
 
 namespace m1
 {
+	class Mesh;
+
 	class SceneObject
 	{
 	public:
