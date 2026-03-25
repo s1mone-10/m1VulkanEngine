@@ -33,8 +33,10 @@ layout(set = 0, binding = 2) uniform LightsUbo {
     int numLights;
 } lightsUbo;
 
-layout(set = 0, binding = 3) uniform sampler2D shadowMap;
+layout (set = 0, binding = 3) uniform sampler2D shadowMap;
 layout (set = 0, binding = 4) uniform samplerCube irradianceMap;
+layout (set = 0, binding = 5) uniform samplerCube prefilteredMap;
+layout (set = 0, binding = 6) uniform sampler2D brdfLUT;
 
 // === SET 1 ===
 layout (set = 1, binding = 0) uniform MaterialUbo {
@@ -104,12 +106,15 @@ void main(){
     // Transform normal from tangent space to world space
     N = normalize(TBN * N); // TODO TBN matrix must be re-orthogonalized or normalized?
 
-    // === LIGHTING SETUP ===
+    // ========= LIGHTING SETUP ==========
+
     // Calculate view direction (fragment to camera)
     vec3 V = normalize(frameUbo.camPos.xyz - fragPosWorld);
 
     // Calculate reflection vector for environment mapping
-    //vec3 R = reflect(-V, N);// TODO environmet mapping
+    vec3 R = reflect(-V, N);
+
+    // ========== TEXTURE SAMPLING =========
 
     // get the base color by multiply texture, vertex and material colors
     // Use white (1,1,1) as default so missing texture / vertex / material color does not affect the result
@@ -147,12 +152,22 @@ void main(){
         Lo += calculateLight(lightsUbo.lights[i], N, baseColor.rgb, V, F0, metallic, roughness, texelSize);
     }
 
-    // IBL - ambient light from irradiance map
-    vec3 kS = FresnelSchlick(max(dot(N, V), 0.0), F0, roughness);
+    // ============  IBL - ambient light ===================
+    float NdotV = max(dot(N, V), 0.0); // View angle
+    vec3 kS = FresnelSchlick(NdotV, F0, roughness);
     vec3 kD = 1.0 - kS;
-    //kD *= 1.0 - metallic; // Metals have no diffuse reflection // TODO I need this?
+    kD *= 1.0 - metallic;
+
     vec3 irradiance = texture(irradianceMap, N).rgb;
-    vec3 ambient = kD * irradiance * baseColor.rgb * ao;
+    vec3 diffuse    = irradiance * baseColor.rgb;
+
+    const float MAX_REFLECTION_LOD = 4.0; // max mip level index of the texture. 5 mip levels -> (0 to 4)
+    vec3 prefilteredColor = textureLod(prefilteredMap, R,  roughness * MAX_REFLECTION_LOD).rgb;
+    vec2 envBRDF  = texture(brdfLUT, vec2(NdotV, roughness)).rg;
+    vec3 specular = prefilteredColor * (kS * envBRDF.x + envBRDF.y);
+
+    vec3 ambient = (kD * diffuse + specular) * ao;
+
 
     // Combine all lighting contributions
     vec3 color = ambient + Lo + emissive;

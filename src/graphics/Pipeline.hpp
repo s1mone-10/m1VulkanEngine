@@ -27,6 +27,7 @@ namespace m1
 		SkyBox,
 		IrradianceConvolution,
 		PrefilterEnv,
+		BrdfLUT,
 	};
 
 	struct PushConstantData

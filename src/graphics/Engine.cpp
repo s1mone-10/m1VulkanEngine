@@ -295,6 +295,79 @@ namespace m1
 
 		vkDeviceWaitIdle(_device.getVkDevice()); // TODO use fence and semaphores
 
+
+		// -------------- BRDF LUT ----------------------
+
+		// reset the command buffer and begin a new recording
+		vkResetCommandBuffer(commandBuffer, 0);
+		beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = 0; // Optional
+		beginInfo.pInheritanceInfo = nullptr; // Optional
+		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
+
+		auto& brdfLutImage = _brdfLUT->getImage();
+		transitionImageLayout(commandBuffer, brdfLutImage.getVkImage(), brdfLutImage.getMipLevels(), VK_IMAGE_LAYOUT_UNDEFINED,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, brdfLutImage.getArrayLayers());
+
+
+		{
+
+			{
+				VkRenderingAttachmentInfo colorAttachment = Renderer::createColorAttachment(brdfLutImage.getVkImageView());
+
+				VkExtent2D targetExtent = brdfLutImage.getExtent();
+
+				Renderer::beginRendering(commandBuffer, {{0, 0}, targetExtent}, 1,
+					&colorAttachment, nullptr);
+
+				Renderer::setDynamicStates(commandBuffer, targetExtent);
+
+				// draw
+				auto* pipeline = _graphicsPipelines.at(PipelineType::BrdfLUT).get();
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getVkPipeline());
+
+				VkDescriptorSet descriptorSet = _framesData[0]->skyBoxDescriptorSet;
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getLayout(), 0, 1,
+					&descriptorSet, 0, nullptr);
+
+				// draw cube
+				vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+				Renderer::endRendering(commandBuffer);
+			}
+		}
+
+		transitionImageLayout(commandBuffer, brdfLutImage.getVkImage(), brdfLutImage.getMipLevels(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, brdfLutImage.getArrayLayers());
+
+		// end command buffer recording
+		VK_CHECK(vkEndCommandBuffer(commandBuffer));
+
+		// VkSemaphoreCreateInfo semaphoreInfo{};
+		// semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		// VkSemaphore semaphore;
+		// VK_CHECK(vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &semaphore));
+
+		// submit info
+		submitInfo =
+		{
+			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+			//wait semaphores
+			.waitSemaphoreCount = 0,
+			// command buffers
+			.commandBufferCount = 1,
+			.pCommandBuffers = &commandBuffer,
+			// signal semaphore
+			.signalSemaphoreCount = 0,
+			//.pSignalSemaphores = &semaphore,
+		};
+
+		// submit the command buffer (the fence will be signaled when the command buffer finishes executing)
+		VK_CHECK(vkQueueSubmit(_device.getGraphicsQueue().getVkQueue(), 1, &submitInfo, nullptr));
+
+		vkDeviceWaitIdle(_device.getVkDevice()); // TODO use fence and semaphores
+
 	}
 
 	Engine::Engine(EngineConfig config) : _config(config)
@@ -1072,10 +1145,18 @@ namespace m1
 			.arrayLayers = 6,
 		};
 		auto prefilterEnvCubemapImage = std::make_shared<Image>(_device, imageParams);
+		_prefilteredEnvCubemap = std::make_unique<Texture>(_device, std::move(prefilterEnvCubemapImage), sampler);
 
-		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-		auto prefSampler = std::make_shared<Sampler>(_device, &samplerCreateInfo);
-		_prefilteredEnvCubemap = std::make_unique<Texture>(_device, std::move(prefilterEnvCubemapImage), prefSampler);
+		// BRDF Look-Up Texture
+		imageParams =
+		{
+			.extent = BRDF_LUT_RESOLUTION,
+			.format = BRDF_LUT_FORMAT,
+			.usage = Texture::getImageUsageFlags() | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			.mipLevels = 1
+		};
+		auto brdfImage = std::make_shared<Image>(_device, imageParams);
+		_brdfLUT = std::make_unique<Texture>(_device, std::move(brdfImage), sampler);
 	}
 
 	void Engine::createShadowMapTexture()
@@ -1243,7 +1324,7 @@ namespace m1
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::EquirectToCubemap))
 			   .addColorAttachment(ENVIRONMENT_CUBEMAP_FORMAT)
 			   .clearVertexInput()
-			   .addShaderStage(R"(..\shaders\compiled\cube1x1.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(R"(..\shaders\compiled\cubeNDC.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
 			   .addShaderStage(R"(..\shaders\compiled\equirectToCube.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(IblPushConstantData));
 		_graphicsPipelines.emplace(PipelineType::EquirectToCube, builder.build(_device));
@@ -1253,7 +1334,7 @@ namespace m1
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::SkyBox))
 			   .addColorAttachment(ENVIRONMENT_CUBEMAP_FORMAT)
 			   .clearVertexInput()
-			   .addShaderStage(R"(..\shaders\compiled\cube1x1.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(R"(..\shaders\compiled\cubeNDC.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
 			   .addShaderStage(R"(..\shaders\compiled\irradianceConvolution.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(IblPushConstantData));
 		_graphicsPipelines.emplace(PipelineType::IrradianceConvolution, builder.build(_device));
@@ -1263,10 +1344,21 @@ namespace m1
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::SkyBox))
 			   .addColorAttachment(ENVIRONMENT_CUBEMAP_FORMAT)
 			   .clearVertexInput()
-			   .addShaderStage(R"(..\shaders\compiled\cube1x1.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(R"(..\shaders\compiled\cubeNDC.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
 			   .addShaderStage(R"(..\shaders\compiled\prefilterEnv.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(IblPushConstantData));
 		_graphicsPipelines.emplace(PipelineType::PrefilterEnv, builder.build(_device));
+
+		// BRDF LUT
+		builder = {};
+		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::SkyBox))
+			   .addColorAttachment(BRDF_LUT_FORMAT)
+			   .clearVertexInput()
+		.setCullModeFlags(VK_CULL_MODE_NONE)
+			   .addShaderStage(R"(..\shaders\compiled\quadNDC.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(R"(..\shaders\compiled\brdfLUT.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .clearPushConstantRanges();
+		_graphicsPipelines.emplace(PipelineType::BrdfLUT, builder.build(_device));
 
 		// Compute
 		ComputePipelineBuilder computeBuilder{};
@@ -1407,6 +1499,8 @@ namespace m1
 	    VkDescriptorImageInfo shadowMapImageInfo = _shadowMap->getVkDescriptorImageInfo();
 		VkDescriptorImageInfo envImageInfo = _environmentCubemap->getVkDescriptorImageInfo();
 		VkDescriptorImageInfo irradianceImageInfo = _irradianceCubemap->getVkDescriptorImageInfo();
+		VkDescriptorImageInfo prefilteredImageInfo = _prefilteredEnvCubemap->getVkDescriptorImageInfo();
+		VkDescriptorImageInfo brdfLUTImageInfo = _brdfLUT->getVkDescriptorImageInfo();
 
 	    // update each DescriptorSet
 	    for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
@@ -1425,10 +1519,12 @@ namespace m1
 	    	auto lightsUboWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 2,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &lightUboInfo);
 	    	auto shadowMapWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 3,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &shadowMapImageInfo);
 	    	auto irradianceMapWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 4,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &irradianceImageInfo);
+	    	auto prefilteredMapWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 5,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &prefilteredImageInfo);
+	    	auto brdfLUTMapWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 6,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &brdfLUTImageInfo);
 
 		    std::array descriptorWrites =
 		    {
-			    objectUboWrite, frameUboWrite, lightsUboWrite, shadowMapWrite, irradianceMapWrite
+			    objectUboWrite, frameUboWrite, lightsUboWrite, shadowMapWrite, irradianceMapWrite, prefilteredMapWrite, brdfLUTMapWrite
 		    };
 
 		    vkUpdateDescriptorSets(_device.getVkDevice(), descriptorWrites.size(),

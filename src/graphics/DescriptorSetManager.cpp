@@ -96,6 +96,26 @@ namespace m1
 			.pImmutableSamplers = nullptr
 		};
 
+		// Prefiltered Map Sampler
+		VkDescriptorSetLayoutBinding prefilteredSamplerBinding
+		{
+			.binding = 5,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
+		// BRDF LUT Map Sampler
+		VkDescriptorSetLayoutBinding brdfLUTSamplerBinding
+		{
+			.binding = 6,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.pImmutableSamplers = nullptr
+		};
+
 	    // DescriptorSet Info
 	    std::array bindings =
 	    {
@@ -103,7 +123,9 @@ namespace m1
 		    frameUboLayoutBinding,
 	    	lightsUboLayoutBinding,
 			shadowMapSamplerBinding,
-	    	irradianceSamplerBinding
+	    	irradianceSamplerBinding,
+	    	prefilteredSamplerBinding,
+	    	brdfLUTSamplerBinding
 	    };
 
 	    VkDescriptorSetLayoutCreateInfo layoutInfo
