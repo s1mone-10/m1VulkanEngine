@@ -38,9 +38,7 @@ namespace m1
 
 	struct IblPushConstantData
 	{
-		// TODO store only one matrix (proj * view)? I can have two ranges one for the vertex and one for fragment shader?
-		glm::mat4 projection;
-		glm::mat4 view;
+		glm::mat4 projView;
 		float roughness;
 	};
 

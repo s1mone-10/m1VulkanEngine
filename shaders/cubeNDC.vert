@@ -3,11 +3,9 @@
 layout (location = 0) out vec3 direction;
 
 layout(push_constant) uniform Push {
-    mat4 projection;
-    mat4 view;
+    mat4 projView;
+    float _;
 } push;
-
-
 
 const vec3 vertices[8] = vec3[8](
     vec3(-1, -1,  1),   // 0
@@ -34,5 +32,5 @@ void main()
 {
     int idx = indices[gl_VertexIndex];
     direction = vertices[idx];
-    gl_Position =  push.projection * push.view * vec4(direction, 1.0);
+    gl_Position =  push.projView * vec4(direction, 1.0);
 }

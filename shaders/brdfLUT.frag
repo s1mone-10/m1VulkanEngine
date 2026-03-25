@@ -4,11 +4,6 @@ layout (location = 0) in vec2 texCoord;
 
 layout (location = 0) out vec4 outColor;
 
-// Push constant
-layout(push_constant) uniform Push {
-    float roughness;
-} push;
-
 const float PI = 3.14159265359;
 
 vec2 IntegrateBRDF(float NdotV, float roughness);
@@ -16,7 +11,7 @@ float RadicalInverse_VdC(uint bits);
 vec2 Hammersley(uint i, uint N);
 vec3 ImportanceSampleGGX(vec2 Xi, vec3 N, float roughness);
 float GeometrySchlickGGX(float NdotV, float roughness);
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
+float GeometrySmith(float NdotV, float NdotL, float roughness);
 
 void main()
 {
@@ -49,7 +44,7 @@ vec2 IntegrateBRDF(float NdotV, float roughness)
 
         if(NdotL > 0.0)
         {
-            float G = GeometrySmith(N, V, L, roughness);
+            float G = GeometrySmith(NdotV, NdotL, roughness);
             float G_Vis = (G * VdotH) / (NdotH * NdotV);
             float Fc = pow(1.0 - VdotH, 5.0);
 
@@ -100,23 +95,13 @@ vec3 ImportanceSampleGGX(vec2 Xi, vec3 N, float roughness)
     return normalize(sampleVec);
 }
 
-float GeometrySchlickGGX(float NdotV, float roughness)
-{
-    float a = roughness;
-    float k = (a * a) / 2.0;
+float GeometrySmith(float NdotV, float NdotL, float roughness) {
+    float k = (roughness * roughness) / 2.0;
 
-    float nom   = NdotV;
-    float denom = NdotV * (1.0 - k) + k;
+    // Geometry obstruction from view direction (masking)
+    float ggx1 = NdotV / (NdotV * (1.0 - k) + k);
+    // Geometry obstruction from light direction (shadowing)
+    float ggx2 = NdotL / (NdotL * (1.0 - k) + k);
 
-    return nom / denom;
-}
-// ----------------------------------------------------------------------------
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
-{
-    float NdotV = max(dot(N, V), 0.0); // TODO move this outside? like in pbr shader
-    float NdotL = max(dot(N, L), 0.0);
-    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
-    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
-
-    return ggx1 * ggx2;
+    return ggx1 * ggx2;// Combined masking-shadowing
 }

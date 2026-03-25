@@ -3,8 +3,8 @@
 layout (location = 0) out vec3 dir;
 
 layout(push_constant) uniform Push {
-    mat4 projection;
-    mat4 view;
+    mat4 projView;
+    float _;
 } push;
 
 const vec3 vertices[8] = vec3[8](
@@ -32,6 +32,6 @@ void main()
 {
     int idx = indices[gl_VertexIndex];
     dir = vertices[idx];
-    vec4 pos = push.projection * push.view * vec4(dir, 1.0);
+    vec4 pos = push.projView * vec4(dir, 1.0);
     gl_Position = pos.xyww; // force Z component to max depth value 1.0
 }

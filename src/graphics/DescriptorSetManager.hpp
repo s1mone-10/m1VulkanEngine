@@ -16,8 +16,7 @@ namespace m1
 		MaterialPhong,
 		MaterialPbr,
 		ComputeParticles,
-		EquirectToCubemap,
-		SkyBox, // TODO rename and merge with EquirectToCubemap ?
+		OneSampler,
 	};
 
 	class DescriptorSetManager
@@ -43,8 +42,7 @@ namespace m1
 		void createFrameDescriptorSetLayout();
 		void createMaterialDescriptorSetLayout();
 		void createMaterialPbrDescriptorSetLayout();
-		void createEquirectToCubemapDescriptorSetLayout();
-		void createSkyBoxDescriptorSetLayout();
+		void createOneSamplerDescriptorSetLayout();
 		void createParticleDescriptorSetLayout();
 		void createDescriptorPool();
 	};

@@ -25,8 +25,7 @@ namespace m1
 	    createFrameDescriptorSetLayout();
 	    createMaterialDescriptorSetLayout();
 	    createMaterialPbrDescriptorSetLayout();
-		createEquirectToCubemapDescriptorSetLayout();
-		createSkyBoxDescriptorSetLayout();
+		createOneSamplerDescriptorSetLayout();
 		createParticleDescriptorSetLayout();
 	    createDescriptorPool();
     }
@@ -272,7 +271,7 @@ namespace m1
 		_descriptorSetLayouts.emplace(DescriptorSetLayoutType::MaterialPbr, descriptorSetLayout);
 	}
 
-	void DescriptorSetManager::createEquirectToCubemapDescriptorSetLayout()
+	void DescriptorSetManager::createOneSamplerDescriptorSetLayout()
 	{
 		VkDescriptorSetLayoutBinding layoutBinding
 		{
@@ -292,30 +291,7 @@ namespace m1
 
 		VkDescriptorSetLayout descriptorSetLayout;
 		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &descriptorSetLayout));
-		_descriptorSetLayouts.emplace(DescriptorSetLayoutType::EquirectToCubemap, descriptorSetLayout);
-	}
-
-	void DescriptorSetManager::createSkyBoxDescriptorSetLayout()
-	{
-		VkDescriptorSetLayoutBinding layoutBinding
-		{
-			.binding = 0,
-			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			.descriptorCount = 1,
-			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-			.pImmutableSamplers = nullptr
-		};
-
-		VkDescriptorSetLayoutCreateInfo layoutInfo
-		{
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-			.bindingCount = 1,
-			.pBindings = &layoutBinding
-		};
-
-		VkDescriptorSetLayout descriptorSetLayout;
-		VK_CHECK(vkCreateDescriptorSetLayout(_device.getVkDevice(), &layoutInfo, nullptr, &descriptorSetLayout));
-		_descriptorSetLayouts.emplace(DescriptorSetLayoutType::SkyBox, descriptorSetLayout);
+		_descriptorSetLayouts.emplace(DescriptorSetLayoutType::OneSampler, descriptorSetLayout);
 	}
 
 	void DescriptorSetManager::createParticleDescriptorSetLayout()

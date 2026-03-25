@@ -8,8 +8,7 @@ layout(set = 0, binding = 0) uniform samplerCube environmentMap;
 
 // Push constant
 layout(push_constant) uniform Push {
-    mat4 projection;
-    mat4 view;
+    mat4 _;
     float roughness;
 } push;
 

@@ -106,8 +106,6 @@ void main(){
     // Transform normal from tangent space to world space
     N = normalize(TBN * N); // TODO TBN matrix must be re-orthogonalized or normalized?
 
-    // ========= LIGHTING SETUP ==========
-
     // Calculate view direction (fragment to camera)
     vec3 V = normalize(frameUbo.camPos.xyz - fragPosWorld);
 
@@ -131,11 +129,6 @@ void main(){
     // emissive color
     vec3 emissive = texture(emissiveMap, fragTextCoord).rgb * material.emissiveFactor.rgb;
 
-    // TODO is true for gltf now?
-    //Note that the albedo textures that come from artists are generally authored in sRGB space which is why we first convert them to linear space before using albedo in our lighting calculations.
-    //vec3 albedo     = pow(texture(albedoMap, TexCoords).rgb, 2.2);
-
-    // === PBR MATERIAL SETUP ===
     // Calculate F0 (reflectance at normal incidence)
     // Non-metals: default low reflectance (~0.04), Metals: colored reflectance from base color
     // linear interpolation between default 0.04 and the albedo color using metallic property to weight between them.
@@ -189,7 +182,7 @@ vec3 calculateLight(Light light, vec3 N, vec3 baseColor, vec3 V, vec3 F0, float 
     vec3 H = normalize(V + L);
 
     // 1 => object not in shadow
-    float shadow = 1;// TODO - use shadow
+    float shadow = 1;// TODO - use shadow?
 
     // multiply color for intensity
     vec3 radiance = light.color.rgb * light.color.a;

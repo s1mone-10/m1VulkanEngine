@@ -28,10 +28,10 @@ namespace m1
 {
 	void Engine::createCubeMap()
 	{
-		auto equirectTexture = Utils::loadEquirectangularHDRMap(*this, "../resources/newport_loft.hdr");
-		//auto equirectTexture = Utils::loadEquirectangularHDRMap(*this, "../resources/HDR_111_Parking_Lot_2_Ref.hdr");
+		//auto equirectTexture = Utils::loadEquirectangularHDRMap(*this, "../resources/newport_loft.hdr");
+		auto equirectTexture = Utils::loadEquirectangularHDRMap(*this, "../resources/HDR_111_Parking_Lot_2_Ref.hdr");
 
-		auto equirectToCubemapDescriptorSet = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::EquirectToCubemap, 1)[0];
+		auto equirectToCubemapDescriptorSet = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::OneSampler, 1)[0];
 
 		VkDescriptorImageInfo equirectImageInfo = equirectTexture->getVkDescriptorImageInfo();
 
@@ -44,14 +44,14 @@ namespace m1
 
 		// camera matrices
 		glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
-		glm::mat4 captureViews[] =
+		glm::mat4 captureProjViews[] =
 		{
-			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
-			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
-			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
-			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
-			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
-			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+			captureProjection * glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			captureProjection * glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			captureProjection * glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+			captureProjection * glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+			captureProjection * glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			captureProjection * glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
 		 };
 
 
@@ -88,8 +88,7 @@ namespace m1
 
 			IblPushConstantData push
 			{
-				.projection = captureProjection,
-				.view       = captureViews[i]
+				.projView = captureProjViews[i]
 			};
 			vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT,
 				0, sizeof(IblPushConstantData), &push);
@@ -166,8 +165,7 @@ namespace m1
 
 			IblPushConstantData push
 			{
-				.projection = captureProjection,
-				.view       = captureViews[i]
+				.projView = captureProjViews[i]
 			};
 			vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT,
 				0, sizeof(IblPushConstantData), &push);
@@ -251,8 +249,7 @@ namespace m1
 
 				IblPushConstantData push
 				{
-					.projection = captureProjection,
-					.view       = captureViews[face],
+					.projView = captureProjViews[face],
 					.roughness =  static_cast<float>(mipLevel) / static_cast<float>(prefEnvImgMipLevels - 1)
 				};
 				vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -752,8 +749,7 @@ namespace m1
 		// push constants
 		IblPushConstantData push
 		{
-			.projection = _camera.getProjectionMatrix(),
-			.view       = glm::mat4(glm::mat3(_camera.getViewMatrix())) // remove translation
+			.projView = _camera.getProjectionMatrix() * glm::mat4(glm::mat3(_camera.getViewMatrix())) // remove translation from view matrix
 		};
 		vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT,
 			0, sizeof(IblPushConstantData), &push);
@@ -1308,7 +1304,7 @@ namespace m1
 
 		// SkyBox
 		builder = {};
-		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::SkyBox)) // set 0
+		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::OneSampler)) // set 0
 			   .addColorAttachment(_swapChain->getSwapChainImageFormat())
 			   .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
 			   .clearVertexInput()
@@ -1321,7 +1317,7 @@ namespace m1
 
 		// Equirect to cube map
 		builder = {};
-		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::EquirectToCubemap))
+		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::OneSampler))
 			   .addColorAttachment(ENVIRONMENT_CUBEMAP_FORMAT)
 			   .clearVertexInput()
 			   .addShaderStage(R"(..\shaders\compiled\cubeNDC.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
@@ -1331,7 +1327,7 @@ namespace m1
 
 		// Irradiance convolution
 		builder = {};
-		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::SkyBox))
+		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::OneSampler))
 			   .addColorAttachment(ENVIRONMENT_CUBEMAP_FORMAT)
 			   .clearVertexInput()
 			   .addShaderStage(R"(..\shaders\compiled\cubeNDC.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
@@ -1341,7 +1337,7 @@ namespace m1
 
 		// Prefilter env
 		builder = {};
-		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::SkyBox))
+		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::OneSampler))
 			   .addColorAttachment(ENVIRONMENT_CUBEMAP_FORMAT)
 			   .clearVertexInput()
 			   .addShaderStage(R"(..\shaders\compiled\cubeNDC.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
@@ -1351,7 +1347,7 @@ namespace m1
 
 		// BRDF LUT
 		builder = {};
-		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::SkyBox))
+		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::OneSampler))
 			   .addColorAttachment(BRDF_LUT_FORMAT)
 			   .clearVertexInput()
 		.setCullModeFlags(VK_CULL_MODE_NONE)
@@ -1387,7 +1383,7 @@ namespace m1
 
 		// allocate descriptor sets and command buffers
 		auto descriptorSets = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::Frame, FRAMES_IN_FLIGHT);
-		auto skyBoxDescriptorSets = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::SkyBox, FRAMES_IN_FLIGHT);
+		auto skyBoxDescriptorSets = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::OneSampler, FRAMES_IN_FLIGHT);
 		auto computeParticlesDescSet = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::ComputeParticles, FRAMES_IN_FLIGHT);
 		auto drawSceneCmdBuffers = _device.getGraphicsQueue().getPersistentCommandPool().allocateCommandBuffers(FRAMES_IN_FLIGHT);
 		auto computeCmdBuffers = _device.getComputeQueue().getPersistentCommandPool().allocateCommandBuffers(FRAMES_IN_FLIGHT);
