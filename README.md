@@ -29,7 +29,7 @@ This is a personal project to learn Vulkan and moder C++.
 *   Load and render `gltf` and `.obj` models.
 *   Blinn–Phong and shadow mapping.
     ![My Image](docs/images/blinn_phong.png)
-*   PBR (work in progress..)
+*   PBR
   
     ![My Image](docs/images/pbr.png)
 *   Compute shader to animate a particle system.
