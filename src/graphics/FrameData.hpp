@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Buffer.hpp"
-#include "Device.hpp"
 
 // libs
 #include <vulkan/vulkan.h>

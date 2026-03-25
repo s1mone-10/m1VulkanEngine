@@ -1,4 +1,5 @@
 #include "UiModule.hpp"
+#include "Engine.hpp"
 #include "Queue.hpp"
 #include "Renderer.hpp"
 #include "Utils.hpp"
