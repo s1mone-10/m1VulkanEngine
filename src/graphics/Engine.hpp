@@ -30,13 +30,23 @@ namespace m1
 		Pbr,
 	};
 
+	enum class EnvironmentMapPreset
+	{
+		NewportLoft = 0,
+		Hdr111ParkingLot2Ref = 1,
+	};
+
 	struct EngineConfig
 	{
 		bool msaaEnabled = true;
 		bool shadowsEnabled = true;
 		bool particlesEnabled = true;
 		bool uiEnabled = true;
+		bool skyboxEnabled = true;
 		LightingType lightingType = LightingType::Pbr;
+		float environmentMapIntensity = 1.0f;
+		EnvironmentMapPreset environmentMapPreset = EnvironmentMapPreset::Hdr111ParkingLot2Ref;
+		int selectedModelIndex = 0;
 	};
 
     class Engine
@@ -81,6 +91,20 @@ namespace m1
         bool getShadowsEnabled() const;
         void setLightingType(LightingType lightingType);
         LightingType getLightingType() const;
+		void setSkyboxEnabled(bool enabled);
+		bool getSkyboxEnabled() const;
+		void setEnvironmentMapIntensity(float intensity);
+		float getEnvironmentMapIntensity() const;
+		void setEnvironmentMapPreset(EnvironmentMapPreset preset);
+		EnvironmentMapPreset getEnvironmentMapPreset() const;
+		void setSelectedModelIndex(int modelIndex);
+		int getSelectedModelIndex() const;
+		void setAmbientLight(const glm::vec4& ambient);
+		glm::vec4 getAmbientLight() const;
+		void setLight(uint32_t index, const Light& light);
+		Light getLight(uint32_t index) const;
+		void setLightsCount(int lightsCount);
+		int getLightsCount() const;
 
     private:
         void mainLoop();

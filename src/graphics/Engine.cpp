@@ -850,7 +850,8 @@ namespace m1
 		// draw objects
 		drawObjectsLoop(commandBuffer);
 
-		drawSkyBox(commandBuffer); // TODO flag ui
+		if (_config.skyboxEnabled)
+			drawSkyBox(commandBuffer);
 
 		// draw particles
 		if (_config.particlesEnabled)
