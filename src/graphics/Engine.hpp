@@ -61,6 +61,10 @@ namespace m1
     {
     public:
         static constexpr int FRAMES_IN_FLIGHT = 2;
+    	// startup Window size
+    	static constexpr uint32_t WINDOW_WIDTH = 1280;
+    	static constexpr uint32_t WINDOW_HEIGHT = 720;
+
         static constexpr int PARTICLES_COUNT = 8192;
         static constexpr auto DEFAULT_MATERIAL_NAME = "Default";
     	static constexpr VkExtent2D SHADOW_MAP_RESOLUTION = { 2048, 2048 };
@@ -150,23 +154,17 @@ namespace m1
         std::unique_ptr<Texture> loadTexture(const std::string &filePath, VkFormat format) const;
 
         void processInput(float delta);
-
-        void transitionImageLayout(const Image &image, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask) const;
-        static void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout,
-        	VkImageLayout newLayout, VkImageAspectFlags aspectMask, uint32_t layerCount = 1);
-        static void getStageAndAccessMaskForLayout(VkImageLayout layout, VkPipelineStageFlags &stageMask, VkAccessFlags &accessMask);
-
+        void transitionImageLayoutOtc(const Image &image, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask) const;
         void generateMipmaps(const Image& image) const;
-        static void copyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize);
 
-        const uint32_t  WIDTH = 800;
-        const uint32_t  HEIGHT = 600;
+
+
 
     	EngineConfig _config{};
     	std::unique_ptr<UiModule> _gui;
         Camera _camera{};
 
-        Window _window{ WIDTH, HEIGHT, "Vulkan App" };
+        Window _window{ WINDOW_WIDTH, WINDOW_HEIGHT, "Vulkan App" };
         Device _device{ _window };
         std::unique_ptr<SwapChain> _swapChain;
     	std::unordered_map<PipelineType, std::unique_ptr<Pipeline>> _graphicsPipelines;

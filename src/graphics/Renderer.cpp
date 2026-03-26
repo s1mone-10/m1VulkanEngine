@@ -2,7 +2,7 @@
 
 namespace m1
 {
-	void Renderer::beginRendering(VkCommandBuffer cmdBuffer, VkRect2D renderArea, uint32_t colorAttachmentCount, VkRenderingAttachmentInfo* pColorAttachments,
+	void beginRendering(VkCommandBuffer cmdBuffer, VkRect2D renderArea, uint32_t colorAttachmentCount, VkRenderingAttachmentInfo* pColorAttachments,
 		VkRenderingAttachmentInfo* pDepthAttachment)
 	{
 		// begin rendering
@@ -18,12 +18,12 @@ namespace m1
 		vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 	}
 
-	void Renderer::endRendering(VkCommandBuffer cmdBuffer)
+	void endRendering(VkCommandBuffer cmdBuffer)
 	{
 		vkCmdEndRendering(cmdBuffer);
 	}
 
-	void Renderer::setDynamicStates(VkCommandBuffer cmdBuffer, VkExtent2D extent)
+	void setDynamicStates(VkCommandBuffer cmdBuffer, VkExtent2D extent)
 	{
 		// set viewport
 		VkViewport viewport
@@ -46,7 +46,7 @@ namespace m1
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 	}
 
-	VkRenderingAttachmentInfo Renderer::createColorAttachment(VkImageView imageView)
+	VkRenderingAttachmentInfo createColorAttachment(VkImageView imageView)
 	{
 		return
 		{
@@ -59,7 +59,7 @@ namespace m1
 		};
 	}
 
-	VkRenderingAttachmentInfo Renderer::createDepthAttachment(VkImageView imageView)
+	VkRenderingAttachmentInfo createDepthAttachment(VkImageView imageView)
 	{
 		return
 		{

@@ -18,13 +18,13 @@ namespace m1
             Window(const Window&) = delete;
             Window& operator=(const Window&) = delete;
 
-            bool shouldClose() { return glfwWindowShouldClose(_glfwWindow); }
+            bool shouldClose() const { return glfwWindowShouldClose(_glfwWindow); }
             void createSurface(VkInstance instance, VkSurfaceKHR* surface) const;
             void getFramebufferSize(int* width, int* height) const { glfwGetFramebufferSize(_glfwWindow, width, height); }
             bool FramebufferResized = false;
 			bool IsMinimized = false;
-            int getPressedKey();
-    		void setTitle(const char* title) { glfwSetWindowTitle(_glfwWindow, title); }
+            int getPressedKey() const;
+    		void setTitle(const char* title) const { glfwSetWindowTitle(_glfwWindow, title); }
     		GLFWwindow* getGlfwWindow() const { return _glfwWindow; }
 
         private:

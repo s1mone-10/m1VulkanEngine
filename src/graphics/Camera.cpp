@@ -116,11 +116,11 @@ namespace m1
 	{
 		if (_projectionType == ProjectionType::Perspective)
 		{
-			_projectionMatrix = Utils::perspectiveProjection(glm::radians(_fov), _aspectRatio, _nearPlane, _farPlane);
+			_projectionMatrix = perspectiveProjection(glm::radians(_fov), _aspectRatio, _nearPlane, _farPlane);
 		}
 		else // Orthographic
 		{
-			_projectionMatrix = Utils::orthoProjection(_left / _zoomFactor, _right / _zoomFactor, _bottom / _zoomFactor, _top / _zoomFactor, _nearPlane, _farPlane);
+			_projectionMatrix = orthoProjection(_left / _zoomFactor, _right / _zoomFactor, _bottom / _zoomFactor, _top / _zoomFactor, _nearPlane, _farPlane);
 		}
 	}
 } // namespace m1

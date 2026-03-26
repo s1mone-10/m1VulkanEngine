@@ -56,10 +56,10 @@ namespace m1
 				imageInfo = _environmentCubemap->getVkDescriptorImageInfo();
 		}
 
-		VkWriteDescriptorSet envDescriptorWrite = Utils::initVkWriteDescriptorSet(_framesData[0]->skyBoxDescriptorSet, 0,
+		VkWriteDescriptorSet envDescriptorWrite = initVkWriteDescriptorSet(_framesData[0]->skyBoxDescriptorSet, 0,
 				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &imageInfo);
 
-		VkWriteDescriptorSet envDescriptorWrite2 = Utils::initVkWriteDescriptorSet(_framesData[1]->skyBoxDescriptorSet, 0,
+		VkWriteDescriptorSet envDescriptorWrite2 = initVkWriteDescriptorSet(_framesData[1]->skyBoxDescriptorSet, 0,
 				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &imageInfo);
 
 		std::array dw2 =

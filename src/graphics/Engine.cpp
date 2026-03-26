@@ -28,14 +28,14 @@ namespace m1
 {
 	void Engine::createCubeMap()
 	{
-		//auto equirectTexture = Utils::loadEquirectangularHDRMap(*this, "../resources/newport_loft.hdr");
-		auto equirectTexture = Utils::loadEquirectangularHDRMap(*this, "../resources/HDR_111_Parking_Lot_2_Ref.hdr");
+		//auto equirectTexture = loadEquirectangularHDRMap(*this, "../resources/newport_loft.hdr");
+		auto equirectTexture = loadEquirectangularHDRMap(*this, "../resources/HDR_111_Parking_Lot_2_Ref.hdr");
 
 		auto equirectToCubemapDescriptorSet = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::OneSampler, 1)[0];
 
 		VkDescriptorImageInfo equirectImageInfo = equirectTexture->getVkDescriptorImageInfo();
 
-		VkWriteDescriptorSet descriptorWrite = Utils::initVkWriteDescriptorSet(equirectToCubemapDescriptorSet, 0,
+		VkWriteDescriptorSet descriptorWrite = initVkWriteDescriptorSet(equirectToCubemapDescriptorSet, 0,
 			VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &equirectImageInfo);
 
 		vkUpdateDescriptorSets(_device.getVkDevice(), 1, &descriptorWrite, 0, nullptr);
@@ -72,12 +72,12 @@ namespace m1
 
 		for (unsigned int i = 0; i < 6; ++i)
 		{
-			VkRenderingAttachmentInfo colorAttachment = Renderer::createColorAttachment(envCubemapImage.getSubresourceVkImageView(i, 0));
+			VkRenderingAttachmentInfo colorAttachment = createColorAttachment(envCubemapImage.getSubresourceVkImageView(i, 0));
 
 			auto targetExtent = envCubemapImage.getExtent();
-			Renderer::beginRendering(commandBuffer, {{0, 0}, targetExtent}, 1, &colorAttachment, nullptr);
+			beginRendering(commandBuffer, {{0, 0}, targetExtent}, 1, &colorAttachment, nullptr);
 
-			Renderer::setDynamicStates(commandBuffer, targetExtent);
+			setDynamicStates(commandBuffer, targetExtent);
 
 			// draw
 			auto* pipeline = _graphicsPipelines.at(PipelineType::EquirectToCube).get();
@@ -96,7 +96,7 @@ namespace m1
 			// draw cube
 			vkCmdDraw(commandBuffer, 36, 1, 0, 0);
 
-			Renderer::endRendering(commandBuffer);
+			endRendering(commandBuffer);
 		}
 
 		transitionImageLayout(commandBuffer, envCubemapImage.getVkImage(), envCubemapImage.getMipLevels(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -148,12 +148,12 @@ namespace m1
 
 		for (unsigned int i = 0; i < 6; ++i)
 		{
-			VkRenderingAttachmentInfo colorAttachment = Renderer::createColorAttachment(irradianceMapImage.getSubresourceVkImageView(i, 0));
+			VkRenderingAttachmentInfo colorAttachment = createColorAttachment(irradianceMapImage.getSubresourceVkImageView(i, 0));
 
 			auto targetExtent = irradianceMapImage.getExtent();
-			Renderer::beginRendering(commandBuffer, {{0, 0}, targetExtent}, 1, &colorAttachment, nullptr);
+			beginRendering(commandBuffer, {{0, 0}, targetExtent}, 1, &colorAttachment, nullptr);
 
-			Renderer::setDynamicStates(commandBuffer, targetExtent);
+			setDynamicStates(commandBuffer, targetExtent);
 
 			// draw
 			auto* pipeline = _graphicsPipelines.at(PipelineType::IrradianceConvolution).get();
@@ -173,7 +173,7 @@ namespace m1
 			// draw cube
 			vkCmdDraw(commandBuffer, 36, 1, 0, 0);
 
-			Renderer::endRendering(commandBuffer);
+			endRendering(commandBuffer);
 		}
 
 		transitionImageLayout(commandBuffer, irradianceMapImage.getVkImage(), irradianceMapImage.getMipLevels(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -228,16 +228,16 @@ namespace m1
 		{
 			for (unsigned int face = 0; face < 6; ++face)
 			{
-				VkRenderingAttachmentInfo colorAttachment = Renderer::createColorAttachment(prefEnvImage.getSubresourceVkImageView(face, mipLevel));
+				VkRenderingAttachmentInfo colorAttachment = createColorAttachment(prefEnvImage.getSubresourceVkImageView(face, mipLevel));
 
 				// extent according to mip-level.
 				auto targetSize = prefEnvImage.getExtent().width >> mipLevel;
 				VkExtent2D targetExtent = {targetSize, targetSize };
 
-				Renderer::beginRendering(commandBuffer, {{0, 0}, targetExtent}, 1,
+				beginRendering(commandBuffer, {{0, 0}, targetExtent}, 1,
 					&colorAttachment, nullptr);
 
-				Renderer::setDynamicStates(commandBuffer, targetExtent);
+				setDynamicStates(commandBuffer, targetExtent);
 
 				// draw
 				auto* pipeline = _graphicsPipelines.at(PipelineType::PrefilterEnv).get();
@@ -258,7 +258,7 @@ namespace m1
 				// draw cube
 				vkCmdDraw(commandBuffer, 36, 1, 0, 0);
 
-				Renderer::endRendering(commandBuffer);
+				endRendering(commandBuffer);
 			}
 		}
 
@@ -311,14 +311,14 @@ namespace m1
 		{
 
 			{
-				VkRenderingAttachmentInfo colorAttachment = Renderer::createColorAttachment(brdfLutImage.getVkImageView());
+				VkRenderingAttachmentInfo colorAttachment = createColorAttachment(brdfLutImage.getVkImageView());
 
 				VkExtent2D targetExtent = brdfLutImage.getExtent();
 
-				Renderer::beginRendering(commandBuffer, {{0, 0}, targetExtent}, 1,
+				beginRendering(commandBuffer, {{0, 0}, targetExtent}, 1,
 					&colorAttachment, nullptr);
 
-				Renderer::setDynamicStates(commandBuffer, targetExtent);
+				setDynamicStates(commandBuffer, targetExtent);
 
 				// draw
 				auto* pipeline = _graphicsPipelines.at(PipelineType::BrdfLUT).get();
@@ -331,7 +331,7 @@ namespace m1
 				// draw cube
 				vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
-				Renderer::endRendering(commandBuffer);
+				endRendering(commandBuffer);
 			}
 		}
 
@@ -831,7 +831,7 @@ namespace m1
 		auto extent = renderTarget.getExtent();
 
 		// set the color attachment
-		VkRenderingAttachmentInfo colorAttachment = Renderer::createColorAttachment(renderTarget.getVkImageView());
+		VkRenderingAttachmentInfo colorAttachment = createColorAttachment(renderTarget.getVkImageView());
 
 		// set resolve image if msaa is enable
 		if (_config.msaaEnabled)
@@ -843,13 +843,13 @@ namespace m1
 		}
 
 		// set depth attachment
-		VkRenderingAttachmentInfo depthAttachment = Renderer::createDepthAttachment(depthImage.getVkImageView());
+		VkRenderingAttachmentInfo depthAttachment = createDepthAttachment(depthImage.getVkImageView());
 
 		// begin rendering
-		Renderer::beginRendering(commandBuffer, {{0, 0}, extent}, 1, &colorAttachment, &depthAttachment);
+		beginRendering(commandBuffer, {{0, 0}, extent}, 1, &colorAttachment, &depthAttachment);
 
 		// set dynamic states
-		Renderer::setDynamicStates(commandBuffer, extent);
+		setDynamicStates(commandBuffer, extent);
 
 		// draw objects
 		drawObjectsLoop(commandBuffer);
@@ -863,7 +863,7 @@ namespace m1
 			drawSkyBox(commandBuffer);
 
 		// end rendering
-		Renderer::endRendering(commandBuffer);
+		endRendering(commandBuffer);
 
 		// transition the color image and the swapchain image into their correct transfer layouts
 		transitionImageLayout(commandBuffer, colorImage.getVkImage(), 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -1019,7 +1019,7 @@ namespace m1
 		}
 
 		// Build ortho projection that encloses the frustum in light space
-		glm::mat4 lightProj = Utils::orthoProjection(left, right, bottom, top, near, far);
+		glm::mat4 lightProj = orthoProjection(left, right, bottom, top, near, far);
 
 		return lightProj * lightView;
 
@@ -1095,7 +1095,7 @@ namespace m1
 		if (maxZ < 0) maxZ /= zMult; else maxZ *= zMult;
 
 		// Build ortho projection that encloses the frustum in light space
-		glm::mat4 lightProj = Utils::orthoProjection(minX, maxX, minY, maxY, minZ, maxZ);
+		glm::mat4 lightProj = orthoProjection(minX, maxX, minY, maxY, minZ, maxZ);
 
 		return lightProj * lightView;
 		*/
@@ -1115,7 +1115,7 @@ namespace m1
 			.extent = ENVIRONMENT_CUBEMAP_RESOLUTION,
 			.format = ENVIRONMENT_CUBEMAP_FORMAT,
 			.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
-			.usage = Texture::getImageUsageFlags() | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			.usage = getTextureImageUsageFlags() | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 			.mipLevels = 1,// Texture::computeMipLevels(ENVIRONMENT_CUBEMAP_RESOLUTION.width, ENVIRONMENT_CUBEMAP_RESOLUTION.height),
 			.arrayLayers = 6,
 		};
@@ -1129,7 +1129,7 @@ namespace m1
 			.extent = IRRADIANCE_CUBEMAP_RESOLUTION,
 			.format = ENVIRONMENT_CUBEMAP_FORMAT,
 			.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
-			.usage = Texture::getImageUsageFlags() | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			.usage = getTextureImageUsageFlags() | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 			.mipLevels = 1,
 			.arrayLayers = 6,
 		};
@@ -1142,7 +1142,7 @@ namespace m1
 			.extent = PREFILTERED_ENV_CUBEMAP_RESOLUTION,
 			.format = ENVIRONMENT_CUBEMAP_FORMAT,
 			.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
-			.usage = Texture::getImageUsageFlags() | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			.usage = getTextureImageUsageFlags() | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 			.mipLevels = PREFILTERED_ENV_CUBEMAP_MIP_LEVELS,
 			.arrayLayers = 6,
 		};
@@ -1154,7 +1154,7 @@ namespace m1
 		{
 			.extent = BRDF_LUT_RESOLUTION,
 			.format = BRDF_LUT_FORMAT,
-			.usage = Texture::getImageUsageFlags() | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			.usage = getTextureImageUsageFlags() | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 			.mipLevels = 1
 		};
 		auto brdfImage = std::make_shared<Image>(_device, imageParams);
@@ -1213,13 +1213,13 @@ namespace m1
 		auto extent = shadowMapImage.getExtent();
 
 		// set depth attachment
-		VkRenderingAttachmentInfo depthAttachment = Renderer::createDepthAttachment(shadowMapImage.getVkImageView());
+		VkRenderingAttachmentInfo depthAttachment = createDepthAttachment(shadowMapImage.getVkImageView());
 
 		// begin rendering
-		Renderer::beginRendering(commandBuffer, {{0, 0}, extent}, 0, nullptr, &depthAttachment);
+		beginRendering(commandBuffer, {{0, 0}, extent}, 0, nullptr, &depthAttachment);
 
 		// set dynamic states
-		Renderer::setDynamicStates(commandBuffer, extent);
+		setDynamicStates(commandBuffer, extent);
 
 		// bind shadow mapping pipeline
 		Pipeline* pipeline = _graphicsPipelines.at(PipelineType::ShadowMapping).get();
@@ -1245,7 +1245,7 @@ namespace m1
 		}
 
 		// end rendering
-		Renderer::endRendering(commandBuffer);
+		endRendering(commandBuffer);
 
 		// transition layout SHADER_READ_ONLY_OPTIMAL
 		transitionImageLayout(commandBuffer, shadowMapImage.getVkImage(), 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
@@ -1441,7 +1441,7 @@ namespace m1
 		{
 			float r = 0.25f * sqrt(rndDist(rndEngine));
 			float theta = rndDist(rndEngine) * 2 * 3.14159265358979323846;
-			float x = r * cos(theta) * HEIGHT / WIDTH;
+			float x = r * cos(theta) * WINDOW_HEIGHT / WINDOW_WIDTH;
 			float y = r * sin(theta);
 			particle.position = glm::vec2(x, y);
 			particle.velocity = glm::normalize(glm::vec2(x, y)) * 0.05f;
@@ -1464,7 +1464,7 @@ namespace m1
 			_framesData[i]->particleSSboBuffer = std::make_unique<Buffer>(_device, bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
 			// Copy staging buffer to SSBO buffer
-			Utils::copyBuffer(_device, stagingBuffer, *_framesData[i]->particleSSboBuffer, bufferSize);
+			copyBuffer(_device, stagingBuffer, *_framesData[i]->particleSSboBuffer, bufferSize);
 		}
 	}
 
@@ -1489,7 +1489,7 @@ namespace m1
         _lightsUboBuffer = std::make_unique<Buffer>(_device, lightsUboSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
 		// upload lights data to buffer
-		Utils::uploadToDeviceBuffer(_device, *_lightsUboBuffer, lightsUboSize, &_lightsUbo);
+		uploadToDeviceBuffer(_device, *_lightsUboBuffer, lightsUboSize, &_lightsUbo);
 	}
 
 	void Engine::updateDescriptorSets() const
@@ -1511,16 +1511,16 @@ namespace m1
 	    	auto frameDescriptorSet = frameResources->frameDescriptorSet;
 
 		    auto objectUboInfo = frameResources->objectUboBuffer->getVkDescriptorBufferInfo();
-			auto objectUboWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 0,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &objectUboInfo);
+			auto objectUboWrite = initVkWriteDescriptorSet(frameDescriptorSet, 0,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &objectUboInfo);
 
 	    	auto frameUboInfo = frameResources->frameUboBuffer->getVkDescriptorBufferInfo();
-	    	auto frameUboWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 1,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &frameUboInfo);
+	    	auto frameUboWrite = initVkWriteDescriptorSet(frameDescriptorSet, 1,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &frameUboInfo);
 
-	    	auto lightsUboWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 2,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &lightUboInfo);
-	    	auto shadowMapWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 3,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &shadowMapImageInfo);
-	    	auto irradianceMapWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 4,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &irradianceImageInfo);
-	    	auto prefilteredMapWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 5,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &prefilteredImageInfo);
-	    	auto brdfLUTMapWrite = Utils::initVkWriteDescriptorSet(frameDescriptorSet, 6,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &brdfLUTImageInfo);
+	    	auto lightsUboWrite = initVkWriteDescriptorSet(frameDescriptorSet, 2,  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &lightUboInfo);
+	    	auto shadowMapWrite = initVkWriteDescriptorSet(frameDescriptorSet, 3,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &shadowMapImageInfo);
+	    	auto irradianceMapWrite = initVkWriteDescriptorSet(frameDescriptorSet, 4,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &irradianceImageInfo);
+	    	auto prefilteredMapWrite = initVkWriteDescriptorSet(frameDescriptorSet, 5,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &prefilteredImageInfo);
+	    	auto brdfLUTMapWrite = initVkWriteDescriptorSet(frameDescriptorSet, 6,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &brdfLUTImageInfo);
 
 		    std::array descriptorWrites =
 		    {
@@ -1538,7 +1538,7 @@ namespace m1
 	    	particlesSsboInfoPrevFrame.offset = 0;
 	    	particlesSsboInfoPrevFrame.range = sizeof(Particle) * PARTICLES_COUNT;
 
-		    VkWriteDescriptorSet particlesDescriptorWritePrevFrame = Utils::initVkWriteDescriptorSet(particleDescriptorSet, 0,
+		    VkWriteDescriptorSet particlesDescriptorWritePrevFrame = initVkWriteDescriptorSet(particleDescriptorSet, 0,
 			    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &particlesSsboInfoPrevFrame);
 
 	    	// Particles Ssbo current frame
@@ -1547,7 +1547,7 @@ namespace m1
 	    	particlesSsboInfoCurrentFrame.offset = 0;
 	    	particlesSsboInfoCurrentFrame.range = sizeof(Particle) * PARTICLES_COUNT;
 
-	    	VkWriteDescriptorSet particlesDescriptorWriteCurrentFrame = Utils::initVkWriteDescriptorSet(particleDescriptorSet, 1,
+	    	VkWriteDescriptorSet particlesDescriptorWriteCurrentFrame = initVkWriteDescriptorSet(particleDescriptorSet, 1,
 	    		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &particlesSsboInfoCurrentFrame);
 
 	    	std::array dw =
@@ -1559,7 +1559,7 @@ namespace m1
 								   dw.data(), 0, nullptr);
 
 	    	//---------- SKY BOX DESCRIPTOR SET ---------------//
-	    	VkWriteDescriptorSet envDescriptorWrite = Utils::initVkWriteDescriptorSet(_framesData[i]->skyBoxDescriptorSet, 0,
+	    	VkWriteDescriptorSet envDescriptorWrite = initVkWriteDescriptorSet(_framesData[i]->skyBoxDescriptorSet, 0,
 				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &envImageInfo);
 
 	    	std::array dw2 =
@@ -1589,13 +1589,13 @@ namespace m1
 			VkDescriptorBufferInfo materialDynUboInfo = frameResources->materialPhongDynUboBuffer->getVkDescriptorBufferInfo();
 			materialDynUboInfo.range = _materialPhongUboAlignment;
 
-			auto materialDynUboWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPhong, 0,
+			auto materialDynUboWrite = initVkWriteDescriptorSet(material.descriptorSetPhong, 0,
 				VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, &materialDynUboInfo);
 
-			auto diffuseTextDescriptorWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPhong, 1,
+			auto diffuseTextDescriptorWrite = initVkWriteDescriptorSet(material.descriptorSetPhong, 1,
 				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &baseColorImageInfo);
 
-			auto specularDescriptorWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPhong, 2,
+			auto specularDescriptorWrite = initVkWriteDescriptorSet(material.descriptorSetPhong, 2,
 				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &specularImageInfo);
 
 			std::array descriptorWrites =
@@ -1610,22 +1610,22 @@ namespace m1
 			VkDescriptorBufferInfo materialPbrDynUboInfo = frameResources->materialPbrDynUboBuffer->getVkDescriptorBufferInfo();
 			materialPbrDynUboInfo.range = _materialPbrUboAlignment;
 
-			auto materialPbrDynUboWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPbr, 0,
+			auto materialPbrDynUboWrite = initVkWriteDescriptorSet(material.descriptorSetPbr, 0,
 				VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, &materialPbrDynUboInfo);
 
-			auto baseColorDescriptorWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPbr, 1,
+			auto baseColorDescriptorWrite = initVkWriteDescriptorSet(material.descriptorSetPbr, 1,
 				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &baseColorImageInfo);
 
-			auto normalDescriptorWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPbr, 2,
+			auto normalDescriptorWrite = initVkWriteDescriptorSet(material.descriptorSetPbr, 2,
 				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &normalImageInfo);
 
-			auto metallicRoughnessDescriptorWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPbr, 3,
+			auto metallicRoughnessDescriptorWrite = initVkWriteDescriptorSet(material.descriptorSetPbr, 3,
 				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &metallicRoughnessImageInfo);
 
-			auto aoDescriptorWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPbr, 4,
+			auto aoDescriptorWrite = initVkWriteDescriptorSet(material.descriptorSetPbr, 4,
 				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &occlusionImageInfo);
 
-			auto emissiveDescriptorWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPbr, 5,
+			auto emissiveDescriptorWrite = initVkWriteDescriptorSet(material.descriptorSetPbr, 5,
 				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &emissiveImageInfo);
 
 			std::array descriptorPbrWrites =
@@ -1683,7 +1683,7 @@ namespace m1
 			auto materialDynUboBuffer = std::make_unique<Buffer>(_device, materialUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
 			// copy material ubos array to the dynamic buffer
-			Utils::uploadToDeviceBuffer(_device, *materialDynUboBuffer, materialUboSize, materialUbos.data());
+			uploadToDeviceBuffer(_device, *materialDynUboBuffer, materialUboSize, materialUbos.data());
 
 			// assign the buffer to the frame resource
 			_framesData[i]->materialPhongDynUboBuffer = std::move(materialDynUboBuffer);
@@ -1694,7 +1694,7 @@ namespace m1
 			auto materialPbrDynUboBuffer = std::make_unique<Buffer>(_device, materialPbrUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
 			// copy material ubos array to the dynamic buffer
-			Utils::uploadToDeviceBuffer(_device, *materialPbrDynUboBuffer, materialPbrUboSize, materialPbrUbos.data());
+			uploadToDeviceBuffer(_device, *materialPbrDynUboBuffer, materialPbrUboSize, materialPbrUbos.data());
 
 			// assign the buffer to the frame resource
 			_framesData[i]->materialPbrDynUboBuffer = std::move(materialPbrDynUboBuffer);
@@ -1774,14 +1774,14 @@ namespace m1
 		stagingBuffer.copyDataToBuffer(data);
 
 		// Transition image layout to be optimal for receiving data
-		transitionImageLayout(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+		transitionImageLayoutOtc(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
 
 		// Copy the texture data from the staging buffer to the image
 		copyBufferToImage(stagingBuffer, *image, width, height);
 
 		if (image->getMipLevels() == 1)
 			// Transition image layout to be optimal for shader access
-			transitionImageLayout(*image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			transitionImageLayoutOtc(*image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				VK_IMAGE_ASPECT_COLOR_BIT);
 		else
 			// Generate mipmaps (also transitions the image to be optimal for shader access)
@@ -1872,7 +1872,7 @@ namespace m1
 	{
 		auto width = params.extent.width;
 		auto height = params.extent.height;
-		VkDeviceSize imageSize = width * height * Utils::getBytesPerPixel(params.format);
+		VkDeviceSize imageSize = width * height * getBytesPerPixel(params.format);
 
 		// create the texture object
 		auto texture = std::make_unique<Texture>(_device, params);
@@ -1930,7 +1930,7 @@ namespace m1
 		}
 	}
 
-	void Engine::transitionImageLayout(const Image& image, VkImageLayout oldLayout, VkImageLayout newLayout,
+	void Engine::transitionImageLayoutOtc(const Image& image, VkImageLayout oldLayout, VkImageLayout newLayout,
 		VkImageAspectFlags aspectMask) const
 	{
 		VkCommandBuffer commandBuffer = _device.getGraphicsQueue().beginOneTimeCommand();
@@ -1939,105 +1939,6 @@ namespace m1
 			image.getArrayLayers());
 
 		_device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
-	}
-
-
-	void Engine::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout,
-		VkImageLayout newLayout, VkImageAspectFlags aspectMask, uint32_t layerCount)
-	{
-
-		/*
-		In Vulkan, an image layout describes how the GPU should treat the memory of an image (texture, framebuffer, etc.).
-		A layout transition is changing an image from one layout to another, so the GPU knows how to access it correctly.
-		This is done with a pipeline barrier(vkCmdPipelineBarrier2), which synchronizes memory access and updates the image layout.
-
-		SYNCHRONIZATION PARAMETERS (https://docs.vulkan.org/spec/latest/chapters/synchronization.html)
-
-		srcStageMask: pipeline stage to wait to be finished before starting the transition
-		srcAccessMask: memory cache to flush before starting the transition. E.g.: if the GPU just wrote to the image, the data might still
-						be in a fast L1/L2 cache and not in the main VRAM yet. This flag tells the driver which caches to flush.
-
-		destStageMask: pipeline stage to block until the transition is done
-		dstAccessMask: which memory caches need to be invalidated. E.g.: If you are going to read the texture,
-						the GPU needs to ensure the L1/L2 read caches are fresh.
-		*/
-
-		VkAccessFlags srcAccessMask, dstAccessMask;
-		VkPipelineStageFlags srcStageMask, dstStageMask;
-		getStageAndAccessMaskForLayout(currentLayout, srcStageMask, srcAccessMask);
-		getStageAndAccessMaskForLayout(newLayout, dstStageMask, dstAccessMask);
-
-		VkImageMemoryBarrier2 barrier
-		{
-			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-			.srcStageMask = srcStageMask,
-			.srcAccessMask = srcAccessMask,
-			.dstStageMask = dstStageMask,
-			.dstAccessMask = dstAccessMask,
-			.oldLayout = currentLayout,
-			.newLayout = newLayout,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, // for queue family ownership transfer, not used here
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image = image,
-			.subresourceRange = {aspectMask, 0, mipLevels, 0, layerCount},
-		};
-
-		VkDependencyInfo depInfo
-		{
-			.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-			.imageMemoryBarrierCount = 1,
-			.pImageMemoryBarriers = &barrier,
-		};
-
-		vkCmdPipelineBarrier2(commandBuffer, &depInfo);
-	}
-
-	void Engine::getStageAndAccessMaskForLayout(VkImageLayout layout, VkPipelineStageFlags& stageMask, VkAccessFlags& accessMask)
-	{
-		switch (layout)
-		{
-			case VK_IMAGE_LAYOUT_UNDEFINED:
-				// We don't care about previous data, so we don't wait for anything.
-				stageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT; // earliest possible stage
-				accessMask = VK_ACCESS_2_NONE;
-				break;
-			case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-				stageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-				accessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-				break;
-			case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-				stageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-				accessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-				break;
-			case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-				stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-				accessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-				break;
-			case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-				stageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | // where the GPU checks the depth before running the Fragment Shader
-						VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT; // where the GPU writes the final depth value after the Fragment Shader
-				accessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-				break;
-			case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-				stageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; // fragment shader reads from texture
-				accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-				break;
-			case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
-				stageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
-				accessMask = VK_ACCESS_2_NONE;
-				break;
-			default:
-				throw std::invalid_argument("not implemented image layout transition!");
-
-				/*
-				// Fallback for unknown transitions (Safe but slow)
-				// It basically waits for EVERYTHING to finish before doing the transition.
-				barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-				barrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
-				barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-				barrier.dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
-				*/
-		}
 	}
 
 	void Engine::generateMipmaps(const Image &image) const
@@ -2051,7 +1952,7 @@ namespace m1
 		{
 			Log::Get().Warning("Failed to create mip levels. Texture image format does not support linear blitting!");
 
-			transitionImageLayout(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			transitionImageLayoutOtc(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				VK_IMAGE_ASPECT_COLOR_BIT);
 
 			return;
@@ -2143,7 +2044,7 @@ namespace m1
 		_device.getGraphicsQueue().endOneTimeCommand(commandBuffer);
 	}
 
-	void Engine::copyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize)
+	void copyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize)
 	{
 		VkImageBlit2 blitRegion{ .sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2, .pNext = nullptr };
 

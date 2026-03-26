@@ -1,13 +1,15 @@
 #pragma once
 
-#include "Device.hpp"
-#include "Buffer.hpp"
 #include "Log.hpp" // for VK_CHECK function
 
 //libs
 #include "graphics/glm_config.hpp"
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h> // for VK_CHECK function
+
+#include <memory>
+#include <string>
+#include <vector>
 
 #define VK_CHECK(x)			                                                                    \
     do {						                                                                \
@@ -23,37 +25,27 @@
 namespace m1
 {
 	class Engine;
+	class Device;
+	class Buffer;
+	class Texture;
 
-    class Utils
-    {
-    public:
-	    static void copyBuffer(const Device& device, const Buffer& srcBuffer, const Buffer& dstBuffer, VkDeviceSize size);
-        static void uploadToDeviceBuffer(const Device& device, const Buffer& dstBuffer, VkDeviceSize size, void* data);
-	    static std::unique_ptr<Texture> loadEquirectangularHDRMap(const Engine& engine, const std::string& filePath);
-	    static int getBytesPerPixel(VkFormat format);
-	    static std::vector<char> readFile(const std::string& filename);
+	void copyBuffer(const Device& device, const Buffer& srcBuffer, const Buffer& dstBuffer, VkDeviceSize size);
+	void uploadToDeviceBuffer(const Device& device, const Buffer& dstBuffer, VkDeviceSize size, const void* data);
+	void copyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize);
+	std::unique_ptr<Texture> loadEquirectangularHDRMap(const Engine& engine, const std::string& filePath);
+	int getBytesPerPixel(VkFormat format);
+	std::vector<char> readFile(const std::string& filename);
 
-	    static glm::mat4 perspectiveProjection(float fov, float aspectRatio, float near, float far)
-    	{
-    		auto perspective = glm::perspective(fov, aspectRatio, near, far);
+	void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, VkImageLayout currentLayout,
+			VkImageLayout newLayout, VkImageAspectFlags aspectMask, uint32_t layerCount = 1);
+	void getStageAndAccessMaskForLayout(VkImageLayout layout, VkPipelineStageFlags &stageMask, VkAccessFlags &accessMask);
 
-    		// flip the sign of the Y scaling factor because GLM was originally designed for OpenGL, where the Y coordinate of the clip coordinates is inverted
-    		perspective[1][1] *= -1;
+	glm::mat4 perspectiveProjection(float fov, float aspectRatio, float near, float far);
+	glm::mat4 orthoProjection(float left, float right, float bottom, float top, float near, float far);
 
-    		return perspective;
-    	}
+	[[nodiscard]] VkWriteDescriptorSet initVkWriteDescriptorSet(VkDescriptorSet dstSet, uint32_t dstBinding, VkDescriptorType descriptorType,
+		VkDescriptorBufferInfo* pBufferInfo = nullptr, VkDescriptorImageInfo* pImageInfo = nullptr);
 
-    	static glm::mat4 orthoProjection(float left, float right, float bottom, float top, float near, float far)
-    	{
-    		auto ortho = glm::ortho(left, right, bottom, top, near, far);
-
-    		// flip the sign of the Y scaling factor because GLM was originally designed for OpenGL, where the Y coordinate of the clip coordinates is inverted
-    		ortho[1][1] *= -1;
-
-    		return ortho;
-    	}
-
-	    static VkWriteDescriptorSet initVkWriteDescriptorSet(VkDescriptorSet dstSet, uint32_t dstBinding, VkDescriptorType descriptorType,
-		    VkDescriptorBufferInfo* pBufferInfo = nullptr, VkDescriptorImageInfo* pImageInfo = nullptr);
-    };
+	uint32_t computeMipLevels(uint32_t width, uint32_t height);
+	VkImageUsageFlags getTextureImageUsageFlags();
 }

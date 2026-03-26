@@ -5,13 +5,10 @@
 
 namespace m1
 {
-	class Renderer
-	{
-	public:
-		static void beginRendering(VkCommandBuffer cmdBuffer, VkRect2D renderArea, uint32_t colorAttachmentCount, VkRenderingAttachmentInfo* pColorAttachments, VkRenderingAttachmentInfo* pDepthAttachment);
-		static void endRendering(VkCommandBuffer cmdBuffer);
-		static void setDynamicStates(VkCommandBuffer cmdBuffer, VkExtent2D extent);
-		static VkRenderingAttachmentInfo createColorAttachment(VkImageView imageView);
-		static VkRenderingAttachmentInfo createDepthAttachment(VkImageView imageView);
-	};
+	void beginRendering(VkCommandBuffer cmdBuffer, VkRect2D renderArea, uint32_t colorAttachmentCount,
+		VkRenderingAttachmentInfo* pColorAttachments, VkRenderingAttachmentInfo* pDepthAttachment);
+	void endRendering(VkCommandBuffer cmdBuffer);
+	void setDynamicStates(VkCommandBuffer cmdBuffer, VkExtent2D extent);
+	VkRenderingAttachmentInfo createColorAttachment(VkImageView imageView);
+	VkRenderingAttachmentInfo createDepthAttachment(VkImageView imageView);
 }

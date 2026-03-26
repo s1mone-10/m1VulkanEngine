@@ -4,6 +4,7 @@
 #include <GltfReader.hpp>
 #include <stb_image.h>
 
+#include "Utils.hpp"
 #include "graphics/Engine.hpp"
 #include "graphics/Sampler.hpp"
 #include "graphics/SceneObject.hpp"
@@ -306,8 +307,8 @@ namespace m1
 			{
 				.extent = {w, h},
 				.format = format,
-				.usage = Texture::getImageUsageFlags(),
-				.mipLevels = Texture::computeMipLevels(w, h)
+				.usage = getTextureImageUsageFlags(),
+				.mipLevels = computeMipLevels(w, h)
 			};
 			myImage = std::move(engine.createImage(params, data));
 		};

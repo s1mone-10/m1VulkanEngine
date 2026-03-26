@@ -49,7 +49,7 @@ namespace m1
         _vertexBuffer = std::make_unique<Buffer>(device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
         // upload vertex data to buffer
-        Utils::uploadToDeviceBuffer(device, *_vertexBuffer, size, Vertices.data());
+        uploadToDeviceBuffer(device, *_vertexBuffer, size, Vertices.data());
     }
 
     void Mesh::createIndexBuffer(const Device& device)
@@ -60,7 +60,7 @@ namespace m1
         _indexBuffer = std::make_unique<Buffer>(device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
         // upload indices data to buffer
-        Utils::uploadToDeviceBuffer(device, *_indexBuffer, size, Indices.data());
+        uploadToDeviceBuffer(device, *_indexBuffer, size, Indices.data());
     }
 
 	void Mesh::computeTangents()

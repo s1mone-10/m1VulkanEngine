@@ -6,6 +6,23 @@
 
 namespace m1
 {
+	VkShaderModule createShaderModule(const Device& device, const std::string& shaderPath)
+	{
+		const std::vector<char>& code = readFile(shaderPath);
+
+		// ShaderModule info
+		VkShaderModuleCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		createInfo.codeSize = code.size();
+		createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+		// create the ShaderModule
+		VkShaderModule shaderModule;
+		VK_CHECK(vkCreateShaderModule(device.getVkDevice(), &createInfo, nullptr, &shaderModule));
+
+		return shaderModule;
+	}
+
 	GraphicsPipelineBuilder& GraphicsPipelineBuilder::addShaderStage(const std::string& shaderPath, VkShaderStageFlagBits stage,
 		const char* entryPoint)
 	{
@@ -294,22 +311,7 @@ namespace m1
 		return std::make_unique<Pipeline>(device, graphicsPipeline, pipelineLayout);
 	}
 
-	VkShaderModule GraphicsPipelineBuilder::createShaderModule(const Device& device, const std::string& shaderPath)
-	{
-		const std::vector<char>& code = Utils::readFile(shaderPath);
 
-		// ShaderModule info
-		VkShaderModuleCreateInfo createInfo{};
-		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		createInfo.codeSize = code.size();
-		createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
-
-		// create the ShaderModule
-		VkShaderModule shaderModule;
-		VK_CHECK(vkCreateShaderModule(device.getVkDevice(), &createInfo, nullptr, &shaderModule));
-
-		return shaderModule;
-	}
 
 	ComputePipelineBuilder& ComputePipelineBuilder::setShader(const std::string& shaderPath)
 	{
@@ -337,7 +339,7 @@ namespace m1
 
 	std::unique_ptr<Pipeline> ComputePipelineBuilder::build(const Device& device)
 	{
-		VkShaderModule shaderModule = GraphicsPipelineBuilder::createShaderModule(device, _shaderPath);
+		VkShaderModule shaderModule = createShaderModule(device, _shaderPath);
 		_shaderStage.module = shaderModule;
 
 		// layout info: specify layout of dynamic values (descriptors and push constant) for shaders

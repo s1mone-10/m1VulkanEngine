@@ -246,8 +246,6 @@ namespace m1
 		 * Create the graphics pipeline.
 		 */
 		[[nodiscard]] std::unique_ptr<Pipeline> build(const Device& device);
-
-		static VkShaderModule createShaderModule(const Device& device, const std::string& shaderPath);
 	};
 
 	class ComputePipelineBuilder

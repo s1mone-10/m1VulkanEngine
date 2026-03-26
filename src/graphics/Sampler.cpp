@@ -1,4 +1,5 @@
 #include "Sampler.hpp"
+#include "Device.hpp"
 #include "Utils.hpp"
 #include "Log.hpp"
 

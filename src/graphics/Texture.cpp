@@ -34,16 +34,10 @@ namespace m1
         {
             .extent = textureParams.extent,
             .format = textureParams.format,
-            .usage = getImageUsageFlags(),
+            .usage = getTextureImageUsageFlags(),
             .mipLevels = mipLevels,
         };
 
         _image = std::make_unique<Image>(_device, imageParams);
     }
-
-	uint32_t Texture::computeMipLevels(uint32_t width, uint32_t height)
-    {
-    	return static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
-    }
-    
 } // namespace m1

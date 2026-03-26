@@ -6,9 +6,9 @@
 
 namespace m1
 {
-    void static framebufferResizeCallback(GLFWwindow* window, int width, int height)
+    void framebufferResizeCallback(GLFWwindow* window, int width, int height)
     {
-        auto w = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+        auto w = static_cast<Window*>(glfwGetWindowUserPointer(window));
         w->FramebufferResized = true;
 		if (width == 0 || height == 0)
 			w->IsMinimized = true;
@@ -30,7 +30,7 @@ namespace m1
         glfwTerminate();
     }
 
-    int Window::getPressedKey()
+    int Window::getPressedKey() const
     {
         for (int key = GLFW_KEY_SPACE; key <= GLFW_KEY_LAST; ++key)
         {

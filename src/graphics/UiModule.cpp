@@ -217,17 +217,17 @@ namespace m1
 	void UiModule::draw(VkCommandBuffer cmdBuffer, VkImageView colorImage, VkRect2D renderArea)
 	{
 		// set the color attachment
-		VkRenderingAttachmentInfo colorAttachment = Renderer::createColorAttachment(colorImage);
+		VkRenderingAttachmentInfo colorAttachment = createColorAttachment(colorImage);
 		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD; // don't clear the color buffer, we want to render the UI on top of the existing scene
 
 		// begin rendering
-		Renderer::beginRendering(cmdBuffer, renderArea, 1, &colorAttachment, nullptr);
+		beginRendering(cmdBuffer, renderArea, 1, &colorAttachment, nullptr);
 
 		// render gui
 		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmdBuffer);
 
 		// end rendering
-		Renderer::endRendering(cmdBuffer);
+		endRendering(cmdBuffer);
 	}
 
 	void UiModule::createDescriptorPool()
