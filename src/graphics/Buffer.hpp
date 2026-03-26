@@ -43,8 +43,8 @@ namespace m1
 
 	struct MaterialPhongUbo
 	{
-		explicit MaterialPhongUbo(const Material& material) : diffuseColor(material.baseColor), specularColor(material.specularColor),
-			ambientColor(material.ambientColor), shininess(material.shininess)
+		explicit MaterialPhongUbo(const Material& material) : shininess(material.shininess), diffuseColor(material.baseColor),
+			specularColor(material.specularColor), ambientColor(material.ambientColor)
 		{
 		}
 
@@ -56,8 +56,8 @@ namespace m1
 
 	struct MaterialPbrUbo
 	{
-		explicit MaterialPbrUbo(const Material& material) : baseColor(material.baseColor), metallicFactor(material.metallicFactor),
-			roughnessFactor(material.roughnessFactor), emissiveFactor(glm::vec4(material.emissiveFactor, 1.0f)) {}
+		explicit MaterialPbrUbo(const Material& material) : baseColor(material.baseColor), emissiveFactor(glm::vec4(material.emissiveFactor, 1.0f)),
+			metallicFactor(material.metallicFactor), roughnessFactor(material.roughnessFactor) {}
 
 		glm::vec4 baseColor;
 		glm::vec4 emissiveFactor;

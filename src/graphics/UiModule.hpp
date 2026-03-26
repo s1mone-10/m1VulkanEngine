@@ -2,9 +2,6 @@
 
 #include <vulkan/vulkan.h>
 
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_vulkan.h"
-
 namespace m1
 {
 	class Engine;
@@ -26,6 +23,7 @@ namespace m1
 
 		void build() const;
 		void draw(VkCommandBuffer cmdBuffer, VkImageView colorImage, VkRect2D renderArea);
+		static bool wantCaptureKeyboard();
 
 	private:
 		Engine& _engine;

@@ -369,10 +369,10 @@ namespace m1
 
 		return std::make_unique<Pipeline>(device, computePipeline, pipelineLayout);
 
-	};
+	}
 
-	Pipeline::Pipeline(const Device& device, VkPipeline pipeline, VkPipelineLayout pipelineLayout) : _device(device), _pipeline(pipeline),
-		_pipelineLayout(pipelineLayout) {}
+	Pipeline::Pipeline(const Device& device, VkPipeline pipeline, VkPipelineLayout pipelineLayout) : _pipeline(pipeline), _pipelineLayout(pipelineLayout),
+		_device(device) {}
 
 	Pipeline::~Pipeline()
 	{

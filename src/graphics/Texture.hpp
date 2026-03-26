@@ -2,7 +2,6 @@
 
 #include <vulkan/vulkan.h>
 #include <memory>
-#include <string>
 
 #include "Image.hpp"
 

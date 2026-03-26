@@ -17,7 +17,7 @@ namespace m1
         
     }
 
-    Window::Window(uint32_t width, uint32_t height, std::string title) : _width{width}, _height{height}, _title{title}
+    Window::Window(uint32_t width, uint32_t height, const std::string& title) : _width{width}, _height{height}, _title{title}
     {
         Log::Get().Info("Creating window");
         InitWindow();

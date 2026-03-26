@@ -25,7 +25,6 @@ namespace m1
         const CommandPool& getPersistentCommandPool() const { return *_persistentCommandPool; }
         VkCommandBuffer beginOneTimeCommand() const;
         void endOneTimeCommand(VkCommandBuffer commandBuffer) const;
-		void submitCommandBuffer(VkCommandBuffer commandBuffer, VkSemaphore waitSemaphore = VK_NULL_HANDLE, VkSemaphore signalSemaphore = VK_NULL_HANDLE, VkFence fence = VK_NULL_HANDLE) const;
 
     private:
         VkQueue _queue = VK_NULL_HANDLE;

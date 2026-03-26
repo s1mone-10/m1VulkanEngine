@@ -21,7 +21,7 @@ namespace m1
         std::optional<uint32_t> graphicsFamily;
         std::optional<uint32_t> presentFamily;
 
-        bool isComplete() { return graphicsFamily.has_value() && presentFamily.has_value(); }
+        bool isComplete() const { return graphicsFamily.has_value() && presentFamily.has_value(); }
     };
 
     struct SwapChainProperties
@@ -41,7 +41,7 @@ namespace m1
     class Device
     {
     public:
-        Device(const Window& window);
+	    explicit Device(const Window& window);
         ~Device();
 
         // Non-copyable, non-movable
@@ -63,7 +63,7 @@ namespace m1
     	VmaAllocator getMemoryAllocator() const { return _memAllocator; }
         VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
         bool isLinearFilteringSupported(VkFormat format, VkImageTiling tiling) const;
-    	VkDeviceSize getUniformBufferAlignment(VkDeviceSize uboInstanceSize);
+    	VkDeviceSize getUniformBufferAlignment(VkDeviceSize uboInstanceSize) const;
 
     private:
     	void createMemoryAllocator();
@@ -72,8 +72,8 @@ namespace m1
         void createLogicalDevice();
 
         bool isDeviceSuitable(VkPhysicalDevice device);
-        bool checkDeviceExtensionSupport(VkPhysicalDevice device);
-        QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+        bool checkDeviceExtensionSupport(VkPhysicalDevice device) const;
+        QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
         SwapChainProperties getSwapChainProperties(VkPhysicalDevice device) const;
 
         Instance _instance;

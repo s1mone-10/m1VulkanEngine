@@ -78,7 +78,7 @@ namespace m1
 		    		VK_CHECK(vkCreateImageView(_device.getVkDevice(), &viewInfo, nullptr, &imageView));
 		    		_subViews[index++] = imageView;
 		    	}
-    		};
+    		}
     	}
     }
     

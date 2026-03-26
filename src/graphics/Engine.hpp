@@ -79,7 +79,7 @@ namespace m1
     	static constexpr VkFormat ENVIRONMENT_CUBEMAP_FORMAT = VK_FORMAT_R16G16B16A16_SFLOAT;
     	static constexpr VkFormat BRDF_LUT_FORMAT = VK_FORMAT_R16G16_SFLOAT;
 
-        explicit Engine(EngineConfig config);
+        explicit Engine(const EngineConfig& config);
         ~Engine();
 
         void run();
@@ -87,9 +87,9 @@ namespace m1
     	void addMaterial(std::unique_ptr<Material> material);
     	void compile();
     	[[nodiscard]] const EngineConfig& getConfig() const { return _config; }
-    	std::unique_ptr<Texture> createTexture(const TextureParams &params, void *data) const;
-        std::shared_ptr<Image> createImage(const ImageParams& params, void* data) const;
-        Device& getDevice() { return _device; };
+    	std::unique_ptr<Texture> createTexture(const TextureParams &params, const void *data) const;
+        std::shared_ptr<Image> createImage(const ImageParams& params, const void* data) const;
+        Device& getDevice() { return _device; }
     	Camera& getCamera() { return _camera; }
 
         // properties
@@ -130,10 +130,10 @@ namespace m1
         void drawSkyBox(VkCommandBuffer commandBuffer) const;
         void drawParticles(VkCommandBuffer commandBuffer) const;
         void recordDrawSceneCommands(VkCommandBuffer commandBuffer, uint32_t swapChainImageIndex);
-        void recordComputeCommands(VkCommandBuffer commandBuffer);
+        void recordComputeCommands(VkCommandBuffer commandBuffer) const;
         void recreateSwapChain();
     	void createPipelines();
-    	void createCubeMap();
+    	void loadIblTextures() const;
 		void createFramesResources();
 		void createShadowMapTexture();
 		void recordShadowMappingPass(VkCommandBuffer commandBuffer) const;

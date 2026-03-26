@@ -4,6 +4,10 @@
 #include "Renderer.hpp"
 #include "Utils.hpp"
 #include <algorithm>
+#include <format>
+
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_vulkan.h"
 
 static void check_vk_result(VkResult err)
 {
@@ -228,6 +232,11 @@ namespace m1
 
 		// end rendering
 		endRendering(cmdBuffer);
+	}
+
+	bool UiModule::wantCaptureKeyboard()
+	{
+		return ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureKeyboard;
 	}
 
 	void UiModule::createDescriptorPool()

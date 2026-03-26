@@ -79,7 +79,7 @@ void loadObj(m1::Engine& engine, const std::string& path)
 
     std::unordered_map<m1::Vertex, uint32_t> uniqueVertices{};
 
-	std::shared_ptr<m1::Mesh> mesh = std::make_shared<m1::Mesh>();
+	auto mesh = std::make_shared<m1::Mesh>();
 
     for (const auto& shape : shapes)
     {
@@ -119,7 +119,7 @@ void loadObj(m1::Engine& engine, const std::string& path)
                 };
             }
 
-            if (uniqueVertices.count(vertex) == 0)
+            if (!uniqueVertices.contains(vertex))
             {
                 uniqueVertices[vertex] = static_cast<uint32_t>(mesh->Vertices.size());
                 mesh->Vertices.push_back(vertex);

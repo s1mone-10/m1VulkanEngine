@@ -13,7 +13,7 @@ namespace m1
 		{
 			auto ci = getDefaultCreateInfo();
 			createInfo = &ci;
-		};
+		}
 
 		// Create sampler
 		VK_CHECK(vkCreateSampler(device.getVkDevice(), createInfo, nullptr, &_vkSampler));

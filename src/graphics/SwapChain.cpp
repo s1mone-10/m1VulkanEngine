@@ -12,7 +12,7 @@
 
 namespace m1
 {
-	SwapChain::SwapChain(const Device& device, const Window& window, const SwapChainConfig& config) : _device(device), _samples(config.samples)
+	SwapChain::SwapChain(const Device& device, const Window& window, const SwapChainConfig& config) : _samples(config.samples), _device(device)
     {
         Log::Get().Info("Creating swap chain");
         createSwapChain(window, config.oldSwapChain);
@@ -168,24 +168,20 @@ namespace m1
     VkExtent2D SwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, const Window& window)
     {
         if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
-        {
-			return capabilities.currentExtent; // equals to the window size
-        }
-        else
-        {
-            int width, height;
-            window.getFramebufferSize(&width, &height);
+	        return capabilities.currentExtent; // equals to the window size
 
-            VkExtent2D actualExtent = {
-                static_cast<uint32_t>(width),
-                static_cast<uint32_t>(height)
-            };
+        int width, height;
+        window.getFramebufferSize(&width, &height);
 
-            actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-            actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+        VkExtent2D actualExtent = {
+	        static_cast<uint32_t>(width),
+	        static_cast<uint32_t>(height)
+        };
 
-            return actualExtent;
-        }
+        actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+        actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+
+        return actualExtent;
     }
 
     void SwapChain::createColorImage()

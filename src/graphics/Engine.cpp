@@ -26,7 +26,84 @@
 
 namespace m1
 {
-	void Engine::createCubeMap()
+	Engine::Engine(const EngineConfig& config) : _config(config)
+	{
+		Log::Get().Info("Engine constructor");
+
+		recreateSwapChain();
+		_descriptorSetManager = std::make_unique<DescriptorSetManager>(_device);
+		createShadowMapTexture();
+		createEnvironmentTextures();
+
+		createPipelines();
+
+		_materialPhongUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialPhongUbo));
+		_materialPbrUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialPbrUbo));
+		createFramesResources();
+		createDefaultTextures();
+		initLights();
+		initParticles();
+		updateDescriptorSets();
+
+		createSyncObjects();
+
+		_gui = std::make_unique<UiModule>(*this, _window, *_swapChain);
+
+		loadIblTextures();
+	}
+
+	Engine::~Engine()
+	{
+		// wait for the GPU to finish all operations before destroying the resources
+		vkDeviceWaitIdle(_device.getVkDevice());
+
+		_gui.reset(); // destroy first
+
+		// destroy texture, image and samplers
+		_materials.clear();
+
+		// Command buffers are implicitly destroyed when the command pool is destroyed
+
+		for (size_t i = 0; i < _imageAvailableSems.size(); i++)
+		{
+			vkDestroySemaphore(_device.getVkDevice(), _drawCmdExecutedSems[i], nullptr);
+			vkDestroySemaphore(_device.getVkDevice(), _imageAvailableSems[i], nullptr);
+		}
+		vkDestroySemaphore(_device.getVkDevice(), _acquireSemaphore, nullptr);
+
+		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
+		{
+			vkDestroyFence(_device.getVkDevice(), _framesData[i]->drawCmdExecutedFence, nullptr);
+			vkDestroyFence(_device.getVkDevice(), _framesData[i]->computeCmdExecutedFence, nullptr);
+			vkDestroySemaphore(_device.getVkDevice(), _framesData[i]->computeCmdExecutedSem, nullptr);
+		}
+
+		Log::Get().Info("Engine destroyed");
+	}
+
+	void Engine::run()
+	{
+		mainLoop();
+	}
+
+	void Engine::addSceneObject(std::unique_ptr<SceneObject> obj)
+	{
+		_sceneObjects.push_back(std::move(obj));
+	}
+
+	void Engine::addMaterial(std::unique_ptr<Material> material)
+	{
+		_materials.try_emplace(material->name, std::move(material));
+	}
+
+	void Engine::compile()
+	{
+		compileMaterials();
+		compileSceneObjects();
+		_bbox = computeSceneBBox();
+	}
+
+	void Engine::loadIblTextures() const
 	{
 		//auto equirectTexture = loadEquirectangularHDRMap(*this, "../resources/newport_loft.hdr");
 		auto equirectTexture = loadEquirectangularHDRMap(*this, "../resources/HDR_111_Parking_Lot_2_Ref.hdr");
@@ -52,7 +129,7 @@ namespace m1
 			captureProjection * glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
 			captureProjection * glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
 			captureProjection * glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
-		 };
+		};
 
 
 		// equirect to cubemap render pass
@@ -62,7 +139,7 @@ namespace m1
 		vkResetCommandBuffer(commandBuffer, 0);
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = 0; // Optional
+		beginInfo.flags = 0;                  // Optional
 		beginInfo.pInheritanceInfo = nullptr; // Optional
 		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
@@ -118,7 +195,7 @@ namespace m1
 			.waitSemaphoreCount = 0,
 			// command buffers
 			.commandBufferCount = 1,
-			.pCommandBuffers = &commandBuffer,
+			.pCommandBuffers    = &commandBuffer,
 			// signal semaphore
 			.signalSemaphoreCount = 0,
 			//.pSignalSemaphores = &semaphore,
@@ -138,7 +215,7 @@ namespace m1
 		vkResetCommandBuffer(commandBuffer, 0);
 		beginInfo = {};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = 0; // Optional
+		beginInfo.flags = 0;                  // Optional
 		beginInfo.pInheritanceInfo = nullptr; // Optional
 		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
@@ -195,7 +272,7 @@ namespace m1
 			.waitSemaphoreCount = 0,
 			// command buffers
 			.commandBufferCount = 1,
-			.pCommandBuffers = &commandBuffer,
+			.pCommandBuffers    = &commandBuffer,
 			// signal semaphore
 			.signalSemaphoreCount = 0,
 			//.pSignalSemaphores = &semaphore,
@@ -215,7 +292,7 @@ namespace m1
 		vkResetCommandBuffer(commandBuffer, 0);
 		beginInfo = {};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = 0; // Optional
+		beginInfo.flags = 0;                  // Optional
 		beginInfo.pInheritanceInfo = nullptr; // Optional
 		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
@@ -249,7 +326,7 @@ namespace m1
 
 				IblPushConstantData push
 				{
-					.projView = captureProjViews[face],
+					.projView  = captureProjViews[face],
 					.roughness =  static_cast<float>(mipLevel) / static_cast<float>(prefEnvImgMipLevels - 1)
 				};
 				vkCmdPushConstants(commandBuffer, pipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -281,7 +358,7 @@ namespace m1
 			.waitSemaphoreCount = 0,
 			// command buffers
 			.commandBufferCount = 1,
-			.pCommandBuffers = &commandBuffer,
+			.pCommandBuffers    = &commandBuffer,
 			// signal semaphore
 			.signalSemaphoreCount = 0,
 			//.pSignalSemaphores = &semaphore,
@@ -299,7 +376,7 @@ namespace m1
 		vkResetCommandBuffer(commandBuffer, 0);
 		beginInfo = {};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = 0; // Optional
+		beginInfo.flags = 0;                  // Optional
 		beginInfo.pInheritanceInfo = nullptr; // Optional
 		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
@@ -354,7 +431,7 @@ namespace m1
 			.waitSemaphoreCount = 0,
 			// command buffers
 			.commandBufferCount = 1,
-			.pCommandBuffers = &commandBuffer,
+			.pCommandBuffers    = &commandBuffer,
 			// signal semaphore
 			.signalSemaphoreCount = 0,
 			//.pSignalSemaphores = &semaphore,
@@ -365,83 +442,6 @@ namespace m1
 
 		vkDeviceWaitIdle(_device.getVkDevice()); // TODO use fence and semaphores
 
-	}
-
-	Engine::Engine(EngineConfig config) : _config(config)
-	{
-		Log::Get().Info("Engine constructor");
-
-		recreateSwapChain();
-		_descriptorSetManager = std::make_unique<DescriptorSetManager>(_device);
-		createShadowMapTexture();
-		createEnvironmentTextures();
-
-		createPipelines();
-
-		_materialPhongUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialPhongUbo));
-		_materialPbrUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialPbrUbo));
-		createFramesResources();
-		createDefaultTextures();
-		initLights();
-		initParticles();
-		updateDescriptorSets();
-
-		createSyncObjects();
-
-		_gui = std::make_unique<UiModule>(*this, _window, *_swapChain);
-
-		createCubeMap();
-	}
-
-	Engine::~Engine()
-	{
-		// wait for the GPU to finish all operations before destroying the resources
-		vkDeviceWaitIdle(_device.getVkDevice());
-
-		_gui.reset(); // destroy first
-
-		// destroy texture, image and samplers
-		_materials.clear();
-
-		// Command buffers are implicitly destroyed when the command pool is destroyed
-
-		for (size_t i = 0; i < _imageAvailableSems.size(); i++)
-		{
-			vkDestroySemaphore(_device.getVkDevice(), _drawCmdExecutedSems[i], nullptr);
-			vkDestroySemaphore(_device.getVkDevice(), _imageAvailableSems[i], nullptr);
-		}
-		vkDestroySemaphore(_device.getVkDevice(), _acquireSemaphore, nullptr);
-
-		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
-		{
-			vkDestroyFence(_device.getVkDevice(), _framesData[i]->drawCmdExecutedFence, nullptr);
-			vkDestroyFence(_device.getVkDevice(), _framesData[i]->computeCmdExecutedFence, nullptr);
-			vkDestroySemaphore(_device.getVkDevice(), _framesData[i]->computeCmdExecutedSem, nullptr);
-		}
-
-		Log::Get().Info("Engine destroyed");
-	}
-
-	void Engine::run()
-	{
-		mainLoop();
-	}
-
-	void Engine::addSceneObject(std::unique_ptr<SceneObject> obj)
-	{
-		_sceneObjects.push_back(std::move(obj));
-	}
-
-	void Engine::addMaterial(std::unique_ptr<Material> material)
-	{
-		_materials.try_emplace(material->name, std::move(material));
-	}
-
-	void Engine::compile()
-	{
-		compileMaterials();
-		compileSceneObjects();
-		_bbox = computeSceneBBox();
 	}
 
 	int _frameCount = 0;
@@ -893,7 +893,7 @@ namespace m1
 		VK_CHECK(vkEndCommandBuffer(commandBuffer));
 	}
 
-	void Engine::recordComputeCommands(VkCommandBuffer commandBuffer)
+	void Engine::recordComputeCommands(VkCommandBuffer commandBuffer) const
 	{
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -902,7 +902,8 @@ namespace m1
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline->getVkPipeline());
 		VkDescriptorSet descriptorSet = _framesData[_currentFrame]->computeParticleDescriptorSet;
-    	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline->getLayout(), 0, 1, &descriptorSet, 0, 0);
+    	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline->getLayout(), 0, 1,
+    		&descriptorSet, 0, nullptr);
 
 		// groupsCount = PARTICLE_COUNT / 256 because we defined in the particle shader 256 invocations for each group
 		vkCmdDispatch(commandBuffer, PARTICLES_COUNT / 256, 1, 1);
@@ -954,7 +955,7 @@ namespace m1
 
 			for (const auto& vertex : obj->Mesh->Vertices)
 			{
-				glm::vec3 worldPos = glm::vec3(obj->Transform * glm::vec4(vertex.pos, 1.0f));
+				auto worldPos = glm::vec3(obj->Transform * glm::vec4(vertex.pos, 1.0f));
 				bbox.merge(worldPos);
 			}
 		}
@@ -1006,7 +1007,7 @@ namespace m1
 			float height = maxY - minY;
 
 			float extend = std::max(width, height);
-			glm::vec3 centerLightSpace = lightView * glm::vec4(center, 1.0f);;
+			glm::vec3 centerLightSpace = lightView * glm::vec4(center, 1.0f);
 
 			left = centerLightSpace.x - extend * 0.5f;
 			right = centerLightSpace.x + extend * 0.5f;
@@ -1432,7 +1433,7 @@ namespace m1
 		Log::Get().Info("Creating shader storage buffers");
 
 		// Initialize particles
-		std::default_random_engine rndEngine((unsigned) time(nullptr));
+		std::default_random_engine rndEngine(static_cast<unsigned>(time(nullptr)));
 		std::uniform_real_distribution<float> rndDist(0.0f, 1.0f);
 
 		// Initial particle positions on a circle
@@ -1603,7 +1604,7 @@ namespace m1
 				materialDynUboWrite, diffuseTextDescriptorWrite, specularDescriptorWrite
 			};
 
-			vkUpdateDescriptorSets(_device.getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()),
+			vkUpdateDescriptorSets(_device.getVkDevice(), descriptorWrites.size(),
 								   descriptorWrites.data(), 0, nullptr);
 
 			//---------- PBR DESCRIPTOR SET ---------------//
@@ -1634,7 +1635,7 @@ namespace m1
 				aoDescriptorWrite, emissiveDescriptorWrite
 			};
 
-			vkUpdateDescriptorSets(_device.getVkDevice(), static_cast<uint32_t>(descriptorPbrWrites.size()),
+			vkUpdateDescriptorSets(_device.getVkDevice(), descriptorPbrWrites.size(),
 				descriptorPbrWrites.data(), 0, nullptr);
 		}
 	}
@@ -1676,7 +1677,6 @@ namespace m1
 		size_t materialPbrUboSize = materialCount * _materialPbrUboAlignment;
 		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 		{
-			// TODO fare func interna per non duplicare codice
 			// === Bling-Phong ===
 
 			// create material dyn buffer
@@ -1740,7 +1740,7 @@ namespace m1
 			{
 				if (!material->specularTexturePath.empty())
 					// UNORM format because generally specular map is a grayscale mask/intensity, not a color
-						material->specularMap = loadTexture(material->specularTexturePath, VK_FORMAT_R8G8B8A8_UNORM);
+					material->specularMap = loadTexture(material->specularTexturePath, VK_FORMAT_R8G8B8A8_UNORM);
 				else
 					material->specularMap = _whiteMapUnorm;
 			}
@@ -1868,7 +1868,7 @@ namespace m1
 		return texture;
 	}
 
-	std::unique_ptr<Texture> Engine::createTexture(const TextureParams& params, void* data) const
+	std::unique_ptr<Texture> Engine::createTexture(const TextureParams& params, const void* data) const
 	{
 		auto width = params.extent.width;
 		auto height = params.extent.height;
@@ -1884,7 +1884,7 @@ namespace m1
 		return texture;
 	}
 
-	std::shared_ptr<Image> Engine::createImage(const ImageParams& params, void* data) const
+	std::shared_ptr<Image> Engine::createImage(const ImageParams& params, const void* data) const
 	{
 		auto width = params.extent.width;
 		auto height = params.extent.height;
@@ -1901,7 +1901,7 @@ namespace m1
 
 	void Engine::processInput(float delta)
 	{
-		if (_config.uiEnabled && ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureKeyboard)
+		if (_config.uiEnabled && UiModule::wantCaptureKeyboard())
 			return;
 
 		int key = _window.getPressedKey();

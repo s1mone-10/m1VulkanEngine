@@ -27,7 +27,7 @@ namespace m1
 			       tangent == other.tangent;
 		}
 	};
-};
+}
 
 namespace std
 {

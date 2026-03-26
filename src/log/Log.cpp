@@ -1,5 +1,8 @@
 #include "Log.hpp"
 
+#include <chrono>
+#include <iostream>
+
 namespace m1 {
 
     void Log::Trace(const std::string& message) {
@@ -34,12 +37,11 @@ namespace m1 {
         std::lock_guard<std::mutex> lock(_mutex);
 
         // Get current time
-        auto now = std::chrono::system_clock::now();
-        auto time_t = std::chrono::system_clock::to_time_t(now);
-        auto tm = *std::localtime(&time_t);
+    	auto now = std::chrono::system_clock::now();
+    	auto zt = std::chrono::zoned_time{std::chrono::current_zone(), now};
 
         std::stringstream ss;
-        ss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << " ";
+        ss << std::format("{:%Y-%m-%d %H:%M:%S} ", zt) << " ";
 
         switch (level) {
             case LogLevel::Trace:
@@ -57,6 +59,7 @@ namespace m1 {
             case LogLevel::Error:
                 ss << "[ERROR]   ";
                 break;
+        	case LogLevel::None:;
         }
 
         ss << message;

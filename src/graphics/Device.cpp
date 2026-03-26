@@ -53,13 +53,10 @@ namespace m1
             vkGetPhysicalDeviceFormatProperties(_physicalDevice, format, &props);
 
             if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features)
-            {
-                return format;
-            }
-            else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features)
-            {
-                return format;
-            }
+	            return format;
+
+        	if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features)
+		        return format;
         }
         throw std::runtime_error("failed to find supported format!");
     }
@@ -74,9 +71,9 @@ namespace m1
         {
             return formatProperties.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
         }
-        else if (tiling == VK_IMAGE_TILING_OPTIMAL)
+        if (tiling == VK_IMAGE_TILING_OPTIMAL)
         {
-            return formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+	        return formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
         }
 
         return false;
@@ -209,7 +206,7 @@ namespace m1
         return true;
     }
 
-    bool Device::checkDeviceExtensionSupport(VkPhysicalDevice device)
+    bool Device::checkDeviceExtensionSupport(VkPhysicalDevice device) const
     {
         uint32_t extensionCount;
         vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
@@ -227,7 +224,7 @@ namespace m1
         return requiredExtensions.empty();
     }
 
-    QueueFamilyIndices Device::findQueueFamilies(VkPhysicalDevice device)
+    QueueFamilyIndices Device::findQueueFamilies(VkPhysicalDevice device) const
     {
         QueueFamilyIndices indices;
 
@@ -295,7 +292,7 @@ namespace m1
         return details;
     }
 
-	VkDeviceSize Device::getUniformBufferAlignment(VkDeviceSize uboInstanceSize)
+	VkDeviceSize Device::getUniformBufferAlignment(VkDeviceSize uboInstanceSize) const
 	{
 		// Vulkan requires each element in a dynamic uniform buffer to be aligned to VkPhysicalDeviceLimits::minUniformBufferOffsetAlignment.
 		// If you have multiple UBO instances in one buffer (e.g., per-object data),

@@ -101,8 +101,6 @@ namespace m1
     			printf("Unknown format %d\n", format);
     			exit(1);
     	}
-
-    	return 0;
     }
 
 	std::vector<char> readFile(const std::string& filename)
@@ -116,7 +114,7 @@ namespace m1
     		throw std::runtime_error("failed to open file: " + filename);
     	}
 
-    	size_t fileSize = (size_t)file.tellg();
+    	size_t fileSize = file.tellg();
     	std::vector<char> buffer(fileSize);
 
     	file.seekg(0);

@@ -44,7 +44,7 @@ namespace m1
 		VkSampleCountFlagBits getSamples() const { return _samples; }
 
     private:
-        void createSwapChain(const Window& window, VkSwapchainKHR oldSpawChain);
+        void createSwapChain(const Window& window, VkSwapchainKHR oldSwapChain);
         void createImages();
         void createColorImage();
         void createMsaaImage();

@@ -51,5 +51,5 @@ namespace m1
 	    attributeDescriptions.push_back(attr);
 
 	    return attributeDescriptions;
-    };
+    }
 }
