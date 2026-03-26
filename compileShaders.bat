@@ -17,13 +17,18 @@ if not exist "%GLSLC%" (
     exit /b 1
 )
 
-rem Ensure output folder exists
-if not exist "shaders\compiled" mkdir "shaders\compiled"
+rem Ensure output folder exists and clear it
+if not exist "shaders\compiled" (
+    mkdir "shaders\compiled"
+) else (
+    echo Cleaning compiled shaders folder...
+    del /q "shaders\compiled*"
+)
 
 rem Compile all .vert .frag .comp files in shaders
 setlocal enabledelayedexpansion
 set "FAILED=0"
-for %%F in (shaders\*.vert shaders\*.frag shaders\*.comp) do (
+for /r "shaders" %%F in (*.vert *.frag *.comp) do (
     echo Compiling %%F ...
     "%GLSLC%" "%%F" -o "shaders\compiled\%%~nF%%~xF.spv"
     if errorlevel 1 (

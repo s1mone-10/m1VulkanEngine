@@ -24,6 +24,7 @@ layout(set = 0, binding = 1) uniform FrameUbo {
     mat4 proj;
     mat4 lightViewProjMatrix;
     vec4 camPos;
+    float iblIntensity;
     int shadowsEnabled;
 } frameUbo;
 
@@ -159,8 +160,7 @@ void main(){
     vec2 envBRDF  = texture(brdfLUT, vec2(NdotV, roughness)).rg;
     vec3 specular = prefilteredColor * (kS * envBRDF.x + envBRDF.y);
 
-    vec3 ambient = (kD * diffuse + specular) * ao;
-
+    vec3 ambient = (kD * diffuse + specular) * frameUbo.iblIntensity * ao;
 
     // Combine all lighting contributions
     vec3 color = ambient + Lo + emissive;

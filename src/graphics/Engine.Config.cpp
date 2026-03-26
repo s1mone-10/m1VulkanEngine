@@ -3,6 +3,8 @@
 #include <ranges>
 #include <algorithm>
 
+#include "Utils.hpp"
+
 namespace m1
 {
 	void Engine::setMsaaEnabled(bool enabled)
@@ -33,9 +35,49 @@ namespace m1
 
 	bool Engine::getSkyboxEnabled() const { return _config.skyboxEnabled; }
 
-	void Engine::setEnvironmentMapIntensity(float intensity) { _config.environmentMapIntensity = std::max(0.0f, intensity); }
+	void Engine::setSkyBoxMap(SkyBoxMap map)
+	{
+		if (_config.skyBoxMap == map) return;
 
-	float Engine::getEnvironmentMapIntensity() const { return _config.environmentMapIntensity; }
+		// TODO validation layer error when updating descriptor. Of course one is in une by GPU while updating..
+		VkDescriptorImageInfo imageInfo;
+		switch (map)
+		{
+			case SkyBoxMap::Environment:
+				imageInfo = _environmentCubemap->getVkDescriptorImageInfo();
+				break;
+			case SkyBoxMap::Irradiance:
+				imageInfo = _irradianceCubemap->getVkDescriptorImageInfo();
+				break;
+			case SkyBoxMap::PrefilteredEnv:
+				imageInfo = _prefilteredEnvCubemap->getVkDescriptorImageInfo();
+				break;
+			default:
+				imageInfo = _environmentCubemap->getVkDescriptorImageInfo();
+		}
+
+		VkWriteDescriptorSet envDescriptorWrite = Utils::initVkWriteDescriptorSet(_framesData[0]->skyBoxDescriptorSet, 0,
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &imageInfo);
+
+		VkWriteDescriptorSet envDescriptorWrite2 = Utils::initVkWriteDescriptorSet(_framesData[1]->skyBoxDescriptorSet, 0,
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nullptr, &imageInfo);
+
+		std::array dw2 =
+		{
+			envDescriptorWrite, envDescriptorWrite2
+		};
+
+		vkUpdateDescriptorSets(_device.getVkDevice(), dw2.size(),
+							   dw2.data(), 0, nullptr);
+
+		_config.skyBoxMap = map;
+	}
+
+	SkyBoxMap Engine::getSkyBoxMap() const { return _config.skyBoxMap; }
+
+	void Engine::setIblIntensity(float intensity) { _config.iblIntensity = std::max(0.0f, intensity); }
+
+	float Engine::getIblIntensity() const { return _config.iblIntensity; }
 
 	void Engine::setEnvironmentMapPreset(EnvironmentMapPreset preset) { _config.environmentMapPreset = preset; }
 

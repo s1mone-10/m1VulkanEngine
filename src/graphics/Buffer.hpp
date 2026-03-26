@@ -31,6 +31,7 @@ namespace m1
 		glm::mat4 proj;
 		glm::mat4 lightViewProjMatrix;
 		glm::vec4 camPos; // 3 meaningful value, vec4 for padding
+		float iblIntensity;
 		int shadowsEnabled;
 	};
 
@@ -40,9 +41,9 @@ namespace m1
 		glm::mat3 normalMatrix;
 	};
 
-	struct MaterialUbo
+	struct MaterialPhongUbo
 	{
-		explicit MaterialUbo(const Material& material) : diffuseColor(material.baseColor), specularColor(material.specularColor),
+		explicit MaterialPhongUbo(const Material& material) : diffuseColor(material.baseColor), specularColor(material.specularColor),
 			ambientColor(material.ambientColor), shininess(material.shininess)
 		{
 		}
