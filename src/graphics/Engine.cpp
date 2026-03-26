@@ -378,7 +378,7 @@ namespace m1
 
 		createPipelines();
 
-		_materialPhongUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialUbo));
+		_materialPhongUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialPhongUbo));
 		_materialPbrUboAlignment = _device.getUniformBufferAlignment(sizeof(MaterialPbrUbo));
 		createFramesResources();
 		createDefaultTextures();
@@ -388,7 +388,7 @@ namespace m1
 
 		createSyncObjects();
 
-		_gui = std::make_unique<UiModule>(*this, _device, _window, *_swapChain);
+		_gui = std::make_unique<UiModule>(*this, _window, *_swapChain);
 
 		createCubeMap();
 	}
@@ -622,23 +622,27 @@ namespace m1
 		_currentFrame = (_currentFrame + 1) % FRAMES_IN_FLIGHT;
 	}
 
-	void Engine::updateFrameUbo()
+	void Engine::updateFrameUbo() const
 	{
-		auto frameUbo = _framesData[_currentFrame]->frameUbo;
-		frameUbo.view = _camera.getViewMatrix();
-		frameUbo.proj = _camera.getProjectionMatrix();
-		frameUbo.lightViewProjMatrix = computeLightViewProjMatrix();
-		frameUbo.camPos = glm::vec4(_camera.getPosition(), 1.0f);
-		frameUbo.shadowsEnabled = _config.shadowsEnabled ? 1 : 0;
-
+		FrameUbo frameUbo
+		{
+			.view                = _camera.getViewMatrix(),
+			.proj                = _camera.getProjectionMatrix(),
+			.lightViewProjMatrix = computeLightViewProjMatrix(),
+			.camPos              = glm::vec4(_camera.getPosition(), 1.0f),
+			.iblIntensity        = _config.iblIntensity,
+			.shadowsEnabled      = _config.shadowsEnabled ? 1 : 0,
+		};
 		_framesData[_currentFrame]->frameUboBuffer->copyDataToBuffer(&frameUbo);
 	}
 
-	void Engine::updateObjectUbo(const SceneObject &sceneObject)
+	void Engine::updateObjectUbo(const SceneObject &sceneObject) const
 	{
-		auto objectUbo = _framesData[_currentFrame]->objectUbo;
-		objectUbo.model = sceneObject.Transform;
-		objectUbo.normalMatrix = glm::transpose(glm::inverse(sceneObject.Transform));
+		ObjectUbo objectUbo
+		{
+			.model        = sceneObject.Transform,
+			.normalMatrix = glm::transpose(glm::inverse(sceneObject.Transform)),
+		};
 
 		_framesData[_currentFrame]->objectUboBuffer->copyDataToBuffer(&objectUbo);
 	}
@@ -850,11 +854,13 @@ namespace m1
 		// draw objects
 		drawObjectsLoop(commandBuffer);
 
-		drawSkyBox(commandBuffer); // TODO flag ui
-
 		// draw particles
 		if (_config.particlesEnabled)
 			drawParticles(commandBuffer);
+
+		// draw sky box
+		if (_config.skyboxEnabled)
+			drawSkyBox(commandBuffer);
 
 		// end rendering
 		Renderer::endRendering(commandBuffer);
@@ -1396,12 +1402,10 @@ namespace m1
 			// create frame ubo
 			auto frameUboBuffer = std::make_unique<Buffer>(_device, frameUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT); // persistent mapping
-			FrameUbo frameUbo = {};
 
 			// create object ubo
 			auto objectUboBuffer = std::make_unique<Buffer>(_device, objectUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT); // persistent mapping
-			ObjectUbo objectUbo = {};
 
 			// create synchronization objects
 			VkFence drawFence, computeFence;
@@ -1411,8 +1415,8 @@ namespace m1
             VK_CHECK(vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &computeSem));
 
 			// create the frame data
-			_framesData[i] = std::make_unique<FrameData> (frameUbo, std::move(frameUboBuffer), objectUbo,
-				std::move(objectUboBuffer), descriptorSets[i], drawFence, drawSceneCmdBuffers[i]);
+			_framesData[i] = std::make_unique<FrameData> (std::move(frameUboBuffer), std::move(objectUboBuffer), descriptorSets[i],
+				drawFence, drawSceneCmdBuffers[i]);
 
 			_framesData[i]->skyBoxDescriptorSet = skyBoxDescriptorSets[i];
 			_framesData[i]->computeParticleDescriptorSet = computeParticlesDescSet[i];
@@ -1582,7 +1586,7 @@ namespace m1
 			auto& frameResources = _framesData[i];
 
 			//---------- PHONG DESCRIPTOR SET ---------------//
-			VkDescriptorBufferInfo materialDynUboInfo = frameResources->materialDynUboBuffer->getVkDescriptorBufferInfo();
+			VkDescriptorBufferInfo materialDynUboInfo = frameResources->materialPhongDynUboBuffer->getVkDescriptorBufferInfo();
 			materialDynUboInfo.range = _materialPhongUboAlignment;
 
 			auto materialDynUboWrite = Utils::initVkWriteDescriptorSet(material.descriptorSetPhong, 0,
@@ -1656,7 +1660,7 @@ namespace m1
 		size_t materialCount = _materials.size() + 1; // +1 is default material
 
 		// Init a material ubo array
-		std::vector<MaterialUbo> materialUbos;
+		std::vector<MaterialPhongUbo> materialUbos;
 		std::vector<MaterialPbrUbo> materialPbrUbos;
 		materialUbos.emplace_back(*_defaultMaterial);
 		materialPbrUbos.emplace_back(*_defaultMaterial);
@@ -1682,7 +1686,7 @@ namespace m1
 			Utils::uploadToDeviceBuffer(_device, *materialDynUboBuffer, materialUboSize, materialUbos.data());
 
 			// assign the buffer to the frame resource
-			_framesData[i]->materialDynUboBuffer = std::move(materialDynUboBuffer);
+			_framesData[i]->materialPhongDynUboBuffer = std::move(materialDynUboBuffer);
 
 			// === PBR ===
 

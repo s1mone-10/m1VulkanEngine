@@ -16,11 +16,9 @@ namespace m1
 
     struct FrameData
     {
-    	FrameData(const FrameUbo& frameUbo, std::unique_ptr<Buffer> frameUboBuffer, const ObjectUbo& objectUbo,
-    		std::unique_ptr<Buffer> objectUboBuffer, VkDescriptorSet frameDescriptorSet, VkFence drawFence,
-    		VkCommandBuffer drawSceneCmdBuffer) :
-				frameUbo(frameUbo), frameUboBuffer(std::move(frameUboBuffer)), objectUbo(objectUbo),
-				objectUboBuffer(std::move(objectUboBuffer)), frameDescriptorSet(frameDescriptorSet),
+    	FrameData(std::unique_ptr<Buffer> frameUboBuffer, std::unique_ptr<Buffer> objectUboBuffer, VkDescriptorSet frameDescriptorSet,
+    		VkFence drawFence, VkCommandBuffer drawSceneCmdBuffer) :
+				frameUboBuffer(std::move(frameUboBuffer)), objectUboBuffer(std::move(objectUboBuffer)), frameDescriptorSet(frameDescriptorSet),
     			drawCmdExecutedFence(drawFence), drawSceneCmdBuffer(drawSceneCmdBuffer)
     	{
     	}
@@ -30,15 +28,11 @@ namespace m1
         FrameData& operator=(const FrameData&) = delete;
 
     	// buffers
-        FrameUbo frameUbo; // TODO I need of this?
         std::unique_ptr<Buffer> frameUboBuffer;
-
-        ObjectUbo objectUbo;
         std::unique_ptr<Buffer> objectUboBuffer;
-
     	std::unique_ptr<Buffer> particleSSboBuffer;
 
-        std::unique_ptr<Buffer> materialDynUboBuffer; // contains data of all materials
+        std::unique_ptr<Buffer> materialPhongDynUboBuffer; // contains data of all materials
         std::unique_ptr<Buffer> materialPbrDynUboBuffer;
 
     	// descriptor set

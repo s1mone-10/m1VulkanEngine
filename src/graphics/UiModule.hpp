@@ -15,7 +15,7 @@ namespace m1
 	class UiModule
 	{
 	public:
-		UiModule(Engine& engine, const Device &device, const Window &window, const SwapChain &swapChain);
+		UiModule(Engine& engine, const Window &window, const SwapChain &swapChain);
 		~UiModule();
 
 		// Non-copyable, non-movable
@@ -24,13 +24,12 @@ namespace m1
 		UiModule(UiModule&&) = delete;
 		UiModule& operator=(UiModule&&) = delete;
 
-		void build();
+		void build() const;
 		void draw(VkCommandBuffer cmdBuffer, VkImageView colorImage, VkRect2D renderArea);
 
 	private:
 		Engine& _engine;
-		const Device& _device;
-		VkDescriptorPool _descriptorPool;
+		VkDescriptorPool _descriptorPool = VK_NULL_HANDLE;
 
 		void createDescriptorPool();
 		void initImGui(const Window &window, const SwapChain &swapChain);

@@ -28,7 +28,7 @@ int main()
 		.msaaEnabled = true,
 		.shadowsEnabled = true,
 		.particlesEnabled = false,
-		.uiEnabled = false,
+		.uiEnabled = true,
 		.lightingType = m1::LightingType::Pbr
 	};
     m1::Engine engine{engineConfig};
