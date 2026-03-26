@@ -71,9 +71,9 @@ namespace m1
 
     	// As the irradiance map averages all surrounding radiance uniformly, it doesn't have a lot of high frequency details,
     	// so we can store the map at a low resolution (32x32) and let GPU linear filtering do most of the work
-    	static constexpr VkExtent2D IRRADIANCE_CUBEMAP_RESOLUTION = {64, 64 };
-    	static constexpr VkExtent2D PREFILTERED_ENV_CUBEMAP_RESOLUTION = {256, 256 };
-    	static constexpr VkExtent2D BRDF_LUT_RESOLUTION = {1024, 1024 };
+    	static constexpr VkExtent2D IRRADIANCE_CUBEMAP_RESOLUTION = {32, 32 };
+    	static constexpr VkExtent2D PREFILTERED_ENV_CUBEMAP_RESOLUTION = {128, 128 };
+    	static constexpr VkExtent2D BRDF_LUT_RESOLUTION = {512, 512 };
     	static constexpr uint32_t PREFILTERED_ENV_CUBEMAP_MIP_LEVELS = 5;
     	static constexpr VkExtent2D ENVIRONMENT_CUBEMAP_RESOLUTION = {1024, 1024 };
     	static constexpr VkFormat ENVIRONMENT_CUBEMAP_FORMAT = VK_FORMAT_R16G16B16A16_SFLOAT;

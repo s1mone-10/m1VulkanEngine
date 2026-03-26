@@ -105,7 +105,7 @@ void main(){
     // Sample normal map and convert from [0,1] to [-1,1] range
     vec3 N = texture(normalMap, fragTextCoord).xyz * 2.0 - 1.0;
     // Transform normal from tangent space to world space
-    N = normalize(TBN * N); // TODO TBN matrix must be re-orthogonalized or normalized?
+    N = normalize(TBN * N);
 
     // Calculate view direction (fragment to camera)
     vec3 V = normalize(frameUbo.camPos.xyz - fragPosWorld);

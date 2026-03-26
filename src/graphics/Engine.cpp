@@ -1357,7 +1357,6 @@ namespace m1
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::OneSampler))
 			   .addColorAttachment(BRDF_LUT_FORMAT)
 			   .clearVertexInput()
-		.setCullModeFlags(VK_CULL_MODE_NONE)
 			   .addShaderStage(R"(..\shaders\compiled\quadNDC.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
 			   .addShaderStage(R"(..\shaders\compiled\brdfLUT.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .clearPushConstantRanges();
@@ -1478,11 +1477,11 @@ namespace m1
 
 		// Directional light (like sunlight)
 		_lightsUbo.lights[1].posDir = glm::vec4(-0.5f, -.8f, -1.f, 0.0f); // w=0 => dir light
-		_lightsUbo.lights[1].color = glm::vec4(1.0f, 1.0f, 1.0f, 4.f);
+		_lightsUbo.lights[1].color = glm::vec4(1.0f, 1.0f, 1.0f, 1.f);
 
 		// Point light
 		_lightsUbo.lights[0].posDir = glm::vec4(5.2f, 6.2f, -5.2f, 1.0f); // w=1 => point light
-		_lightsUbo.lights[0].color = glm::vec4(1.0f, 1.0f, 1.0f, 2.0f);
+		_lightsUbo.lights[0].color = glm::vec4(1.0f, 1.0f, 1.0f, .8f);
 		_lightsUbo.lights[0].attenuation = glm::vec4(1.0f, 0.09f, 0.032f, 0.0f);
 
 		// Create the lights ubo with device local memory for better performance
