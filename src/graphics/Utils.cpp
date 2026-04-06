@@ -46,7 +46,6 @@ namespace m1
 	std::unique_ptr<Texture> loadEquirectangularHDRMap(const Engine& engine, const std::string& filePath)
     {
     	int width, height, nrComponents;
-    	// TODO loadf -> float
     	auto* data = stbi_loadf(filePath.c_str(), &width, &height, &nrComponents, 4);
     	if (data)
     	{

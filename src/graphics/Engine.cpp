@@ -105,8 +105,8 @@ namespace m1
 
 	void Engine::loadIblTextures() const
 	{
-		//auto equirectTexture = loadEquirectangularHDRMap(*this, "../resources/newport_loft.hdr");
-		auto equirectTexture = loadEquirectangularHDRMap(*this, "../resources/HDR_111_Parking_Lot_2_Ref.hdr");
+		//auto equirectTexture = loadEquirectangularHDRMap(*this, std::string(PROJECT_SOURCE_DIR) + "/resources/newport_loft.hdr");
+		auto equirectTexture = loadEquirectangularHDRMap(*this, std::string(PROJECT_SOURCE_DIR) + "/resources/HDR_111_Parking_Lot_2_Ref.hdr");
 
 		auto equirectToCubemapDescriptorSet = _descriptorSetManager->allocateDescriptorSets(DescriptorSetLayoutType::OneSampler, 1)[0];
 
@@ -1257,11 +1257,13 @@ namespace m1
 		_graphicsPipelines.clear();
 		_computePipeline.reset();
 
+		auto shadersPath = std::string(PROJECT_SOURCE_DIR) + "/shaders/compiled/";
+
 		// Shadow mapping
 		GraphicsPipelineBuilder builder{};
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::Frame))
 		       .setDepthAttachmentFormat(_shadowMap->getImage().getFormat())
-		       .addShaderStage(R"(..\shaders\compiled\shadow.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
+		       .addShaderStage(shadersPath + "shadow.vert.spv", VK_SHADER_STAGE_VERTEX_BIT)
 		       // front face culling to fix peter panning artifacts, but works only for 3D solid objects, not for planes/surfaces
 		       .setCullModeFlags(VK_CULL_MODE_FRONT_BIT);
 		_graphicsPipelines.emplace(PipelineType::ShadowMapping, builder.build(_device));
@@ -1271,8 +1273,8 @@ namespace m1
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::Frame))
 		       .addColorAttachment(_swapChain->getSwapChainImageFormat())
 		       .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
-		       .addShaderStage(R"(..\shaders\compiled\noLight.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
-		       .addShaderStage(R"(..\shaders\compiled\noLight.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+		       .addShaderStage(shadersPath + "noLight.vert.spv", VK_SHADER_STAGE_VERTEX_BIT)
+		       .addShaderStage(shadersPath + "noLight.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT)
 		       .setSamples(_swapChain->getSamples());
 		_graphicsPipelines.emplace(PipelineType::NoLight, builder.build(_device));
 
@@ -1282,8 +1284,8 @@ namespace m1
 		       .addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::MaterialPhong)) // set 1
 			   .addColorAttachment(_swapChain->getSwapChainImageFormat())
 			   .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
-			   .addShaderStage(R"(..\shaders\compiled\phong.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
-			   .addShaderStage(R"(..\shaders\compiled\phong.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .addShaderStage(shadersPath + "phong.vert.spv", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(shadersPath + "phong.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .setSamples(_swapChain->getSamples());
 		_graphicsPipelines.emplace(PipelineType::PhongLighting, builder.build(_device));
 
@@ -1293,8 +1295,8 @@ namespace m1
 			   .addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::MaterialPbr)) // set 1
 			   .addColorAttachment(_swapChain->getSwapChainImageFormat())
 			   .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
-			   .addShaderStage(R"(..\shaders\compiled\pbr.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
-			   .addShaderStage(R"(..\shaders\compiled\pbr.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .addShaderStage(shadersPath + "pbr.vert.spv", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(shadersPath + "pbr.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .setSamples(_swapChain->getSamples());
 		_graphicsPipelines.emplace(PipelineType::PbrLighting, builder.build(_device));
 
@@ -1303,8 +1305,8 @@ namespace m1
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::Frame)) // set 0
 			   .addColorAttachment(_swapChain->getSwapChainImageFormat())
 			   .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
-			   .addShaderStage(R"(..\shaders\compiled\particle.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
-			   .addShaderStage(R"(..\shaders\compiled\particle.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .addShaderStage(shadersPath + "particle.vert.spv", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(shadersPath + "particle.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .setPrimitiveTopology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
 			   .setSamples(_swapChain->getSamples());
 		_graphicsPipelines.emplace(PipelineType::Particles, builder.build(_device));
@@ -1315,8 +1317,8 @@ namespace m1
 			   .addColorAttachment(_swapChain->getSwapChainImageFormat())
 			   .setDepthAttachmentFormat(_swapChain->getDepthImage().getFormat())
 			   .clearVertexInput()
-			   .addShaderStage(R"(..\shaders\compiled\skyBox.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
-			   .addShaderStage(R"(..\shaders\compiled\skyBox.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .addShaderStage(shadersPath + "skyBox.vert.spv", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(shadersPath + "skyBox.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .setDepthCompareOp(VK_COMPARE_OP_LESS_OR_EQUAL)
 			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(IblPushConstantData))
 			   .setSamples(_swapChain->getSamples());
@@ -1327,8 +1329,8 @@ namespace m1
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::OneSampler))
 			   .addColorAttachment(ENVIRONMENT_CUBEMAP_FORMAT)
 			   .clearVertexInput()
-			   .addShaderStage(R"(..\shaders\compiled\cubeNDC.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
-			   .addShaderStage(R"(..\shaders\compiled\equirectToCube.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .addShaderStage(shadersPath + "cubeNDC.vert.spv", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(shadersPath + "equirectToCube.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(IblPushConstantData));
 		_graphicsPipelines.emplace(PipelineType::EquirectToCube, builder.build(_device));
 
@@ -1337,8 +1339,8 @@ namespace m1
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::OneSampler))
 			   .addColorAttachment(ENVIRONMENT_CUBEMAP_FORMAT)
 			   .clearVertexInput()
-			   .addShaderStage(R"(..\shaders\compiled\cubeNDC.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
-			   .addShaderStage(R"(..\shaders\compiled\irradianceConvolution.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .addShaderStage(shadersPath + "cubeNDC.vert.spv", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(shadersPath + "irradianceConvolution.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(IblPushConstantData));
 		_graphicsPipelines.emplace(PipelineType::IrradianceConvolution, builder.build(_device));
 
@@ -1347,8 +1349,8 @@ namespace m1
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::OneSampler))
 			   .addColorAttachment(ENVIRONMENT_CUBEMAP_FORMAT)
 			   .clearVertexInput()
-			   .addShaderStage(R"(..\shaders\compiled\cubeNDC.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
-			   .addShaderStage(R"(..\shaders\compiled\prefilterEnv.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .addShaderStage(shadersPath + "cubeNDC.vert.spv", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(shadersPath + "prefilterEnv.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .clearPushConstantRanges().addPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(IblPushConstantData));
 		_graphicsPipelines.emplace(PipelineType::PrefilterEnv, builder.build(_device));
 
@@ -1357,15 +1359,15 @@ namespace m1
 		builder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::OneSampler))
 			   .addColorAttachment(BRDF_LUT_FORMAT)
 			   .clearVertexInput()
-			   .addShaderStage(R"(..\shaders\compiled\quadNDC.vert.spv)", VK_SHADER_STAGE_VERTEX_BIT)
-			   .addShaderStage(R"(..\shaders\compiled\brdfLUT.frag.spv)", VK_SHADER_STAGE_FRAGMENT_BIT)
+			   .addShaderStage(shadersPath + "quadNDC.vert.spv", VK_SHADER_STAGE_VERTEX_BIT)
+			   .addShaderStage(shadersPath + "brdfLUT.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT)
 			   .clearPushConstantRanges();
 		_graphicsPipelines.emplace(PipelineType::BrdfLUT, builder.build(_device));
 
 		// Compute
 		ComputePipelineBuilder computeBuilder{};
 		computeBuilder.addSetLayout(_descriptorSetManager->getDescriptorSetLayout(DescriptorSetLayoutType::ComputeParticles))
-		              .setShader(R"(..\shaders\compiled\particle.comp.spv)");
+		              .setShader(shadersPath + "particle.comp.spv");
 		_computePipeline = computeBuilder.build(_device);
 	}
 

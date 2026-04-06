@@ -109,6 +109,10 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG)
 endif()
 
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+  PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+)
+
 # specify include directories to use when compiling
 target_include_directories(${PROJECT_NAME} PUBLIC
   ${PROJECT_SOURCE_DIR}/src

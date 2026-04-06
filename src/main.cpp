@@ -51,17 +51,10 @@ int main()
 
 void loadScene(m1::Engine& engine)
 {
-    const std::string MODEL_PATH = "../resources/viking_room.obj";
-    //const std::string MODEL_PATH = "../resources/colored_cube.obj";
-    //const std::string MODEL_PATH = "../resources/smooth_vase.obj";
-    //const std::string MODEL_PATH = "../resources/flat_vase.obj";
-    const std::string TEXTURE_PATH = "../resources/viking_room.png";
+    loadCubes(engine, 3);
+    //loadObj(engine, std::string(PROJECT_SOURCE_DIR) + "/resources/viking_room.obj");
 
-
-    //loadCubes(engine, 3);
-    //loadObj(engine, MODEL_PATH);
-
-    loadGltf(engine, "../resources/DamagedHelmet.glb");
+    loadGltf(engine, std::string(PROJECT_SOURCE_DIR) + "/resources/DamagedHelmet.glb");
     //loadGltf(engine, "C:\\Users\\simon\\Downloads\\NormalTangentTest.glb");
 }
 
@@ -173,8 +166,8 @@ void loadCubes(m1::Engine &engine, const uint32_t numCubes)
 	// container texture
 	glm::vec4 white(1.0f);
 	auto material = std::make_unique<m1::Material>("container", 64.0f, white,white,white);
-	material->diffuseTexturePath = "../resources/container.png";
-	material->specularTexturePath = "../resources/container_specular.png";
+	material->diffuseTexturePath = std::string(PROJECT_SOURCE_DIR) + "/resources/container.png";
+	material->specularTexturePath = std::string(PROJECT_SOURCE_DIR) + "/resources/container_specular.png";
 	engine.addMaterial(std::move(material));
 
 	// floor
