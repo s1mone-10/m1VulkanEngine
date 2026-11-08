@@ -23,6 +23,7 @@
 #include <random>
 #include <ranges>
 #include <limits>
+#include <cstring>
 
 namespace m1
 {
@@ -1653,21 +1654,29 @@ namespace m1
 
 		size_t materialCount = _materials.size() + 1; // +1 is default material
 
-		// Init a material ubo array
-		std::vector<MaterialPhongUbo> materialUbos;
-		std::vector<MaterialPbrUbo> materialPbrUbos;
-		materialUbos.emplace_back(*_defaultMaterial);
-		materialPbrUbos.emplace_back(*_defaultMaterial);
-
-		for (const auto& material: _materials | std::views::values)
-		{
-			materialUbos.emplace_back(*material);
-			materialPbrUbos.emplace_back(*material);
-		}
-
 		// Create the material dynamic ubo buffers, one for each frame in flight
 		size_t materialUboSize = materialCount * _materialPhongUboAlignment;
 		size_t materialPbrUboSize = materialCount * _materialPbrUboAlignment;
+
+		// Init the material ubo arrays. A dynamic ubo requires every instance to start at a multiple of the
+		// alignment, so the ubos are written with the aligned stride instead of being tightly packed.
+		std::vector<std::byte> materialUboData(materialUboSize);
+		std::vector<std::byte> materialPbrUboData(materialPbrUboSize);
+
+		size_t uboIndex = 0;
+		auto writeMaterialUbos = [&](const Material& material)
+		{
+			MaterialPhongUbo phongUbo(material);
+			MaterialPbrUbo pbrUbo(material);
+			std::memcpy(materialUboData.data() + uboIndex * _materialPhongUboAlignment, &phongUbo, sizeof(phongUbo));
+			std::memcpy(materialPbrUboData.data() + uboIndex * _materialPbrUboAlignment, &pbrUbo, sizeof(pbrUbo));
+			uboIndex++;
+		};
+
+		writeMaterialUbos(*_defaultMaterial); // the default material always comes first
+		for (const auto& material: _materials | std::views::values)
+			writeMaterialUbos(*material);
+
 		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 		{
 			// === Bling-Phong ===
@@ -1676,7 +1685,7 @@ namespace m1
 			auto materialDynUboBuffer = std::make_unique<Buffer>(_device, materialUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
 			// copy material ubos array to the dynamic buffer
-			uploadToDeviceBuffer(_device, *materialDynUboBuffer, materialUboSize, materialUbos.data());
+			uploadToDeviceBuffer(_device, *materialDynUboBuffer, materialUboSize, materialUboData.data());
 
 			// assign the buffer to the frame resource
 			_framesData[i]->materialPhongDynUboBuffer = std::move(materialDynUboBuffer);
@@ -1687,7 +1696,7 @@ namespace m1
 			auto materialPbrDynUboBuffer = std::make_unique<Buffer>(_device, materialPbrUboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
 			// copy material ubos array to the dynamic buffer
-			uploadToDeviceBuffer(_device, *materialPbrDynUboBuffer, materialPbrUboSize, materialPbrUbos.data());
+			uploadToDeviceBuffer(_device, *materialPbrDynUboBuffer, materialPbrUboSize, materialPbrUboData.data());
 
 			// assign the buffer to the frame resource
 			_framesData[i]->materialPbrDynUboBuffer = std::move(materialPbrDynUboBuffer);
